@@ -27,7 +27,6 @@ from config import finalize_configs, config as cfg
 from data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
 from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
 from model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align
-from model_cascade import CascadeRCNNHead
 from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses
 from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets
 from model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
@@ -265,21 +264,14 @@ class ResNetFPNModel(DetectionModel):
             proposals = sample_fast_rcnn_targets(proposals.boxes, gt_boxes, gt_labels)
 
         fastrcnn_head_func = getattr(model_frcnn, cfg.FPN.FRCNN_HEAD_FUNC)
-        if not cfg.FPN.CASCADE:
-            roi_feature_fastrcnn = multilevel_roi_align(features[:4], proposals.boxes, 7)
+        roi_feature_fastrcnn = multilevel_roi_align(features[:4], proposals.boxes, 7)
 
-            head_feature = fastrcnn_head_func('fastrcnn', roi_feature_fastrcnn)
-            fastrcnn_label_logits, fastrcnn_box_logits = fastrcnn_outputs(
-                'fastrcnn/outputs', head_feature, cfg.DATA.NUM_CLASS)
-            fastrcnn_head = FastRCNNHead(proposals, fastrcnn_box_logits, fastrcnn_label_logits,
-                                         gt_boxes, tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32))
-        else:
-            def roi_func(boxes):
-                return multilevel_roi_align(features[:4], boxes, 7)
+        head_feature = fastrcnn_head_func('fastrcnn', roi_feature_fastrcnn)
+        fastrcnn_label_logits, fastrcnn_box_logits = fastrcnn_outputs(
+            'fastrcnn/outputs', head_feature, cfg.DATA.NUM_CLASS)
+        fastrcnn_head = FastRCNNHead(proposals, fastrcnn_box_logits, fastrcnn_label_logits,
+                                     gt_boxes, tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32))
 
-            fastrcnn_head = CascadeRCNNHead(
-                proposals, roi_func, fastrcnn_head_func,
-                (gt_boxes, gt_labels), image_shape2d, cfg.DATA.NUM_CLASS)
 
         if self.training:
             all_losses = fastrcnn_head.losses()

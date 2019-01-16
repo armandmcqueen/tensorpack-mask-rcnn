@@ -77,7 +77,7 @@ _C = config     # short alias to avoid coding
 # mode flags ---------------------
 _C.TRAINER = 'replicated'  # options: 'horovod', 'replicated'
 _C.MODE_MASK = True        # FasterRCNN or MaskRCNN
-_C.MODE_FPN = False
+_C.MODE_FPN = True
 
 # dataset -----------------------
 _C.DATA.BASEDIR = '/path/to/your/DATA/DIR'
@@ -187,11 +187,6 @@ _C.FPN.MRCNN_HEAD_FUNC = 'maskrcnn_up4conv_head'   # choices: maskrcnn_up4conv_{
 
 # Mask-RCNN
 _C.MRCNN.HEAD_DIM = 256
-
-# Cascade-RCNN, only available in FPN mode
-_C.FPN.CASCADE = False
-_C.CASCADE.IOUS = [0.5, 0.6, 0.7]
-_C.CASCADE.BBOX_REG_WEIGHTS = [[10., 10., 5., 5.], [20., 20., 10., 10.], [30., 30., 15., 15.]]
 
 # testing -----------------------
 _C.TEST.FRCNN_NMS_THRESH = 0.5
