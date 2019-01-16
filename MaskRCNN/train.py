@@ -417,7 +417,7 @@ if __name__ == '__main__':
     if args.config:
         cfg.update_args(args.config)
 
-    MODEL = ResNetFPNModel() if cfg.MODE_FPN else ResNetC4Model()
+    MODEL = ResNetFPNModel()
     DetectionDataset()  # initialize the config with information from our dataset
 
     if args.visualize or args.evaluate or args.predict:
