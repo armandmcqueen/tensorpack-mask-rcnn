@@ -1,3 +1,6 @@
+# armandmcqueen specific
+venv/
+
 # tensorpack-specific stuff
 train_log
 train_log_*
@@ -19,7 +22,7 @@ checkpoint
 *.gz
 
 
-venv/
+
 
 
 # Byte-compiled / optimized / DLL files
