@@ -41,7 +41,6 @@ except ImportError:
 
 class DetectionModel(ModelDesc):
     def preprocess(self, image):
-        image = tf.expand_dims(image, 0)
         image = image_preprocess(image, bgr=True)
         return tf.transpose(image, [0, 3, 1, 2])
 
@@ -71,27 +70,49 @@ class DetectionModel(ModelDesc):
         out = ['output/boxes', 'output/scores', 'output/labels']
         if cfg.MODE_MASK:
             out.append('output/masks')
-        return ['image'], out
+        return ['images'], out
+
+    # def build_graph(self, *inputs):
+    #     inputs = dict(zip(self.input_names, inputs))
+    #
+    #     image = self.preprocess(inputs['image'])     # 1CHW
+    #
+    #     features = self.backbone(image)
+    #     anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
+    #     proposals, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
+    #
+    #     targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
+    #     head_losses = self.roi_heads(image, features, proposals, targets)
+    #
+    #     if self.training:
+    #         wd_cost = regularize_cost(
+    #             '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
+    #         total_cost = tf.add_n(
+    #             rpn_losses + head_losses + [wd_cost], 'total_cost')
+    #         add_moving_summary(total_cost, wd_cost)
+    #         return total_cost
 
     def build_graph(self, *inputs):
         inputs = dict(zip(self.input_names, inputs))
 
-        image = self.preprocess(inputs['image'])     # 1CHW
+        image = self.preprocess(inputs['images'])     # NCHW
 
         features = self.backbone(image)
-        anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
-        proposals, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
 
-        targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
-        head_losses = self.roi_heads(image, features, proposals, targets)
-
-        if self.training:
-            wd_cost = regularize_cost(
-                '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
-            total_cost = tf.add_n(
-                rpn_losses + head_losses + [wd_cost], 'total_cost')
-            add_moving_summary(total_cost, wd_cost)
-            return total_cost
+        return 1
+        # anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
+        # proposals, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
+        #
+        # targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
+        # head_losses = self.roi_heads(image, features, proposals, targets)
+        #
+        # if self.training:
+        #     wd_cost = regularize_cost(
+        #         '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
+        #     total_cost = tf.add_n(
+        #         rpn_losses + head_losses + [wd_cost], 'total_cost')
+        #     add_moving_summary(total_cost, wd_cost)
+        #     return total_cost
 
 
 
@@ -100,44 +121,31 @@ class DetectionModel(ModelDesc):
 
 class ResNetFPNModel(DetectionModel):
 
+
     def inputs(self):
         ret = [
-            tf.placeholder(tf.float32, (None, None, 3), 'image')] # NxHxWxC
+            tf.placeholder(tf.float32, (None, None, None, 3), 'images'),            # N x H x W x C
+            tf.placeholder(tf.int32, (None, 3), 'orig_image_dims')                  # N x 3(image dims)
+        ]
         num_anchors = len(cfg.RPN.ANCHOR_RATIOS)
         for k in range(len(cfg.FPN.ANCHOR_STRIDES)):
             ret.extend([
-                tf.placeholder(tf.int32, (None, None, num_anchors),
+                tf.placeholder(tf.int32, (None, None, None, num_anchors),           # N x H x W x NumAnchors
                                'anchor_labels_lvl{}'.format(k + 2)),
-                tf.placeholder(tf.float32, (None, None, num_anchors, 4),
+                tf.placeholder(tf.float32, (None, None, None, num_anchors, 4),      # N x H x W x NumAnchors x 4
                                'anchor_boxes_lvl{}'.format(k + 2))])
         ret.extend([
-            tf.placeholder(tf.float32, (None, 4), 'gt_boxes'),
-            tf.placeholder(tf.int64, (None,), 'gt_labels')])  # all > 0
+            tf.placeholder(tf.float32, (None, None, 4), 'gt_boxes'),                # N x MaxNumGTs x 4
+            tf.placeholder(tf.int64, (None, None), 'gt_labels'),   # all > 0        # N x MaxNumGTs
+            tf.placeholder(tf.int32, (None,), 'orig_gt_counts')                     # N
+        ])
+
+
         if cfg.MODE_MASK:
             ret.append(
-                tf.placeholder(tf.uint8, (None, None, None), 'gt_masks')
+                tf.placeholder(tf.uint8, (None, None, None, None), 'gt_masks')      # N x MaxNumGTs x H x W
             )
         return ret
-
-
-    # def inputs(self):
-    #     ret = [
-    #         tf.placeholder(tf.float32, (None, None, None, 3), 'image')] # NxHxWxC
-    #     num_anchors = len(cfg.RPN.ANCHOR_RATIOS)
-    #     for k in range(len(cfg.FPN.ANCHOR_STRIDES)):
-    #         ret.extend([
-    #             tf.placeholder(tf.int32, (None, None, None, num_anchors),           # N x H x W x NumAnchors
-    #                            'anchor_labels_lvl{}'.format(k + 2)),
-    #             tf.placeholder(tf.float32, (None, None, None, num_anchors, 4),      # N x H x W x NumAnchors x 4
-    #                            'anchor_boxes_lvl{}'.format(k + 2))])
-    #     ret.extend([
-    #         tf.placeholder(tf.float32, (None, None, 4), 'gt_boxes'),                # N x MaxNumGTs x 4
-    #         tf.placeholder(tf.int64, (None, None), 'gt_labels')])  # all > 0        # N x MaxNumGTs
-    #     if cfg.MODE_MASK:
-    #         ret.append(
-    #             tf.placeholder(tf.uint8, (None, None, None, None), 'gt_masks')      # N x MaxNumGTs x H x W
-    #         )
-    #     return ret
 
     # TODO: Batchify
     def slice_feature_and_anchors(self, p23456, anchors):
@@ -253,7 +261,7 @@ def do_visualize(model, model_path, nr_visualize=100, output_dir='output'):
     pred = OfflinePredictor(PredictConfig(
         model=model,
         session_init=get_model_loader(model_path),
-        input_names=['image', 'gt_boxes', 'gt_labels'],
+        input_names=['images', 'gt_boxes', 'gt_labels'],
         output_names=[
             'generate_{}_proposals/boxes'.format('fpn' if cfg.MODE_FPN else 'rpn'),
             'generate_{}_proposals/scores'.format('fpn' if cfg.MODE_FPN else 'rpn'),
@@ -268,7 +276,7 @@ def do_visualize(model, model_path, nr_visualize=100, output_dir='output'):
     utils.fs.mkdir_p(output_dir)
     with tqdm.tqdm(total=nr_visualize) as pbar:
         for idx, dp in itertools.islice(enumerate(df), nr_visualize):
-            img, gt_boxes, gt_labels = dp['image'], dp['gt_boxes'], dp['gt_labels']
+            img, gt_boxes, gt_labels = dp['images'], dp['gt_boxes'], dp['gt_labels']
 
             rpn_boxes, rpn_scores, all_scores, \
                 final_boxes, final_scores, final_labels = pred(img, gt_boxes, gt_labels)
