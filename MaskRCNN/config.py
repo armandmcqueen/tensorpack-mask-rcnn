@@ -75,7 +75,7 @@ config = AttrDict()
 _C = config     # short alias to avoid coding
 
 # mode flags ---------------------
-_C.TRAINER = 'replicated'  # options: 'horovod', 'replicated'
+_C.TRAINER = 'horovod'  # options: 'horovod', 'replicated'
 _C.MODE_MASK = True        # FasterRCNN or MaskRCNN
 _C.MODE_FPN = True
 

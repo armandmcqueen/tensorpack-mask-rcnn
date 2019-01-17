@@ -267,23 +267,30 @@ def get_multilevel_rpn_anchor_input(im, boxes, is_crowd):
     return multilevel_inputs
 
 
-def get_train_dataflow():
+
+
+
+def get_train_dataflow(batch_size=2):
     """
     Return a training dataflow. Each datapoint consists of the following:
 
-    An image: (h, w, 3),
+    A batch of images: (BS, h, w, 3),
 
-    1 or more pairs of (anchor_labels, anchor_boxes):
-    anchor_labels: (h', w', NA)
-    anchor_boxes: (h', w', NA, 4)
+    For each image
 
-    gt_boxes: (N, 4)
-    gt_labels: (N,)
+    1 or more pairs of (anchor_labels, anchor_boxes) :
+    anchor_labels: (BS, h', w', maxNumAnchors)
+    anchor_boxes: (BS, h', w', maxNumAnchors, 4)
 
-    If MODE_MASK, gt_masks: (N, h, w)
+    gt_boxes: (BS, maxNumAnchors, 4)
+    gt_labels: (BS, maxNumAnchors)
+
+    If MODE_MASK, gt_masks: (BS, maxNumAnchors, h, w)
     """
 
     roidbs = DetectionDataset().load_training_roidbs(cfg.DATA.TRAIN)
+
+    print(roidbs)
     print_class_histogram(roidbs)
 
     # Valid training images should have at least one fg box.
@@ -293,71 +300,94 @@ def get_train_dataflow():
     logger.info("Filtered {} images which contain no non-crowd groudtruth boxes. Total #images for training: {}".format(
         num - len(roidbs), len(roidbs)))
 
-    ds = DataFromList(roidbs, shuffle=True)
+    batched_roidbs = []
+    batch = []
+    for i, d in enumerate(roidbs):
+        if i % batch_size == 0:
+            if len(batch) == batch_size:
+                batched_roidbs.append(batch)
+            batch = []
+
+
+    # Notes:
+    #   - discard any leftover images
+    #   - The batches will be shuffled, but the contents of each batch will always be the same
+    #   - TODO: Fix lack of batch contents shuffling
+
+
+
+    ds = DataFromList(batched_roidbs, shuffle=True)
 
     aug = imgaug.AugmentorList(
         [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
          imgaug.Flip(horiz=True)])
 
-    def preprocess(roidb):
-        fname, boxes, klass, is_crowd = roidb['file_name'], roidb['boxes'], roidb['class'], roidb['is_crowd']
-        boxes = np.copy(boxes)
-        im = cv2.imread(fname, cv2.IMREAD_COLOR)
-        assert im is not None, fname
-        im = im.astype('float32')
-        # assume floatbox as input
-        assert boxes.dtype == np.float32, "Loader has to return floating point boxes!"
+    def preprocess(roidb_batch):
+        datapoint_list = []
+        for roidb in roidb_batch:
+            fname, boxes, klass, is_crowd = roidb['file_name'], roidb['boxes'], roidb['class'], roidb['is_crowd']
+            boxes = np.copy(boxes)
+            im = cv2.imread(fname, cv2.IMREAD_COLOR)
+            assert im is not None, fname
+            im = im.astype('float32')
+            # assume floatbox as input
+            assert boxes.dtype == np.float32, "Loader has to return floating point boxes!"
 
-        # augmentation:
-        im, params = aug.augment_return_params(im)
-        points = box_to_point8(boxes)
-        points = aug.augment_coords(points, params)
-        boxes = point8_to_box(points)
-        assert np.min(np_area(boxes)) > 0, "Some boxes have zero area!"
+            # augmentation:
+            im, params = aug.augment_return_params(im)
+            points = box_to_point8(boxes)
+            points = aug.augment_coords(points, params)
+            boxes = point8_to_box(points)
+            assert np.min(np_area(boxes)) > 0, "Some boxes have zero area!"
 
-        ret = {'image': im}
-        # rpn anchor:
-        try:
-            if cfg.MODE_FPN:
-                multilevel_anchor_inputs = get_multilevel_rpn_anchor_input(im, boxes, is_crowd)
-                for i, (anchor_labels, anchor_boxes) in enumerate(multilevel_anchor_inputs):
-                    ret['anchor_labels_lvl{}'.format(i + 2)] = anchor_labels
-                    ret['anchor_boxes_lvl{}'.format(i + 2)] = anchor_boxes
-            else:
-                # anchor_labels, anchor_boxes
-                ret['anchor_labels'], ret['anchor_boxes'] = get_rpn_anchor_input(im, boxes, is_crowd)
+            ret = {'image': im}
+            # rpn anchor:
+            try:
+                if cfg.MODE_FPN:
+                    multilevel_anchor_inputs = get_multilevel_rpn_anchor_input(im, boxes, is_crowd)
+                    for i, (anchor_labels, anchor_boxes) in enumerate(multilevel_anchor_inputs):
+                        ret['anchor_labels_lvl{}'.format(i + 2)] = anchor_labels
+                        ret['anchor_boxes_lvl{}'.format(i + 2)] = anchor_boxes
+                else:
+                    raise NotImplementedError("[armand] Batch mode only available for FPN")
 
-            boxes = boxes[is_crowd == 0]    # skip crowd boxes in training target
-            klass = klass[is_crowd == 0]
-            ret['gt_boxes'] = boxes
-            ret['gt_labels'] = klass
-            if not len(boxes):
-                raise MalformedData("No valid gt_boxes!")
-        except MalformedData as e:
-            log_once("Input {} is filtered for training: {}".format(fname, str(e)), 'warn')
-            return None
+                boxes = boxes[is_crowd == 0]    # skip crowd boxes in training target
+                klass = klass[is_crowd == 0]
+                ret['gt_boxes'] = boxes
+                ret['gt_labels'] = klass
+                if not len(boxes):
+                    raise MalformedData("No valid gt_boxes!")
+            except MalformedData as e:
+                log_once("Input {} is filtered for training: {}".format(fname, str(e)), 'warn')
+                return None
 
-        if cfg.MODE_MASK:
-            # augmentation will modify the polys in-place
-            segmentation = copy.deepcopy(roidb['segmentation'])
-            segmentation = [segmentation[k] for k in range(len(segmentation)) if not is_crowd[k]]
-            assert len(segmentation) == len(boxes)
+            if cfg.MODE_MASK:
+                # augmentation will modify the polys in-place
+                segmentation = copy.deepcopy(roidb['segmentation'])
+                segmentation = [segmentation[k] for k in range(len(segmentation)) if not is_crowd[k]]
+                assert len(segmentation) == len(boxes)
 
-            # Apply augmentation on polygon coordinates.
-            # And produce one image-sized binary mask per box.
-            masks = []
-            for polys in segmentation:
-                polys = [aug.augment_coords(p, params) for p in polys]
-                masks.append(segmentation_to_mask(polys, im.shape[0], im.shape[1]))
-            masks = np.asarray(masks, dtype='uint8')    # values in {0, 1}
-            ret['gt_masks'] = masks
+                # Apply augmentation on polygon coordinates.
+                # And produce one image-sized binary mask per box.
+                masks = []
+                for polys in segmentation:
+                    polys = [aug.augment_coords(p, params) for p in polys]
+                    masks.append(segmentation_to_mask(polys, im.shape[0], im.shape[1]))
+                masks = np.asarray(masks, dtype='uint8')    # values in {0, 1}
+                ret['gt_masks'] = masks
 
-            # from viz import draw_annotation, draw_mask
-            # viz = draw_annotation(im, boxes, klass)
-            # for mask in masks:
-            #     viz = draw_mask(viz, mask)
-            # tpviz.interactive_imshow(viz)
-        return ret
+
+            print(ret)
+            quit()
+
+
+
+        # TODO: Convert datapoint_list into padded
+        return None
+
+
+
+
 
     if cfg.TRAINER == 'horovod':
         ds = MultiThreadMapData(ds, 5, preprocess)
@@ -365,6 +395,9 @@ def get_train_dataflow():
     else:
         ds = MultiProcessMapDataZMQ(ds, 10, preprocess)
     return ds
+
+
+
 
 
 def get_eval_dataflow(name, shard=0, num_shards=1):
