@@ -316,7 +316,7 @@ def get_train_dataflow(batch_size=2):
 
 
 
-    ds = DataFromList(batched_roidbs, shuffle=True)
+
 
     aug = imgaug.AugmentorList(
         [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
@@ -376,9 +376,9 @@ def get_train_dataflow(batch_size=2):
                 masks = np.asarray(masks, dtype='uint8')    # values in {0, 1}
                 ret['gt_masks'] = masks
 
-
+            print("----")
             print(ret)
-            quit()
+
 
 
 
@@ -386,8 +386,21 @@ def get_train_dataflow(batch_size=2):
         return None
 
 
+    ds = DataFromList(batched_roidbs, shuffle=True)
+
+    #################################################################################################################
+
+    test_batch = batched_roidbs[0]
+    print("TEST_BATCH")
+    print(test_batch)
+    print("\END TEST_BATCH")
+
+    print("Running preprocess on test_batch")
+    out = preprocess(test_batch)
+    print("complete")
 
 
+    #################################################################################################################
 
     if cfg.TRAINER == 'horovod':
         ds = MultiThreadMapData(ds, 5, preprocess)
