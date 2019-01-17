@@ -515,7 +515,7 @@ def get_train_dataflow(batch_size=4):
 
     print("Running preprocess on test_batch")
     out = preprocess(test_batch)
-    for k in ['images', 'orig_image_dims', 'anchor_labels_lvl2', 'anchor_boxes_lvl2', 'anchor_labels_lvl3', 'anchor_boxes_lvl3', 'anchor_labels_lvl4', 'anchor_boxes_lvl4', 'anchor_labels_lvl5', 'anchor_boxes_lvl5', 'anchor_labels_lvl6', 'anchor_boxes_lvl6', 'gt_boxes', 'gt_labels', 'gt_masks']:
+    for k in ['images', 'orig_image_dims', 'anchor_labels_lvl2', 'anchor_boxes_lvl2', 'anchor_labels_lvl3', 'anchor_boxes_lvl3', 'anchor_labels_lvl4', 'anchor_boxes_lvl4', 'anchor_labels_lvl5', 'anchor_boxes_lvl5', 'anchor_labels_lvl6', 'anchor_boxes_lvl6', 'gt_boxes', 'gt_labels', 'gt_masks', 'orig_gt_counts']:
         try:
             print("\nInspecting k: "+k)
             print(out[k].shape)
