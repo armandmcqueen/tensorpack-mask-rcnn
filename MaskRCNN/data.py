@@ -431,6 +431,8 @@ def get_train_dataflow(batch_size=2):
         max_height = max(heights)
         max_width = max(widths)
 
+
+        # image
         padded_images = []
         original_image_dims = []
         for datapoint in datapoint_list:
@@ -452,7 +454,50 @@ def get_train_dataflow(batch_size=2):
         batched_datapoint["orig_image_dims"] = np.stack(original_image_dims)
 
 
-        # TODO: Convert datapoint_list into padded
+        # gt_boxes and gt_labels
+        max_num_gts = max([d["gt_labels"].size for d in datapoint_list])
+
+        gt_counts = []
+        padded_gt_labels = []
+        padded_gt_boxes = []
+        padded_gt_masks = []
+        for datapoint in datapoint_list:
+            gt_count_for_image = datapoint["gt_labels"].size
+            gt_counts.append(gt_count_for_image)
+
+            gt_padding = max_num_gts - gt_count_for_image
+
+            padded_gt_labels_for_img = np.pad(datapoint["gt_labels"], [0, gt_padding], 'constant')
+            padded_gt_labels.append(padded_gt_labels_for_img)
+
+            padded_gt_boxes_for_img = np.pad(datapoint["gt_boxes"],
+                                             [[0, gt_padding],
+                                              [0,0]],
+                                             'constant')
+            padded_gt_boxes.append(padded_gt_boxes_for_img)
+
+
+
+
+            h_padding = max_height - datapoint["image"].shape[0]
+            w_padding = max_width - datapoint["image"].shape[1]
+
+            padded_gt_masks_for_img = np.pad(datapoint["gt_masks"],
+                                     [[0, gt_padding],
+                                      [0, h_padding],
+                                      [0, w_padding]],
+                                     'constant')
+            padded_gt_masks.append(padded_gt_masks_for_img)
+
+
+        batched_datapoint["orig_gt_counts"] = np.stack(gt_counts)
+        batched_datapoint["gt_labels"] = np.stack(padded_gt_labels)
+        batched_datapoint["gt_boxes"] = np.stack(padded_gt_boxes)
+        batched_datapoint["gt_masks"] = np.stack(padded_gt_masks)
+
+
+
+
         return batched_datapoint
 
 
