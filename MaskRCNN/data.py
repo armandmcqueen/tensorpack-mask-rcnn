@@ -411,12 +411,45 @@ def get_train_dataflow(batch_size=2):
 
 
 
-
         # Require padding and original dimension storage
-        # - gt_boxes
-        # - gt_labels
-        # - gt_masks
+        # - image (HxWx3)
+        # - gt_boxes (?x4)
+        # - gt_labels (?)
+        # - gt_masks (?xHxW)
 
+        """
+        Find the minimum container size for images (maxW x maxH)
+        Find the maximum number of ground truth boxes
+        For each image, save original dimension and pad
+        """
+
+
+        image_dims = [d["image"].shape for d in datapoint_list]
+        heights = [dim[0] for dim in image_dims]
+        widths = [dim[1] for dim in image_dims]
+
+        max_height = max(heights)
+        max_width = max(widths)
+
+        padded_images = []
+        original_image_dims = []
+        for datapoint in datapoint_list:
+            image = datapoint["image"]
+            original_image_dims.append(image.shape)
+
+            h_padding = max_height - image.shape[0]
+            w_padding = max_width - image.shape[1]
+
+            padded_image = np.pad(image,
+                                  [[0, h_padding],
+                                   [0, w_padding],
+                                   [0, 0]],
+                                  'constant')
+
+            padded_images.append(padded_image)
+
+        batched_datapoint["images"] = np.stack(padded_images)
+        batched_datapoint["orig_image_dims"] = np.stack(original_image_dims)
 
 
         # TODO: Convert datapoint_list into padded
@@ -431,7 +464,7 @@ def get_train_dataflow(batch_size=2):
 
     print("Running preprocess on test_batch")
     out = preprocess(test_batch)
-    for k in ['image', 'anchor_labels_lvl2', 'anchor_boxes_lvl2', 'anchor_labels_lvl3', 'anchor_boxes_lvl3', 'anchor_labels_lvl4', 'anchor_boxes_lvl4', 'anchor_labels_lvl5', 'anchor_boxes_lvl5', 'anchor_labels_lvl6', 'anchor_boxes_lvl6', 'gt_boxes', 'gt_labels', 'gt_masks']:
+    for k in ['images', 'orig_image_dims', 'anchor_labels_lvl2', 'anchor_boxes_lvl2', 'anchor_labels_lvl3', 'anchor_boxes_lvl3', 'anchor_labels_lvl4', 'anchor_boxes_lvl4', 'anchor_labels_lvl5', 'anchor_boxes_lvl5', 'anchor_labels_lvl6', 'anchor_boxes_lvl6', 'gt_boxes', 'gt_labels', 'gt_masks']:
         try:
             print("\nInspecting k: "+k)
             print(out[k].shape)
