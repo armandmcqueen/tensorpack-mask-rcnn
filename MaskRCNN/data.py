@@ -327,7 +327,6 @@ def get_train_dataflow(batch_size=2):
          imgaug.Flip(horiz=True)])
 
     def preprocess(roidb_batch):
-        temp_rets =[]
         datapoint_list = []
         for roidb in roidb_batch:
             fname, boxes, klass, is_crowd = roidb['file_name'], roidb['boxes'], roidb['class'], roidb['is_crowd']
@@ -381,13 +380,47 @@ def get_train_dataflow(batch_size=2):
                 masks = np.asarray(masks, dtype='uint8')    # values in {0, 1}
                 ret['gt_masks'] = masks
 
-            temp_rets.append(ret)
+            datapoint_list.append(ret)
 
+        # Now we need to batch the various fields
+
+        # Easily stackable:
+        # - anchor_labels_lvl2
+        # - anchor_boxes_lvl2
+        # - anchor_labels_lvl3
+        # - anchor_boxes_lvl3
+        # - anchor_labels_lvl4
+        # - anchor_boxes_lvl4
+        # - anchor_labels_lvl5
+        # - anchor_boxes_lvl5
+        # - anchor_labels_lvl6
+        # - anchor_boxes_lvl6
+
+        batched_datapoint = {}
+        for stackable_field in ["anchor_labels_lvl2",
+                                "anchor_boxes_lvl2",
+                                "anchor_labels_lvl3",
+                                "anchor_boxes_lvl3",
+                                "anchor_labels_lvl4",
+                                "anchor_boxes_lvl4",
+                                "anchor_labels_lvl5",
+                                "anchor_boxes_lvl5",
+                                "anchor_labels_lvl6",
+                                "anchor_boxes_lvl6"]:
+            batched_datapoint[stackable_field] = np.stack([d[stackable_field] for d in datapoint_list])
+
+
+
+
+        # Require padding and original dimension storage
+        # - gt_boxes
+        # - gt_labels
+        # - gt_masks
 
 
 
         # TODO: Convert datapoint_list into padded
-        return temp_rets
+        return batched_datapoint
 
 
     ds = DataFromList(batched_roidbs, shuffle=True)
@@ -395,18 +428,15 @@ def get_train_dataflow(batch_size=2):
     #################################################################################################################
 
     test_batch = batched_roidbs[0]
-    # print("TEST_BATCH")
-    # print(test_batch)
-    # print("\END TEST_BATCH")
 
     print("Running preprocess on test_batch")
     out = preprocess(test_batch)
     for k in ['image', 'anchor_labels_lvl2', 'anchor_boxes_lvl2', 'anchor_labels_lvl3', 'anchor_boxes_lvl3', 'anchor_labels_lvl4', 'anchor_boxes_lvl4', 'anchor_labels_lvl5', 'anchor_boxes_lvl5', 'anchor_labels_lvl6', 'anchor_boxes_lvl6', 'gt_boxes', 'gt_labels', 'gt_masks']:
-        print("Inspecting k: "+k)
-        for i in range(len(out)):
-            d = out[i][k]
-            # print(type(d))
-            print(d.shape)
+        try:
+            print("\nInspecting k: "+k)
+            print(out[k].shape)
+        except Exception:
+            pass
 
 
     print("complete")
