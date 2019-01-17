@@ -395,18 +395,18 @@ def get_train_dataflow(batch_size=2):
     #################################################################################################################
 
     test_batch = batched_roidbs[0]
-    print("TEST_BATCH")
-    print(test_batch)
-    print("\END TEST_BATCH")
+    # print("TEST_BATCH")
+    # print(test_batch)
+    # print("\END TEST_BATCH")
 
     print("Running preprocess on test_batch")
     out = preprocess(test_batch)
     for k in ['image', 'anchor_labels_lvl2', 'anchor_boxes_lvl2', 'anchor_labels_lvl3', 'anchor_boxes_lvl3', 'anchor_labels_lvl4', 'anchor_boxes_lvl4', 'anchor_labels_lvl5', 'anchor_boxes_lvl5', 'anchor_labels_lvl6', 'anchor_boxes_lvl6', 'gt_boxes', 'gt_labels', 'gt_masks']:
-        print("Inspecting k: +"+k)
+        print("Inspecting k: "+k)
         for i in range(len(out)):
             d = out[i][k]
-            print(type(d))
-            print(d.size)
+            # print(type(d))
+            print(d.shape)
 
 
     print("complete")
