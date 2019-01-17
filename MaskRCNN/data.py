@@ -287,11 +287,11 @@ def get_train_dataflow(batch_size=2):
 
     If MODE_MASK, gt_masks: (BS, maxNumAnchors, h, w)
     """
-
+    print("In train dataflow")
     roidbs = DetectionDataset().load_training_roidbs(cfg.DATA.TRAIN)
+    print("Done loading roidbs")
 
-    print(roidbs)
-    print_class_histogram(roidbs)
+    # print_class_histogram(roidbs)
 
     # Valid training images should have at least one fg box.
     # But this filter shall not be applied for testing.
@@ -300,6 +300,7 @@ def get_train_dataflow(batch_size=2):
     logger.info("Filtered {} images which contain no non-crowd groudtruth boxes. Total #images for training: {}".format(
         num - len(roidbs), len(roidbs)))
 
+    print("Batching roidbs")
     batched_roidbs = []
     batch = []
     for i, d in enumerate(roidbs):
@@ -307,7 +308,7 @@ def get_train_dataflow(batch_size=2):
             if len(batch) == batch_size:
                 batched_roidbs.append(batch)
             batch = []
-
+    print("Done batching roidbs")
 
     # Notes:
     #   - discard any leftover images

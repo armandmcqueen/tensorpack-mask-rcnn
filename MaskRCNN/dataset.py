@@ -6,7 +6,7 @@ import os
 import tqdm
 try:
     import ujson as json
-    print("Import ujson")
+    print("Imported ujson")
 except ImportError:
     print("Failed to import ujson. Falling back to json")
     import json
