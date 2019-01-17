@@ -39,6 +39,10 @@ except ImportError:
     pass
 
 
+# Checks at graph_build time
+def check_shape(name, tensor):
+    print("[tshape] "+str(name)+": " + str(tensor.shape))
+
 class DetectionModel(ModelDesc):
     def preprocess(self, image):
         image = image_preprocess(image, bgr=True)
@@ -97,14 +101,15 @@ class DetectionModel(ModelDesc):
 
         images = self.preprocess(inputs['images'])     # NCHW
 
-        print("Images.shape: "+images.shape)
+        check_shape('images', images)
 
         features = self.backbone(images)
 
         print("Features")
         print(type(features))
         for i, f in enumerate(features):
-            print("Feature["+str(i)+"].shape: " + f.shape)
+            t_name = "Feature["+str(i)+"].shape: "
+            check_shape(t_name, f)
 
         anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
         proposals, rpn_losses = self.rpn(images, features, anchor_inputs)  # inputs?
