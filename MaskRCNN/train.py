@@ -95,9 +95,16 @@ class DetectionModel(ModelDesc):
     def build_graph(self, *inputs):
         inputs = dict(zip(self.input_names, inputs))
 
-        image = self.preprocess(inputs['images'])     # NCHW
+        images = self.preprocess(inputs['images'])     # NCHW
 
-        features = self.backbone(image)
+        print("Images.shape: "+tf.shape(image))
+
+        features = self.backbone(images)
+
+        print("Features")
+        print(type(features))
+        for i, f in enumerate(features):
+            print("Feature["+str(i)+".shape: " + tf.shape(f))
 
         anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
         proposals, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
@@ -119,7 +126,6 @@ class DetectionModel(ModelDesc):
 
 
 class ResNetFPNModel(DetectionModel):
-
 
     def inputs(self):
         ret = [
