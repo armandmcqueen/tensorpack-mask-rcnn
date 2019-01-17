@@ -306,11 +306,11 @@ def get_train_dataflow(batch_size=2):
 
     print("Num roidbs: "+str(len(roidbs)))
     for i, d in enumerate(roidbs):
-        batch.append(d)
         if i % batch_size == 0:
             if len(batch) == batch_size:
                 batched_roidbs.append(batch)
             batch = []
+        batch.append(d)
     print("Done batching roidbs")
 
     # Notes:
@@ -327,6 +327,7 @@ def get_train_dataflow(batch_size=2):
          imgaug.Flip(horiz=True)])
 
     def preprocess(roidb_batch):
+        temp_rets =[]
         datapoint_list = []
         for roidb in roidb_batch:
             fname, boxes, klass, is_crowd = roidb['file_name'], roidb['boxes'], roidb['class'], roidb['is_crowd']
@@ -380,14 +381,13 @@ def get_train_dataflow(batch_size=2):
                 masks = np.asarray(masks, dtype='uint8')    # values in {0, 1}
                 ret['gt_masks'] = masks
 
-            print("----")
-            print(ret)
+            temp_rets.append(ret)
 
 
 
 
         # TODO: Convert datapoint_list into padded
-        return None
+        return temp_rets
 
 
     ds = DataFromList(batched_roidbs, shuffle=True)
@@ -401,6 +401,8 @@ def get_train_dataflow(batch_size=2):
 
     print("Running preprocess on test_batch")
     out = preprocess(test_batch)
+    print("OUT>>")
+    print(out)
     print("complete")
 
 
