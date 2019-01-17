@@ -41,6 +41,7 @@ except ImportError:
 
 class DetectionModel(ModelDesc):
     def preprocess(self, image):
+        image = tf.expand_dims(image, 0)
         image = image_preprocess(image, bgr=True)
         return tf.transpose(image, [0, 3, 1, 2])
 
@@ -105,7 +106,7 @@ class ResNetFPNModel(DetectionModel):
         num_anchors = len(cfg.RPN.ANCHOR_RATIOS)
         for k in range(len(cfg.FPN.ANCHOR_STRIDES)):
             ret.extend([
-                tf.placeholder(tf.int32, (None, None, num_anchors),           
+                tf.placeholder(tf.int32, (None, None, num_anchors),
                                'anchor_labels_lvl{}'.format(k + 2)),
                 tf.placeholder(tf.float32, (None, None, num_anchors, 4),
                                'anchor_boxes_lvl{}'.format(k + 2))])
