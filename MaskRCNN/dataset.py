@@ -4,7 +4,12 @@
 import numpy as np
 import os
 import tqdm
-import json
+try:
+    import ujson as json
+    print("Import ujson")
+except ImportError:
+    print("Failed to import ujson. Falling back to json")
+    import json
 
 from tensorpack.utils import logger
 from tensorpack.utils.timer import timed_operation
