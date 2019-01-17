@@ -270,7 +270,7 @@ def get_multilevel_rpn_anchor_input(im, boxes, is_crowd):
 
 
 
-def get_train_dataflow(batch_size=2):
+def get_train_dataflow(batch_size=4):
     """
     Return a training dataflow. Each datapoint consists of the following:
 
@@ -381,6 +381,10 @@ def get_train_dataflow(batch_size=2):
                 ret['gt_masks'] = masks
 
             datapoint_list.append(ret)
+
+        #################################################################################################################
+        # Batchify the output
+        #################################################################################################################
 
         # Now we need to batch the various fields
 
@@ -495,7 +499,7 @@ def get_train_dataflow(batch_size=2):
         batched_datapoint["gt_boxes"] = np.stack(padded_gt_boxes)
         batched_datapoint["gt_masks"] = np.stack(padded_gt_masks)
 
-
+        #################################################################################################################
 
 
         return batched_datapoint
@@ -503,6 +507,8 @@ def get_train_dataflow(batch_size=2):
 
     ds = DataFromList(batched_roidbs, shuffle=True)
 
+    #################################################################################################################
+    # Test preprocess on a given batch
     #################################################################################################################
 
     test_batch = batched_roidbs[0]
