@@ -99,7 +99,7 @@ class DetectionModel(ModelDesc):
 
         features = self.backbone(image)
 
-        return 1
+        return tf.constant(1, name='total_cost')
         # anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
         # proposals, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
         #
