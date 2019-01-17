@@ -403,6 +403,10 @@ def get_train_dataflow(batch_size=2):
     out = preprocess(test_batch)
     print("OUT>>")
     print(out)
+    print("OUT[0]>>")
+    print(out[0])
+    print("OUT[0].keys()>>")
+    print(out[0].keys())
     print("complete")
 
 
@@ -448,7 +452,7 @@ if __name__ == '__main__':
     from tensorpack.dataflow import PrintData
     cfg.DATA.BASEDIR = os.path.expanduser('~/data')
     ds = get_train_dataflow()
-    ds = PrintData(ds, 100)
+    # ds = PrintData(ds, 100)
     TestDataSpeed(ds, 50000).start()
     ds.reset_state()
     for k in ds:
