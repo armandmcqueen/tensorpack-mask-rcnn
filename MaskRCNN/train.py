@@ -97,14 +97,14 @@ class DetectionModel(ModelDesc):
 
         images = self.preprocess(inputs['images'])     # NCHW
 
-        print("Images.shape: "+tf.shape(image))
+        print("Images.shape: "+tf.shape(images))
 
         features = self.backbone(images)
 
         print("Features")
         print(type(features))
         for i, f in enumerate(features):
-            print("Feature["+str(i)+".shape: " + tf.shape(f))
+            print("Feature["+str(i)+"].shape: " + tf.shape(f))
 
         anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
         proposals, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
