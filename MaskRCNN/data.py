@@ -303,7 +303,10 @@ def get_train_dataflow(batch_size=2):
     print("Batching roidbs")
     batched_roidbs = []
     batch = []
+
+    print("Num roidbs: "+str(len(roidbs)))
     for i, d in enumerate(roidbs):
+        batch.append(d)
         if i % batch_size == 0:
             if len(batch) == batch_size:
                 batched_roidbs.append(batch)
