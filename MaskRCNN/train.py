@@ -99,20 +99,19 @@ class DetectionModel(ModelDesc):
 
         features = self.backbone(image)
 
-        return tf.constant(1, name='total_cost')
-        # anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
-        # proposals, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
-        #
-        # targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
-        # head_losses = self.roi_heads(image, features, proposals, targets)
-        #
-        # if self.training:
-        #     wd_cost = regularize_cost(
-        #         '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
-        #     total_cost = tf.add_n(
-        #         rpn_losses + head_losses + [wd_cost], 'total_cost')
-        #     add_moving_summary(total_cost, wd_cost)
-        #     return total_cost
+        anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
+        proposals, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
+
+        targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
+        head_losses = self.roi_heads(image, features, proposals, targets)
+
+        if self.training:
+            wd_cost = regularize_cost(
+                '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
+            total_cost = tf.add_n(
+                rpn_losses + head_losses + [wd_cost], 'total_cost')
+            add_moving_summary(total_cost, wd_cost)
+            return total_cost
 
 
 
