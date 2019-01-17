@@ -72,61 +72,71 @@ class DetectionModel(ModelDesc):
             out.append('output/masks')
         return ['image'], out
 
-    # def build_graph(self, *inputs):
-    #     inputs = dict(zip(self.input_names, inputs))
-    #
-    #     image = self.preprocess(inputs['image'])     # 1CHW
-    #
-    #     features = self.backbone(image)
-    #     anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
-    #     proposals, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
-    #
-    #     targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
-    #     head_losses = self.roi_heads(image, features, proposals, targets)
-    #
-    #     if self.training:
-    #         wd_cost = regularize_cost(
-    #             '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
-    #         total_cost = tf.add_n(
-    #             rpn_losses + head_losses + [wd_cost], 'total_cost')
-    #         add_moving_summary(total_cost, wd_cost)
-    #         return total_cost
-
-
     def build_graph(self, *inputs):
         inputs = dict(zip(self.input_names, inputs))
 
-        image = self.preprocess(inputs['image'])     # NCHW
+        image = self.preprocess(inputs['image'])     # 1CHW
 
         features = self.backbone(image)
+        anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
+        proposals, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
 
-        for i, lvl in enumerate(features):
-            print(tf.shape(lvl))
+        targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
+        head_losses = self.roi_heads(image, features, proposals, targets)
+
+        if self.training:
+            wd_cost = regularize_cost(
+                '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
+            total_cost = tf.add_n(
+                rpn_losses + head_losses + [wd_cost], 'total_cost')
+            add_moving_summary(total_cost, wd_cost)
+            return total_cost
+
+
 
 
 
 
 class ResNetFPNModel(DetectionModel):
 
-
     def inputs(self):
         ret = [
-            tf.placeholder(tf.float32, (None, None, None, 3), 'image')] # NxHxWxC
+            tf.placeholder(tf.float32, (None, None, 3), 'image')] # NxHxWxC
         num_anchors = len(cfg.RPN.ANCHOR_RATIOS)
         for k in range(len(cfg.FPN.ANCHOR_STRIDES)):
             ret.extend([
-                tf.placeholder(tf.int32, (None, None, None, num_anchors),           # N x H x W x NumAnchors
+                tf.placeholder(tf.int32, (None, None, num_anchors),           
                                'anchor_labels_lvl{}'.format(k + 2)),
-                tf.placeholder(tf.float32, (None, None, None, num_anchors, 4),      # N x H x W x NumAnchors x 4
+                tf.placeholder(tf.float32, (None, None, num_anchors, 4),
                                'anchor_boxes_lvl{}'.format(k + 2))])
         ret.extend([
-            tf.placeholder(tf.float32, (None, None, 4), 'gt_boxes'),                # N x MaxNumGTs x 4
-            tf.placeholder(tf.int64, (None, None), 'gt_labels')])  # all > 0        # N x MaxNumGTs
+            tf.placeholder(tf.float32, (None, 4), 'gt_boxes'),
+            tf.placeholder(tf.int64, (None,), 'gt_labels')])  # all > 0
         if cfg.MODE_MASK:
             ret.append(
-                tf.placeholder(tf.uint8, (None, None, None, None), 'gt_masks')      # N x MaxNumGTs x H x W
+                tf.placeholder(tf.uint8, (None, None, None), 'gt_masks')
             )
         return ret
+
+
+    # def inputs(self):
+    #     ret = [
+    #         tf.placeholder(tf.float32, (None, None, None, 3), 'image')] # NxHxWxC
+    #     num_anchors = len(cfg.RPN.ANCHOR_RATIOS)
+    #     for k in range(len(cfg.FPN.ANCHOR_STRIDES)):
+    #         ret.extend([
+    #             tf.placeholder(tf.int32, (None, None, None, num_anchors),           # N x H x W x NumAnchors
+    #                            'anchor_labels_lvl{}'.format(k + 2)),
+    #             tf.placeholder(tf.float32, (None, None, None, num_anchors, 4),      # N x H x W x NumAnchors x 4
+    #                            'anchor_boxes_lvl{}'.format(k + 2))])
+    #     ret.extend([
+    #         tf.placeholder(tf.float32, (None, None, 4), 'gt_boxes'),                # N x MaxNumGTs x 4
+    #         tf.placeholder(tf.int64, (None, None), 'gt_labels')])  # all > 0        # N x MaxNumGTs
+    #     if cfg.MODE_MASK:
+    #         ret.append(
+    #             tf.placeholder(tf.uint8, (None, None, None, None), 'gt_masks')      # N x MaxNumGTs x H x W
+    #         )
+    #     return ret
 
     # TODO: Batchify
     def slice_feature_and_anchors(self, p23456, anchors):
