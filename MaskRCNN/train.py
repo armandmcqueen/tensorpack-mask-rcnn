@@ -186,7 +186,7 @@ class ResNetFPNModel(DetectionModel):
 
         batch_size = tf.shape(images)[0]
 
-        check_shape("all_anchors_fpn", all_anchors_fpn)
+        # check_shape("all_anchors_fpn", all_anchors_fpn)
         print(type(all_anchors_fpn))
         print("len: "+str(len(all_anchors_fpn)))
 
