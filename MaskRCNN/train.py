@@ -44,7 +44,7 @@ def check_shape(name, tensor):
     print("[tshape] "+str(name)+": " + str(tensor.shape))
 
 def print_runtime_shape(name, tensor):
-    return tf.print("[runtime_shape] "+name+": "+tf.shape(tensor))
+    return tf.print("[runtime_shape] "+name+": "+str(tf.shape(tensor)))
 
 class DetectionModel(ModelDesc):
     def preprocess(self, image):
