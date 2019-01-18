@@ -105,7 +105,7 @@ class DetectionModel(ModelDesc):
         images = self.preprocess(inputs['images'])     # NCHW
 
         check_shape('images', images)
-        images = print_runtime_shape("Images", images)
+        print_runtime_shape("Images", images)
 
         features = self.backbone(images)
 
