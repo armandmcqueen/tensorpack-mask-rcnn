@@ -175,9 +175,9 @@ def roi_align(featuremap, boxes, resolution):
 
 class RPNAnchors(namedtuple('_RPNAnchors', ['boxes', 'gt_labels', 'gt_boxes'])):
     """
-    boxes (FS x FS x NA x 4): The anchor boxes.
-    gt_labels (FS x FS x NA):
-    gt_boxes (FS x FS x NA x 4): Groundtruth boxes corresponding to each anchor.
+    boxes [(FS x FS x NA x 4)]: The anchor boxes. List of length BS
+    gt_labels (BS x FS x FS x NA):
+    gt_boxes (BS x FS x FS x NA x 4): Groundtruth boxes corresponding to each anchor.
     """
     def encoded_gt_boxes(self):
         return encode_bbox_target(self.gt_boxes, self.boxes)
@@ -190,6 +190,7 @@ class RPNAnchors(namedtuple('_RPNAnchors', ['boxes', 'gt_labels', 'gt_boxes'])):
         """
         Slice anchors to the spatial size of this featuremap.
         """
+
         shape2d = tf.shape(featuremap)[2:]  # h,w
         slice3d = tf.concat([shape2d, [-1]], axis=0)
         slice4d = tf.concat([shape2d, [-1, -1]], axis=0)

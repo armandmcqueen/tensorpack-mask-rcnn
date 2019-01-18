@@ -43,6 +43,9 @@ except ImportError:
 def check_shape(name, tensor):
     print("[tshape] "+str(name)+": " + str(tensor.shape))
 
+def print_runtime_shape(name, tensor):
+    return tf.print("[runtime_shape] "+name+": "+tf.shape(tensor))
+
 class DetectionModel(ModelDesc):
     def preprocess(self, image):
         image = image_preprocess(image, bgr=True)
@@ -102,6 +105,7 @@ class DetectionModel(ModelDesc):
         images = self.preprocess(inputs['images'])     # NCHW
 
         check_shape('images', images)
+        images = print_runtime_shape("Images", images)
 
         features = self.backbone(images)
 
@@ -112,10 +116,12 @@ class DetectionModel(ModelDesc):
             check_shape(t_name, f)
 
         anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
+
+        #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<0
         proposals, rpn_losses = self.rpn(images, features, anchor_inputs)  # inputs?
 
         targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
-        head_losses = self.roi_heads(image, features, proposals, targets)
+        head_losses = self.roi_heads(images, features, proposals, targets)
 
         if self.training:
             wd_cost = regularize_cost(
@@ -169,15 +175,20 @@ class ResNetFPNModel(DetectionModel):
         return p23456
 
 
-    def rpn(self, image, features, inputs):
+    def rpn(self, images, features, inputs):
         assert len(cfg.RPN.ANCHOR_SIZES) == len(cfg.FPN.ANCHOR_STRIDES)
 
-        image_shape2d = tf.shape(image)[2:]     # h,w
+        image_shape2d = tf.shape(images)[2:]     # h,w
         all_anchors_fpn = get_all_anchors_fpn()
+
+        batch_size = tf.shape(images)[0]
+
+
+        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<1
 
         # TODO: Batchify
         multilevel_anchors = [RPNAnchors(
-            all_anchors_fpn[i],
+            [all_anchors_fpn[i] for _ in range(batch_size)],    # RPNAnchors needs a list of all_anchors for each image as later we will reduce the number of anchors on a per-image basis to match varying original image dimensions
             inputs['anchor_labels_lvl{}'.format(i + 2)],
             inputs['anchor_boxes_lvl{}'.format(i + 2)]) for i in range(len(all_anchors_fpn))]
 
