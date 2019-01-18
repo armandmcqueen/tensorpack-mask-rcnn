@@ -186,6 +186,10 @@ class ResNetFPNModel(DetectionModel):
 
         batch_size = tf.shape(images)[0]
 
+        check_shape("all_anchors_fpn", all_anchors_fpn)
+        print(type(all_anchors_fpn))
+        print("len: "+str(len(all_anchors_fpn)))
+
 
 
         multilevel_anchors = [RPNAnchors(
@@ -211,7 +215,7 @@ class ResNetFPNModel(DetectionModel):
                                  for anchor, logits in zip(multilevel_anchors, multilevel_box_logits)]
 
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<1
-        
+
         proposal_boxes, proposal_scores = generate_fpn_proposals(
             multilevel_pred_boxes, multilevel_label_logits, image_shape2d)
 
