@@ -118,7 +118,7 @@ class DetectionModel(ModelDesc):
         anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
 
         #<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<0
-        proposals, rpn_losses = self.rpn(images, features, anchor_inputs)  # inputs?
+        proposals, rpn_losses = self.rpn(images, features, anchor_inputs, inputs['orig_image_dims'])  # inputs?
 
         targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
         head_losses = self.roi_heads(images, features, proposals, targets)
@@ -141,7 +141,7 @@ class ResNetFPNModel(DetectionModel):
     def inputs(self):
         ret = [
             tf.placeholder(tf.float32, (None, None, None, 3), 'images'),            # N x H x W x C
-            tf.placeholder(tf.int32, (None, 3), 'orig_image_dims')                  # N x 3(image dims)
+            tf.placeholder(tf.int32, (None, 3), 'orig_image_dims')                  # N x 3(image dims - hwc)
         ]
         num_anchors = len(cfg.RPN.ANCHOR_RATIOS)
         for k in range(len(cfg.FPN.ANCHOR_STRIDES)):
@@ -163,19 +163,22 @@ class ResNetFPNModel(DetectionModel):
             )
         return ret
 
-    # TODO: Batchify
-    def slice_feature_and_anchors(self, p23456, anchors):
-        for i, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
-            with tf.name_scope('FPN_slice_lvl{}'.format(i)):
-                anchors[i] = anchors[i].narrow_to(p23456[i])
 
-    def backbone(self, image):
-        c2345 = resnet_fpn_backbone(image, cfg.BACKBONE.RESNET_NUM_BLOCKS)
+    # def slice_feature_and_anchors(self, p23456, anchors, orig_image_dims):
+    #     orig_image_dims_hw = orig_image_dims[:2]    # Remove irrelevant channel dimension
+    #     for i, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
+    #         with tf.name_scope('FPN_slice_lvl{}'.format(i)):
+    #             orig_image_scale_factor = 1.0 / stride
+    #             projection_dims = orig_image_dims_hw * orig_image_scale_factor
+    #             anchors[i] = anchors[i].narrow_to(p23456[i], projection_dims)
+
+    def backbone(self, images):
+        c2345 = resnet_fpn_backbone(images, cfg.BACKBONE.RESNET_NUM_BLOCKS)
         p23456 = fpn_model('fpn', c2345)
         return p23456
 
 
-    def rpn(self, images, features, inputs):
+    def rpn(self, images, features, inputs, orig_image_dims):
         assert len(cfg.RPN.ANCHOR_SIZES) == len(cfg.FPN.ANCHOR_STRIDES)
 
         image_shape2d = tf.shape(images)[2:]     # h,w
@@ -184,26 +187,31 @@ class ResNetFPNModel(DetectionModel):
         batch_size = tf.shape(images)[0]
 
 
-        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<1
 
-        # TODO: Batchify
         multilevel_anchors = [RPNAnchors(
             [all_anchors_fpn[i] for _ in range(batch_size)],    # RPNAnchors needs a list of all_anchors for each image as later we will reduce the number of anchors on a per-image basis to match varying original image dimensions
             inputs['anchor_labels_lvl{}'.format(i + 2)],
             inputs['anchor_boxes_lvl{}'.format(i + 2)]) for i in range(len(all_anchors_fpn))]
 
-        self.slice_feature_and_anchors(features, multilevel_anchors)
+
+        # We skip narrowing the anchor set because we would just need to pad it again immediately.
+        # self.slice_feature_and_anchors(features, multilevel_anchors, orig_image_dims)
+
+        # Allow padding to flow until later
 
 
-        # TODO: Batchify
         # Multi-Level RPN Proposals
         rpn_outputs = [rpn_head('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS))
                        for pi in features]
         multilevel_label_logits = [k[0] for k in rpn_outputs]
         multilevel_box_logits = [k[1] for k in rpn_outputs]
+
+
         multilevel_pred_boxes = [anchor.decode_logits(logits)
                                  for anchor, logits in zip(multilevel_anchors, multilevel_box_logits)]
 
+        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<1
+        
         proposal_boxes, proposal_scores = generate_fpn_proposals(
             multilevel_pred_boxes, multilevel_label_logits, image_shape2d)
 
