@@ -138,6 +138,9 @@ class DetectionModel(ModelDesc):
 
 class ResNetFPNModel(DetectionModel):
 
+    def __init__(self, batch_size):
+        self.batch_size = batch_size
+
     def inputs(self):
         ret = [
             tf.placeholder(tf.float32, (None, None, None, 3), 'images'),            # N x H x W x C
@@ -184,7 +187,6 @@ class ResNetFPNModel(DetectionModel):
         image_shape2d = tf.shape(images)[2:]     # h,w
         all_anchors_fpn = get_all_anchors_fpn()
 
-        batch_size = tf.shape(images)[0]
 
         # check_shape("all_anchors_fpn", all_anchors_fpn)
         print(type(all_anchors_fpn))
@@ -193,7 +195,7 @@ class ResNetFPNModel(DetectionModel):
 
 
         multilevel_anchors = [RPNAnchors(
-            [all_anchors_fpn[i] for _ in range(batch_size)],    # RPNAnchors needs a list of all_anchors for each image as later we will reduce the number of anchors on a per-image basis to match varying original image dimensions
+            [all_anchors_fpn[i] for _ in range(self.batch_size)],    # RPNAnchors needs a list of all_anchors for each image as later we will reduce the number of anchors on a per-image basis to match varying original image dimensions
             inputs['anchor_labels_lvl{}'.format(i + 2)],
             inputs['anchor_boxes_lvl{}'.format(i + 2)]) for i in range(len(all_anchors_fpn))]
 
@@ -381,7 +383,9 @@ if __name__ == '__main__':
     if args.config:
         cfg.update_args(args.config)
 
-    MODEL = ResNetFPNModel()
+    batch_size=2
+
+    MODEL = ResNetFPNModel(batch_size)
     DetectionDataset()  # initialize the config with information from our dataset
 
     if args.visualize or args.evaluate or args.predict:
@@ -430,7 +434,7 @@ if __name__ == '__main__':
                 (steps * factor // stepnum, cfg.TRAIN.BASE_LR * mult))
         logger.info("Warm Up Schedule (steps, value): " + str(warmup_schedule))
         logger.info("LR Schedule (epochs, value): " + str(lr_schedule))
-        train_dataflow = get_train_dataflow()
+        train_dataflow = get_train_dataflow(batch_size)
         # This is what's commonly referred to as "epochs"
         total_passes = cfg.TRAIN.LR_SCHEDULE[-1] * 8 / train_dataflow.size()
         logger.info("Total passes of the training set is: {:.5g}".format(total_passes))
