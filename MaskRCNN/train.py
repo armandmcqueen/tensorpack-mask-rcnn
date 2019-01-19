@@ -185,17 +185,23 @@ class ResNetFPNModel(DetectionModel):
         assert len(cfg.RPN.ANCHOR_SIZES) == len(cfg.FPN.ANCHOR_STRIDES)
 
         image_shape2d = tf.shape(images)[2:]     # h,w
-        all_anchors_fpn = get_all_anchors_fpn()
+        all_anchors_fpn = get_all_anchors_fpn() # For a single image
+
 
 
         # check_shape("all_anchors_fpn", all_anchors_fpn)
         print(type(all_anchors_fpn))
         print("len: "+str(len(all_anchors_fpn)))
 
+        batched_all_anchors_fpn = []
+        for all_anchors_on_level in all_anchors_fpn:
+            batched_all_anchors_on_level = tf.stack([all_anchors_on_level for i in range(self.batch_size)])
+            batched_all_anchors_fpn.append(batched_all_anchors_on_level)
+
 
 
         multilevel_anchors = [RPNAnchors(
-            [all_anchors_fpn[i] for _ in range(self.batch_size)],    # RPNAnchors needs a list of all_anchors for each image as later we will reduce the number of anchors on a per-image basis to match varying original image dimensions
+            batched_all_anchors_fpn[i],    # RPNAnchors needs a list of all_anchors for each image as later we will reduce the number of anchors on a per-image basis to match varying original image dimensions
             inputs['anchor_labels_lvl{}'.format(i + 2)],
             inputs['anchor_boxes_lvl{}'.format(i + 2)]) for i in range(len(all_anchors_fpn))]
 
