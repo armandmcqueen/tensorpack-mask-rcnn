@@ -219,8 +219,18 @@ class ResNetFPNModel(DetectionModel):
         multilevel_box_logits = [k[1] for k in rpn_outputs]
 
 
+
+        for lvl, lvl_label_logits in enumerate(multilevel_label_logits):
+            lvl_box_logits = multilevel_box_logits[lvl]
+            check_shape("lvl " + str(lvl) + " box_logits", lvl_box_logits)
+            check_shape("lvl " + str(lvl) + " label_logits", lvl_label_logits)
+
+
         multilevel_pred_boxes = [anchor.decode_logits(logits)
                                  for anchor, logits in zip(multilevel_anchors, multilevel_box_logits)]
+
+        for lvl, lvl_pred_boxes in enumerate(multilevel_pred_boxes):
+            check_shape("lvl "+str(lvl)+" pred_box", lvl_pred_boxes)
 
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<1
 
