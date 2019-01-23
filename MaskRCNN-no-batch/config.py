@@ -228,11 +228,6 @@ def finalize_configs(is_training):
         assert _C.FPN.MRCNN_HEAD_FUNC.endswith('_head')
         assert _C.FPN.NORM in ['None', 'GN']
 
-        if _C.FPN.CASCADE:
-            # the first threshold is the proposal sampling threshold
-            assert _C.CASCADE.IOUS[0] == _C.FRCNN.FG_THRESH
-            assert len(_C.CASCADE.BBOX_REG_WEIGHTS) == len(_C.CASCADE.IOUS)
-
     if is_training:
         train_scales = _C.PREPROC.TRAIN_SHORT_EDGE_SIZE
         if isinstance(train_scales, (list, tuple)) and train_scales[1] - train_scales[0] > 100:
