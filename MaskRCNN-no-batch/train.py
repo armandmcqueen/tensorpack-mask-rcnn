@@ -32,6 +32,7 @@ from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_p
 from model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
 from model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
 from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
+from performance import ThroughputTracker
 
 try:
     import horovod.tensorflow as hvd
@@ -310,6 +311,19 @@ if __name__ == '__main__':
     parser.add_argument('--config', help="A list of KEY=VALUE to overwrite those defined in config.py",
                         nargs='+')
 
+
+    #################################################################################################################
+    # Performance investigation arguments
+    parser.add_argument('--perf', help="Enable performance investigation mode", action="store_true")
+    parser.add_argument('--throughput_log_freq', help="In perf investigation mode, code will print throughput after every throughput_log_freq steps as well as after every epoch", type=int, default=100)
+    parser.add_argument('--images_per_step', help="Number of images in a minibatch (total, not per GPU)", type=int, default=8)
+    parser.add_argument('--num_total_images', help="Number of images in an epoch. = images_per_steps * steps_per_epoch (differs slightly from the total number of images).", type=int, default=120000)
+
+    #################################################################################################################
+
+
+
+
     if get_tf_version_tuple() < (1, 6):
         # https://github.com/tensorflow/tensorflow/issues/14657
         logger.warn("TF<1.6 has a bug which may lead to crash in FasterRCNN if you're unlucky.")
@@ -390,6 +404,12 @@ if __name__ == '__main__':
         if not is_horovod:
             callbacks.append(GPUUtilizationTracker())
 
+        if args.perf:
+            callbacks.append(ThroughputTracker(args.images_per_step,
+                                               args.num_total_images,
+                                               trigger_every_n_steps=args.throughput_log_freq,
+                                               log_fn=logger.info))
+
         if is_horovod and hvd.rank() > 0:
             session_init = None
         else:
@@ -407,6 +427,9 @@ if __name__ == '__main__':
             session_init=session_init,
             starting_epoch=cfg.TRAIN.STARTING_EPOCH
         )
+
+
+
         if is_horovod:
             trainer = HorovodTrainer(average=False)
         else:
