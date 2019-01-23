@@ -319,6 +319,10 @@ if __name__ == '__main__':
     parser.add_argument('--images_per_step', help="Number of images in a minibatch (total, not per GPU)", type=int, default=8)
     parser.add_argument('--num_total_images', help="Number of images in an epoch. = images_per_steps * steps_per_epoch (differs slightly from the total number of images).", type=int, default=120000)
 
+    parser.add_argument('--tfprof', help="Enable tf profiller", action="store_true")
+    parser.add_argument('--tfprof_start_step', help="Step to enable tf profiling", type=int, default=15005)
+    parser.add_argument('--tfprof_end_step', help="Step after which tf profiling will be disabled", type=int, default=15010)
+
     #################################################################################################################
 
 
@@ -409,6 +413,11 @@ if __name__ == '__main__':
                                                args.num_total_images,
                                                trigger_every_n_steps=args.throughput_log_freq,
                                                log_fn=logger.info))
+
+            if args.tfprof:
+                callbacks.append(EnableCallbackIf(
+                    GraphProfiler(dump_tracing=True, dump_event=True),
+                    lambda self: self.trainer.global_step >= args.tfprof_start_step and self.trainer.global_step <= args.tfprof_end_step))
 
         if is_horovod and hvd.rank() > 0:
             session_init = None
