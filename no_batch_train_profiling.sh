@@ -16,7 +16,7 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 /home/ubuntu/anaconda3/envs/tensorflow_p36/bin/python3 /home/ubuntu/tensorpack-mask-rcnn/MaskRCNN-no-batch/train.py \
 --logdir /home/ubuntu/logs/train_log \
 --perf \
---throughout_log_freq 1 \
+--throughput_log_freq 1 \
 --tfprof \
 --config MODE_MASK=True \
 MODE_FPN=True \
