@@ -40,7 +40,8 @@ class ThroughputTracker(tensorpack.Callback):
 
 
     def _trigger_step(self):
-        step_duration = time.time() - self._step_start_time
+        self._step_end_time = time.time()
+        step_duration = self._step_end_time - self._step_start_time
         self._epoch_step_durations.append(step_duration)
 
         if self._trigger_every_n_steps is not None:
