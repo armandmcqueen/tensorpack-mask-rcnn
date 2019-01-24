@@ -415,9 +415,11 @@ if __name__ == '__main__':
                                                log_fn=logger.info))
 
             if args.tfprof:
-                callbacks.append(EnableCallbackIf(
-                    GraphProfiler(dump_tracing=True, dump_event=True),
-                    lambda self: self.trainer.global_step >= args.tfprof_start_step and self.trainer.global_step <= args.tfprof_end_step))
+                # We only get tf profiling chrome trace on rank==0
+                if hvd.rank() == 0:
+                    callbacks.append(EnableCallbackIf(
+                        GraphProfiler(dump_tracing=True, dump_event=True),
+                        lambda self: self.trainer.global_step >= args.tfprof_start_step and self.trainer.global_step <= args.tfprof_end_step))
 
         if is_horovod and hvd.rank() > 0:
             session_init = None
