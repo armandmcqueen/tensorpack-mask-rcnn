@@ -1,0 +1,2 @@
+git+git://github.com/tensorpack/tensorpack.git@a9dce5b220dca34b15122a9329ba9ff055e8edc6
+numpy==1.14.5
