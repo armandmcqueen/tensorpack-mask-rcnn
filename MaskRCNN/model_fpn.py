@@ -164,19 +164,21 @@ def multilevel_rpn_losses(
 
 @under_name_scope()
 def generate_fpn_proposals(
-        multilevel_pred_boxes, multilevel_label_logits, image_shape2d):
+        multilevel_pred_boxes, multilevel_label_logits, orig_image_dims):
     """
     Args:
-        multilevel_pred_boxes: #lvl HxWxAx4 boxes
-        multilevel_label_logits: #lvl tensors of shape HxWxA
+        multilevel_pred_boxes:   #lvl [ BS x H x W x A x 4 ] boxes
+        multilevel_label_logits: #lvl [ BS x H x W x A ] tensors
+        orig_image_dimensions: Original (prepadding) image dimensions (h,w,c)   BS x 3
 
     Returns:
-        boxes: kx4 float
-        scores: k logits
+        boxes: BS x K x 4 float
+        scores: BS x K logits
     """
     num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
     assert len(multilevel_pred_boxes) == num_lvl
     assert len(multilevel_label_logits) == num_lvl
+    orig_images_hw = orig_image_dims[:2]
 
     training = get_current_tower_context().is_training
     all_boxes = []
@@ -186,11 +188,18 @@ def generate_fpn_proposals(
         for lvl in range(num_lvl):
             with tf.name_scope('Lvl{}'.format(lvl + 2)):
                 pred_boxes_decoded = multilevel_pred_boxes[lvl]
+                label_logits = multilevel_label_logits[lvl]
+                bs = tf.shape(multilevel_pred_boxes)[0]
+
+                # Resize orig_image_dims according to level of FPN
+                scale_factor = 1.0 / cfg.FPN.ANCHOR_STRIDES[lvl]
+
+                # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<2
 
                 proposal_boxes, proposal_scores = generate_rpn_proposals(
-                    tf.reshape(pred_boxes_decoded, [-1, 4]),
-                    tf.reshape(multilevel_label_logits[lvl], [-1]),
-                    image_shape2d, fpn_nms_topk)
+                    tf.reshape(pred_boxes_decoded, [bs, -1, 4]),
+                    tf.reshape(label_logits, [bs, -1]),
+                    orig_images_hw*scale_factor, fpn_nms_topk)
                 all_boxes.append(proposal_boxes)
                 all_scores.append(proposal_scores)
 
@@ -202,17 +211,7 @@ def generate_fpn_proposals(
         proposal_scores, topk_indices = tf.nn.top_k(proposal_scores, k=proposal_topk, sorted=False)
         proposal_boxes = tf.gather(proposal_boxes, topk_indices)
     else:
-        for lvl in range(num_lvl):
-            with tf.name_scope('Lvl{}'.format(lvl + 2)):
-                pred_boxes_decoded = multilevel_pred_boxes[lvl]
-                all_boxes.append(tf.reshape(pred_boxes_decoded, [-1, 4]))
-                all_scores.append(tf.reshape(multilevel_label_logits[lvl], [-1]))
-        all_boxes = tf.concat(all_boxes, axis=0)
-        all_scores = tf.concat(all_scores, axis=0)
-        proposal_boxes, proposal_scores = generate_rpn_proposals(
-            all_boxes, all_scores, image_shape2d,
-            cfg.RPN.TRAIN_PRE_NMS_TOPK if training else cfg.RPN.TEST_PRE_NMS_TOPK,
-            cfg.RPN.TRAIN_POST_NMS_TOPK if training else cfg.RPN.TEST_POST_NMS_TOPK)
+        raise RuntimeError("Only level-wise predictions are supported with batches")
 
     tf.sigmoid(proposal_scores, name='probs')  # for visualization
     return tf.stop_gradient(proposal_boxes, name='boxes'), \

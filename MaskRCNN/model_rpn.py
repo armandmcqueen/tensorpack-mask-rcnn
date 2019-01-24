@@ -100,7 +100,7 @@ def rpn_losses(anchor_labels, anchor_boxes, label_logits, box_logits):
 
 
 @under_name_scope()
-def generate_rpn_proposals(boxes, scores, img_shape,
+def generate_rpn_proposals(boxes, scores, prepadding_dims,
                            pre_nms_topk, post_nms_topk=None):
     """
     Sample RPN proposals by the following steps:
@@ -109,16 +109,26 @@ def generate_rpn_proposals(boxes, scores, img_shape,
     3. Pick top k2 by scores. Default k2 == k1, i.e. does not filter the NMS output.
 
     Args:
-        boxes: nx4 float dtype, the proposal boxes. Decoded to floatbox already
-        scores: n float, the logits
-        img_shape: [h, w]
+        boxes:  [ BS x N x 4 ] float dtype, the proposal boxes. Decoded to floatbox already
+        scores: [ BS x N ] float, the logits
+        prepadding_dims: BS x 2, height and width of image prior to padding (scaled to feature map)
         pre_nms_topk, post_nms_topk (int): See above.
 
     Returns:
         boxes: kx4 float
         scores: k logits
     """
-    assert boxes.shape.ndims == 2, boxes.shape
+    assert boxes.shape.ndims == 3, boxes.shape
+
+    # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<3
+
+    # For each image
+        # Extract the slice
+        # Fliter out padding
+        # For each anchor
+            # Clip to feature space??
+
+
     if post_nms_topk is None:
         post_nms_topk = pre_nms_topk
 
