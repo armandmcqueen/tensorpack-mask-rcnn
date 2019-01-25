@@ -232,6 +232,11 @@ class ResNetFPNModel(DetectionModel):
         for lvl, lvl_pred_boxes in enumerate(multilevel_pred_boxes):
             check_shape("lvl "+str(lvl)+" pred_box", lvl_pred_boxes)
 
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
+
+        multilevel_pred_boxes = [b_pred_boxes[0, :] for b_pred_boxes in multilevel_pred_boxes]
+        multilevel_label_logits = [b_label_logits for b_label_logits in multilevel_label_logits]
+
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<1
 
         proposal_boxes, proposal_scores = generate_fpn_proposals(
