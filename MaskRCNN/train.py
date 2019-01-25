@@ -234,8 +234,8 @@ class ResNetFPNModel(DetectionModel):
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
 
-        multilevel_pred_boxes = [tf.squeeze(b_pred_boxes[0, :, :, :, :], axis=[0]) for b_pred_boxes in multilevel_pred_boxes]
-        multilevel_label_logits = [tf.squeeze(b_label_logits[0, :, :, :, :],axis=[0]) for b_label_logits in multilevel_label_logits]
+        multilevel_pred_boxes = [b_pred_boxes[0, :, :, :, :] for b_pred_boxes in multilevel_pred_boxes]
+        multilevel_label_logits = [b_label_logits[0, :, :, :, :] for b_label_logits in multilevel_label_logits]
 
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<1
 
