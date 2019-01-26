@@ -254,10 +254,22 @@ class ResNetFPNModel(DetectionModel):
 
         return BoxProposals(proposal_boxes), losses
 
-    def roi_heads(self, image, features, proposals, targets):
-        image_shape2d = tf.shape(image)[2:]     # h,w
-        assert len(features) == 5, "Features have to be P23456!"
+    def roi_heads(self, images, features, proposals, targets):
+
         gt_boxes, gt_labels, *_ = targets
+
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
+
+        images = images[0, :, :, :]
+        gt_boxes = gt_boxes[0, :, :]
+        gt_labels = gt_boxes[0, :]
+
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
+
+        image_shape2d = tf.shape(images)[2:]     # h,w
+        assert len(features) == 5, "Features have to be P23456!"
+
+
 
         if self.training:
             proposals = sample_fast_rcnn_targets(proposals.boxes, gt_boxes, gt_labels)
