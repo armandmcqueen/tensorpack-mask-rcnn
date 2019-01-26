@@ -262,7 +262,7 @@ class ResNetFPNModel(DetectionModel):
 
         images = images[0, :, :, :]
         gt_boxes = gt_boxes[0, :, :]
-        gt_labels = gt_boxes[0, :]
+        gt_labels = gt_labels[0, :]
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
 
