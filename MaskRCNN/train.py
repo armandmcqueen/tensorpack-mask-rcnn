@@ -289,6 +289,13 @@ class ResNetFPNModel(DetectionModel):
 
             if cfg.MODE_MASK:
                 gt_masks = targets[2]
+
+                # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
+
+                gt_masks = gt_masks[0, :, :, :]
+
+                # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
+
                 # maskrcnn loss
                 roi_feature_maskrcnn = multilevel_roi_align(
                     features[:4], proposals.fg_boxes(), 14,
