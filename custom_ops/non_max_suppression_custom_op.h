@@ -34,6 +34,7 @@ struct NonMaxSuppressionCustomFunctor<Eigen::GpuDevice, T> {
 };
 
 template struct NonMaxSuppressionCustomFunctor<Eigen::GpuDevice, float>;
+template struct NonMaxSuppressionCustomFunctor<Eigen::GpuDevice, Eigen::half>;
 
 } // functor
 

@@ -109,9 +109,7 @@ class NonMaxSuppressionCustomOp : public NonMaxSuppressionV3V4CustomBase {
     TensorShape output_shape({static_cast<int>(max_output_size_val_)});
     OP_REQUIRES_OK(context, context->allocate_output(0, output_shape, &output_indices));
 
-    functor::NonMaxSuppressionCustomFunctor<Device, T> func;
-
-    func(
+    functor::NonMaxSuppressionCustomFunctor<Device, T>()(
       context->eigen_device<Device>(),
       boxes_.flat<T>().data(),
       scores_.flat<T>().data(),
@@ -124,8 +122,6 @@ class NonMaxSuppressionCustomOp : public NonMaxSuppressionV3V4CustomBase {
   }
 };
 
-//extern template struct functor::NonMaxSuppressionCustomFunctor<GPUDevice, float>;
-
 REGISTER_KERNEL_BUILDER(Name("NonMaxSuppressionCustom")
                         .Device(DEVICE_GPU)
                         .HostMemory("max_output_size")
@@ -133,6 +129,14 @@ REGISTER_KERNEL_BUILDER(Name("NonMaxSuppressionCustom")
                         .HostMemory("score_threshold")
                         .TypeConstraint<float>("T"),
                         NonMaxSuppressionCustomOp<GPUDevice, float>);
+
+REGISTER_KERNEL_BUILDER(Name("NonMaxSuppressionCustom")
+                        .Device(DEVICE_GPU)
+                        .HostMemory("max_output_size")
+                        .HostMemory("iou_threshold")
+                        .HostMemory("score_threshold")
+                        .TypeConstraint<Eigen::half>("T"),
+                        NonMaxSuppressionCustomOp<GPUDevice, Eigen::half>);
 
 } // namespace tensorflow
 
