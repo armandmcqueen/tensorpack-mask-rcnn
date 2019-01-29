@@ -13,4 +13,4 @@ non_max_suppression_op_gpu_op: register_custom_ops.cc non_max_suppression_custom
 	$(INC) $(LIB) -ltensorflow_framework -L /usr/local/cuda/lib64/ -fPIC -lcudart -O2
 
 clean: *.so
-	rm *.so
+	rm *.so *.o

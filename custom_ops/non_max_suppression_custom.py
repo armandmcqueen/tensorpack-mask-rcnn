@@ -10,8 +10,10 @@ import tensorflow as tf
 
 ops.NotDifferentiable('NonMaxSuppressionCustom')
 
-nms_custom = tf.load_op_library(os.path.join(tf.resource_loader.get_data_files_path(), 
-                                'non_max_suppression_custom_op.so'))
+nms_custom_lib_abspath = os.path.join(tf.resource_loader.get_data_files_path(),
+                                      'non_max_suppression_custom_op.so')
+nms_custom = tf.load_op_library(nms_custom_lib_abspath)
+                               
 
 def non_max_suppression_custom(boxes,
                                scores,
@@ -56,7 +58,6 @@ def non_max_suppression_custom(boxes,
   """
   with ops.name_scope(name, 'non_max_suppression_custom'):
     iou_threshold = ops.convert_to_tensor(iou_threshold, name='iou_threshold')
-    print(iou_threshold)
     score_threshold = ops.convert_to_tensor(
         score_threshold, name='score_threshold')
     return nms_custom.non_max_suppression_custom(boxes, scores, max_output_size,
@@ -66,8 +67,11 @@ def non_max_suppression_custom(boxes,
 
 
 with tf.Session() as sess:
-  x = non_max_suppression_custom(tf.constant([[1.1, 2.1, 2.1, 2.1], [1.3, 2.4, 1.6, 2.4]]), 
-                           tf.constant([1.0, 0.5]), tf.constant(1), 0.8, 0.8)
+  x = non_max_suppression_custom(tf.constant([[1.1, 2.1, 2.1, 2.1], 
+                                              [1.3, 2.4, 1.6, 2.4]]), 
+                                 tf.constant([1.0, 0.5]), 
+                                 tf.constant(1), 
+                                 0.8, 0.8)
   z = sess.run([x])
   print(z)
 

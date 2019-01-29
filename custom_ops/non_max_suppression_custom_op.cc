@@ -101,36 +101,38 @@ class NonMaxSuppressionCustomOp : public NonMaxSuppressionV3V4CustomBase {
 
  protected:
   void DoComputeAndPostProcess(OpKernelContext* context) override {
-    // Allocate output tensors
-    std::vector<int> selected;
-    Tensor* output_indices = nullptr;
-    TensorShape output_shape({static_cast<int>(selected.size())});
-    OP_REQUIRES_OK(context,
-                   context->allocate_output(0, output_shape, &output_indices));
-    typename TTypes<int, 1>::Tensor output_indices_data = output_indices->tensor<int, 1>();
-    //std::copy_n(selected.begin(), selected.size(), output_indices_data.data());
+    int max_output_size_val_ = max_output_size_.scalar<int>()();
+    std::vector<int> selected(max_output_size_val_);
 
-    /*
-    functor::NonMaxSuppression<Device, T>()(context->eigen_device<Device>(),
-                                            boxes_.tensor<float, 2>(),
-                                            scores_.tensor<float, 1>(),
-                                            iou_threshold_val_,
-                                            score_threshold_val_,
-                                            max_output_size_.scalar<int>()(),
-                                            output_indices_data);
-    */
-    //DoNonMaxSuppressionOp<T>(context, scores_, num_boxes_, max_output_size_,
-                             //score_threshold_val_, suppress_check_fn);
+    // Allocate output tensors
+    Tensor* output_indices = nullptr;
+    TensorShape output_shape({static_cast<int>(max_output_size_val_)});
+    OP_REQUIRES_OK(context, context->allocate_output(0, output_shape, &output_indices));
+
+    functor::NonMaxSuppressionCustomFunctor<Device, T> func;
+
+    func(
+      context->eigen_device<Device>(),
+      boxes_.flat<T>().data(),
+      scores_.flat<T>().data(),
+      max_output_size_val_,
+      iou_threshold_val_,
+      score_threshold_val_,
+      selected
+    );
+
   }
 };
 
+//extern template struct functor::NonMaxSuppressionCustomFunctor<GPUDevice, float>;
+
 REGISTER_KERNEL_BUILDER(Name("NonMaxSuppressionCustom")
-                            .TypeConstraint<float>("T")
-                            .Device(DEVICE_GPU)
-                            .HostMemory("max_output_size")
-                            .HostMemory("iou_threshold")
-                            .HostMemory("score_threshold"),
-                            NonMaxSuppressionCustomOp<CPUDevice, float>);
+                        .Device(DEVICE_GPU)
+                        .HostMemory("max_output_size")
+                        .HostMemory("iou_threshold")
+                        .HostMemory("score_threshold")
+                        .TypeConstraint<float>("T"),
+                        NonMaxSuppressionCustomOp<GPUDevice, float>);
 
 } // namespace tensorflow
 
