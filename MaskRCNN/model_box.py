@@ -10,6 +10,10 @@ from tensorpack.tfutils.scope_utils import under_name_scope
 from config import config
 
 
+# Checks at graph_build time
+def check_shape(name, tensor):
+    print("[tshape] "+str(name)+": " + str(tensor.shape))
+
 @under_name_scope()
 def clip_boxes(boxes, window, name=None):
     """
@@ -19,6 +23,10 @@ def clip_boxes(boxes, window, name=None):
     """
     boxes = tf.maximum(boxes, 0.0)
     m = tf.tile(tf.reverse(window, [0]), [2])    # (4,)
+
+    check_shape("model_box.py boxes", boxes)
+    check_shape("model_box.py m", m)
+
     boxes = tf.minimum(boxes, tf.cast(m, tf.float32), name=name)
     return boxes
 
