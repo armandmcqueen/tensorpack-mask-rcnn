@@ -83,8 +83,8 @@ def encode_bbox_target(boxes, anchors):
     check_shape("model_box.encode_bbox_target.boxes", boxes)
     check_shape("model_box.encode_bbox_target.anchors", anchors)
 
-    boxes = print_runtime_shape("model_box.encode_bbox_target.boxes", boxes)
-    anchors = print_runtime_shape("model_box.encode_bbox_target.anchors", anchors)
+    # boxes = print_runtime_shape("model_box.encode_bbox_target.boxes", boxes)
+    # anchors = print_runtime_shape("model_box.encode_bbox_target.anchors", anchors)
 
 
     anchors_x1y1x2y2 = tf.reshape(anchors, (-1, 2, 2))
