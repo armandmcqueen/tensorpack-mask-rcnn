@@ -44,6 +44,13 @@ def decode_bbox_target(box_predictions, anchors):
     Returns:
         box_decoded: (..., 4), float32. With the same shape.
     """
+    check_shape("model_box.decode_bbox_target.box_predictions", box_predictions)
+    check_shape("model_box.decode_bbox_target.anchors", anchors)
+
+    print_runtime_shape("model_box.decode_bbox_target.box_predictions", box_predictions)
+    print_runtime_shape("model_box.decode_bbox_target.anchors", anchors)
+
+
     orig_shape = tf.shape(anchors)
     box_pred_txtytwth = tf.reshape(box_predictions, (-1, 2, 2))                 # (BSxfHxfWxNA) x 2 x 2
     box_pred_txty, box_pred_twth = tf.split(box_pred_txtytwth, 2, axis=1)
