@@ -80,6 +80,13 @@ def encode_bbox_target(boxes, anchors):
     Returns:
         box_encoded: (..., 4), float32 with the same shape.
     """
+    check_shape("model_box.encode_bbox_target.boxes", boxes)
+    check_shape("model_box.encode_bbox_target.anchors", anchors)
+
+    print_runtime_shape("model_box.encode_bbox_target.boxes", boxes)
+    print_runtime_shape("model_box.encode_bbox_target.anchors", anchors)
+
+
     anchors_x1y1x2y2 = tf.reshape(anchors, (-1, 2, 2))
     anchors_x1y1, anchors_x2y2 = tf.split(anchors_x1y1x2y2, 2, axis=1)
     waha = anchors_x2y2 - anchors_x1y1
