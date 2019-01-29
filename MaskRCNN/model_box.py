@@ -14,6 +14,9 @@ from config import config
 def check_shape(name, tensor):
     print("[tshape] "+str(name)+": " + str(tensor.shape))
 
+def print_runtime_shape(name, tensor):
+    return tf.print("[runtime_shape] "+name+": "+str(tf.shape(tensor)))
+
 @under_name_scope()
 def clip_boxes(boxes, window, name=None):
     """
@@ -194,6 +197,9 @@ class RPNAnchors(namedtuple('_RPNAnchors', ['boxes', 'gt_labels', 'gt_boxes'])):
         print("Decode logits")
         check_shape("RPNAnchors.decode_logits().logits", logits)
         check_shape("RPNAnchors.decode_logits().boxes", self.boxes)
+
+        print_runtime_shape("RPNAnchors.decode_logits().logits", logits)
+        print_runtime_shape("RPNAnchors.decode_logits().boxes", self.boxes)
         return decode_bbox_target(logits, self.boxes)
 
     # @under_name_scope()
