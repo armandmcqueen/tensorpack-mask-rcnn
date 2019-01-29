@@ -168,14 +168,13 @@ class ResNetFPNModel(DetectionModel):
             )
         return ret
 
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
+    def slice_feature_and_anchors(self, p23456, anchors):
+        for i, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
+            with tf.name_scope('FPN_slice_lvl{}'.format(i)):
+                anchors[i] = anchors[i].narrow_to(p23456[i])
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
 
-    # def slice_feature_and_anchors(self, p23456, anchors, orig_image_dims):
-    #     orig_image_dims_hw = orig_image_dims[:2]    # Remove irrelevant channel dimension
-    #     for i, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
-    #         with tf.name_scope('FPN_slice_lvl{}'.format(i)):
-    #             orig_image_scale_factor = 1.0 / stride
-    #             projection_dims = orig_image_dims_hw * orig_image_scale_factor
-    #             anchors[i] = anchors[i].narrow_to(p23456[i], projection_dims)
 
     def backbone(self, images):
         c2345 = resnet_fpn_backbone(images, cfg.BACKBONE.RESNET_NUM_BLOCKS)
@@ -239,6 +238,7 @@ class ResNetFPNModel(DetectionModel):
         multilevel_anchors =      [RPNAnchors(b_anchors.boxes[0, :, :, :, :],
                                               b_anchors.gt_labels[0, :, :, :],
                                               b_anchors.gt_boxes[0, :, :, :, :]) for b_anchors in multilevel_anchors]
+        self.slice_feature_and_anchors(features, multilevel_anchors)
         multilevel_pred_boxes =   [b_pred_boxes[0, :, :, :, :] for b_pred_boxes in multilevel_pred_boxes]
         multilevel_box_logits =   [b_box_logits[0, :, :, :, :] for b_box_logits in multilevel_box_logits]
         multilevel_label_logits = [b_label_logits[0, :, :, :] for b_label_logits in multilevel_label_logits]
