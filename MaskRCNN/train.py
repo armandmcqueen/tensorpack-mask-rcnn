@@ -123,7 +123,7 @@ class DetectionModel(ModelDesc):
         targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
 
 
-        head_losses = self.roi_heads(images, features, proposals, targets)
+        head_losses = self.roi_heads(images, features, proposals, targets, inputs['orig_gt_counts'])
 
         if self.training:
             wd_cost = regularize_cost(
@@ -257,7 +257,7 @@ class ResNetFPNModel(DetectionModel):
 
         return BoxProposals(proposal_boxes), losses
 
-    def roi_heads(self, images, features, proposals, targets):
+    def roi_heads(self, images, features, proposals, targets, prepadding_gt_counts):
 
         gt_boxes, gt_labels, *_ = targets
         image_shape2d = tf.shape(images)[2:] # h,w
@@ -266,8 +266,17 @@ class ResNetFPNModel(DetectionModel):
 
         images = images[0, :, :, :]
         image_shape2d = tf.shape(images)[1:] # h,w
+
+
+
+        # extract single image GT
         gt_boxes = gt_boxes[0, :, :]
         gt_labels = gt_labels[0, :]
+
+        # remove padding
+        single_gt_original_count = prepadding_gt_counts[0]
+        gt_boxes = gt_boxes[0:single_gt_original_count, :]
+        gt_labels = gt_labels [0:single_gt_original_count]
 
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
