@@ -241,9 +241,9 @@ class ResNetFPNModel(DetectionModel):
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
 
-        # multilevel_anchors =      [RPNAnchors(b_anchors.boxes[0, :, :, :, :],
-        #                                       b_anchors.gt_labels[0, :, :, :],
-        #                                       b_anchors.gt_boxes[0, :, :, :, :]) for b_anchors in multilevel_anchors]
+        multilevel_anchors =      [RPNAnchors(b_anchors.boxes[0, :, :, :, :],
+                                              b_anchors.gt_labels[0, :, :, :],
+                                              b_anchors.gt_boxes[0, :, :, :, :]) for b_anchors in multilevel_anchors]
         # self.slice_feature_and_anchors(features, multilevel_anchors)
 
         multilevel_pred_boxes = [b_pred_boxes[0,:, :, :, :] for b_pred_boxes in multilevel_pred_boxes]
