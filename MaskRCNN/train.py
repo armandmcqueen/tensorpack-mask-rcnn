@@ -287,6 +287,7 @@ class ResNetFPNModel(DetectionModel):
 
 
         if self.training:
+            print("self.training == True")
             all_losses = fastrcnn_head.losses()
 
             if cfg.MODE_MASK:
