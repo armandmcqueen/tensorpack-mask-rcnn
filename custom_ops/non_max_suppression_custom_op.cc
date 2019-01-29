@@ -113,6 +113,7 @@ class NonMaxSuppressionCustomOp : public NonMaxSuppressionV3V4CustomBase {
       context->eigen_device<Device>(),
       boxes_.flat<T>().data(),
       scores_.flat<T>().data(),
+      num_boxes_,
       max_output_size_val_,
       iou_threshold_val_,
       score_threshold_val_,

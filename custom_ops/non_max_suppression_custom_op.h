@@ -16,6 +16,7 @@ struct NonMaxSuppressionCustomFunctor {
   void operator()(const Device& d,
                   const T* boxes,  // typename TTypes<T, 2>::Tensor boxes
                   const T* scores, // typename TTypes<T, 1>::Tensor scores,
+                  int num_boxes,
                   int max_output_size,
                   float iou_threshold,
                   float score_threshold,
@@ -27,6 +28,7 @@ struct NonMaxSuppressionCustomFunctor<Eigen::GpuDevice, T> {
   void operator()(const Eigen::GpuDevice& d,
                   const T* boxes,  // typename TTypes<T, 2>::Tensor boxes
                   const T* scores, // typename TTypes<T, 1>::Tensor scores,
+                  int num_boxes,
                   int max_output_size,
                   float iou_threshold,
                   float score_threshold,
