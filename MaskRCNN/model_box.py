@@ -202,29 +202,42 @@ class RPNAnchors(namedtuple('_RPNAnchors', ['boxes', 'gt_labels', 'gt_boxes'])):
         print_runtime_shape("RPNAnchors.decode_logits().boxes", self.boxes)
         return decode_bbox_target(logits, self.boxes)
 
+    # @under_name_scope()
+    # def narrow_to(self, featuremap, prepadding_dims):
+    #     """
+    #     Slice anchors to the spatial size of this featuremap.
+    #     Use prepadding_dims to ignore anchors that only sit on padding
+    #
+    #
+    #     featuremap:         N x C x H x W
+    #     prepadding_dims:    N x 2
+    #
+    #
+    #     """
+    #     reduced_anchors = []
+    #
+    #     # For each image, reduce the set of anchors according to prepadding_dims
+    #     for image_num, single_image_anchors in enumerate(self.boxes):
+    #
+    #         shape2d = tf.shape(featuremap)[2:]  # h,w
+    #         slice3d = tf.concat([shape2d, [-1]], axis=0)
+    #         slice4d = tf.concat([shape2d, [-1, -1]], axis=0)
+    #         boxes = tf.slice(self.boxes, [0, 0, 0, 0], slice4d)
+    #         gt_labels = tf.slice(self.gt_labels, [0, 0, 0], slice3d)
+    #         gt_boxes = tf.slice(self.gt_boxes, [0, 0, 0, 0], slice4d)
+    #     return RPNAnchors(boxes, gt_labels, gt_boxes)
+
     @under_name_scope()
-    def narrow_to(self, featuremap, prepadding_dims):
+    def narrow_to(self, featuremap):
         """
         Slice anchors to the spatial size of this featuremap.
-        Use prepadding_dims to ignore anchors that only sit on padding
-
-
-        featuremap:         N x C x H x W
-        prepadding_dims:    N x 2
-
-
         """
-        reduced_anchors = []
-
-        # For each image, reduce the set of anchors according to prepadding_dims
-        for image_num, single_image_anchors in enumerate(self.boxes):
-
-            shape2d = tf.shape(featuremap)[2:]  # h,w
-            slice3d = tf.concat([shape2d, [-1]], axis=0)
-            slice4d = tf.concat([shape2d, [-1, -1]], axis=0)
-            boxes = tf.slice(self.boxes, [0, 0, 0, 0], slice4d)
-            gt_labels = tf.slice(self.gt_labels, [0, 0, 0], slice3d)
-            gt_boxes = tf.slice(self.gt_boxes, [0, 0, 0, 0], slice4d)
+        shape2d = tf.shape(featuremap)[2:]  # h,w
+        slice3d = tf.concat([shape2d, [-1]], axis=0)
+        slice4d = tf.concat([shape2d, [-1, -1]], axis=0)
+        boxes = tf.slice(self.boxes, [0, 0, 0, 0], slice4d)
+        gt_labels = tf.slice(self.gt_labels, [0, 0, 0], slice3d)
+        gt_boxes = tf.slice(self.gt_boxes, [0, 0, 0, 0], slice4d)
         return RPNAnchors(boxes, gt_labels, gt_boxes)
 
 
