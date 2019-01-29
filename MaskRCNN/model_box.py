@@ -191,6 +191,9 @@ class RPNAnchors(namedtuple('_RPNAnchors', ['boxes', 'gt_labels', 'gt_boxes'])):
         return encode_bbox_target(self.gt_boxes, self.boxes)
 
     def decode_logits(self, logits):
+        print("Decode logits")
+        check_shape("RPNAnchors.decode_logits().logits", logits)
+        check_shape("RPNAnchors.decode_logits().boxes", self.boxes)
         return decode_bbox_target(logits, self.boxes)
 
     # @under_name_scope()
