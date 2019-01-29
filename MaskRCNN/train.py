@@ -176,6 +176,13 @@ class ResNetFPNModel(DetectionModel):
     # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
 
 
+    def slice_feature_and_anchors_batch(self, p23456, anchors):
+        for i, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
+            with tf.name_scope('FPN_batch_slice_lvl{}'.format(i)):
+                anchors[i] = anchors[i].narrow_to_batch(p23456[i])
+
+
+
     def backbone(self, images):
         c2345 = resnet_fpn_backbone(images, cfg.BACKBONE.RESNET_NUM_BLOCKS)
         p23456 = fpn_model('fpn', c2345)
@@ -227,18 +234,25 @@ class ResNetFPNModel(DetectionModel):
             check_shape("lvl " + str(lvl) + " label_logits", lvl_label_logits)
 
 
-
+        self.slice_feature_and_anchors_batch(features, multilevel_anchors)
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
 
         multilevel_anchors =      [RPNAnchors(b_anchors.boxes[0, :, :, :, :],
                                               b_anchors.gt_labels[0, :, :, :],
                                               b_anchors.gt_boxes[0, :, :, :, :]) for b_anchors in multilevel_anchors]
-        self.slice_feature_and_anchors(features, multilevel_anchors)
+        # self.slice_feature_and_anchors(features, multilevel_anchors)
         multilevel_box_logits =   [b_box_logits[0, :, :, :, :] for b_box_logits in multilevel_box_logits]
         multilevel_label_logits = [b_label_logits[0, :, :, :] for b_label_logits in multilevel_label_logits]
 
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<1
+
+
+
+
+
+
+
 
         multilevel_pred_boxes = [anchor.decode_logits(logits)
                                  for anchor, logits in zip(multilevel_anchors, multilevel_box_logits)]
