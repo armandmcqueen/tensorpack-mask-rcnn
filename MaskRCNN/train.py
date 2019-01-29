@@ -259,16 +259,19 @@ class ResNetFPNModel(DetectionModel):
     def roi_heads(self, images, features, proposals, targets):
 
         gt_boxes, gt_labels, *_ = targets
+        image_shape2d = tf.shape(images)[2:] # h,w
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
 
         images = images[0, :, :, :]
+        image_shape2d = tf.shape(images)[1:] # h,w
         gt_boxes = gt_boxes[0, :, :]
         gt_labels = gt_labels[0, :]
 
+
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
 
-        image_shape2d = tf.shape(images)[2:]     # h,w
+
         assert len(features) == 5, "Features have to be P23456!"
 
 
