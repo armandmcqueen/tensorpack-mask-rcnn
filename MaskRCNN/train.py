@@ -213,9 +213,12 @@ class ResNetFPNModel(DetectionModel):
         with tf.control_dependencies([print_op_1]):
             for i, all_anchors_on_level in enumerate(all_anchors_fpn):
                 single_anchor = all_anchors_on_level[0, 0, 0, :]
-                print_op_3 = tf.print(f'FPN anchor ind {i}', single_anchor)
+                single_location_anchors = all_anchors_on_level[0, 0, :, :]
+                print_op_2 = tf.print(f'FPN anchor ind {i}: ', single_location_anchors)
 
-                with tf.control_dependencies([print_op_3]):
+
+
+                with tf.control_dependencies([print_op_2]):
 
                     batched_all_anchors_on_level = tf.stack([all_anchors_on_level for i in range(self.batch_size)])
                     batched_all_anchors_fpn.append(batched_all_anchors_on_level)
