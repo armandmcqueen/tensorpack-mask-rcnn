@@ -13,7 +13,7 @@ from tensorpack.tfutils.tower import get_current_tower_context
 from basemodel import GroupNorm
 from config import config as cfg
 from model_box import roi_align
-from model_rpn import generate_rpn_proposals, rpn_losses
+from model_rpn import generate_rpn_proposals, rpn_losses, generate_rpn_proposals_batch
 from utils.box_ops import area as tf_area
 
 
@@ -249,14 +249,14 @@ def generate_fpn_proposals_batch(
             with tf.name_scope('Lvl{}'.format(lvl + 2)):
                 pred_boxes_decoded = multilevel_pred_boxes[lvl]
                 label_logits = multilevel_label_logits[lvl]
-                bs = tf.shape(multilevel_pred_boxes)[0]
+                bs = tf.shape(pred_boxes_decoded)[0]
 
                 # Resize orig_image_dims according to level of FPN
                 scale_factor = 1.0 / cfg.FPN.ANCHOR_STRIDES[lvl]
 
                 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<2
 
-                proposal_boxes, proposal_scores = generate_rpn_proposals(
+                proposal_boxes, proposal_scores = generate_rpn_proposals_batch(
                     tf.reshape(pred_boxes_decoded, [bs, -1, 4]),
                     tf.reshape(label_logits, [bs, -1]),
                     orig_images_hw*scale_factor, fpn_nms_topk)

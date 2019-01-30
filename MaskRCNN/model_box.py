@@ -35,6 +35,23 @@ def clip_boxes(boxes, window, name=None):
 
 
 @under_name_scope()
+def clip_boxes_batch(boxes, batch_padding_dims, name=None):
+    """
+    Args:
+        boxes: nx4, xyxy
+        window: [h, w]
+    """
+    boxes = tf.maximum(boxes, 0.0)
+    m = tf.tile(tf.reverse(batch_padding_dims, [0]), [2])    # (4,)
+
+    check_shape("model_box.py boxes", boxes)
+    check_shape("model_box.py m", m)
+
+    boxes = tf.minimum(boxes, tf.cast(m, tf.float32), name=name)
+    return boxes
+
+
+@under_name_scope()
 def decode_bbox_target(box_predictions, anchors):
     """
     Args:

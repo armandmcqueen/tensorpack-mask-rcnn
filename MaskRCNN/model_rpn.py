@@ -8,7 +8,7 @@ from tensorpack.tfutils.scope_utils import auto_reuse_variable_scope, under_name
 from tensorpack.tfutils.summary import add_moving_summary
 
 from config import config as cfg
-from model_box import clip_boxes
+from model_box import clip_boxes, clip_boxes_batch
 
 
 @layer_register(log_shape=True)
@@ -175,21 +175,15 @@ def generate_rpn_proposals_batch(boxes, scores, prepadding_dims,
         scores: k logits
     """
 
-    # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<3
-
-    assert boxes.shape.ndims == 2, boxes.shape
 
 
-
-    # For each image
-        # Extract the slice
-        # Fliter out padding
-        # For each anchor
-            # Clip to feature space??
-
-
+    assert boxes.shape.ndims == 3, boxes.shape
     if post_nms_topk is None:
         post_nms_topk = pre_nms_topk
+
+    # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<3
+
+    # Turn BS x N x 4 into (BSxN) x 5
 
     topk = tf.minimum(pre_nms_topk, tf.size(scores))
     topk_scores, topk_indices = tf.nn.top_k(scores, k=topk, sorted=False)

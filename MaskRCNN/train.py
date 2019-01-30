@@ -27,7 +27,7 @@ from config import finalize_configs, config as cfg
 from data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
 from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
 from model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align
-from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses
+from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, generate_fpn_proposals_batch
 from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets
 from model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
 from model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
@@ -45,6 +45,10 @@ def check_shape(name, tensor):
 
 def print_runtime_shape(name, tensor):
     return tf.print("[runtime_shape] "+name+": "+str(tf.shape(tensor)))
+
+def print_runtime_contents(name, tensor):
+    tf.print("[runtime_contents] "+name)
+    tf.print(tensor)
 
 class DetectionModel(ModelDesc):
     def preprocess(self, image):
@@ -201,10 +205,22 @@ class ResNetFPNModel(DetectionModel):
         print(type(all_anchors_fpn))
         print("len: "+str(len(all_anchors_fpn)))
 
+
+
+
         batched_all_anchors_fpn = []
-        for all_anchors_on_level in all_anchors_fpn:
-            batched_all_anchors_on_level = tf.stack([all_anchors_on_level for i in range(self.batch_size)])
-            batched_all_anchors_fpn.append(batched_all_anchors_on_level)
+        print_op_1 = tf.print("Runtime examination of FPN anchors")
+        with tf.control_dependencies([print_op_1]):
+            for i, all_anchors_on_level in enumerate(all_anchors_fpn):
+                print_op_2 = tf.print(f'FPN anchor ind {i}')
+                with tf.control_dependencies([print_op_2]):
+                    single_anchor = all_anchors_on_level[0, 0, 0, :]
+                    print_op_3 = tf.print(single_anchor)
+
+                with tf.control_dependencies([print_op_3]):
+
+                    batched_all_anchors_on_level = tf.stack([all_anchors_on_level for i in range(self.batch_size)])
+                    batched_all_anchors_fpn.append(batched_all_anchors_on_level)
 
 
 
@@ -239,12 +255,22 @@ class ResNetFPNModel(DetectionModel):
         multilevel_pred_boxes = [anchor.decode_logits(logits)
                                  for anchor, logits in zip(multilevel_anchors, multilevel_box_logits)]
 
+        for lvl, lvl_pred_boxes in enumerate(multilevel_pred_boxes):
+            check_shape("lvl "+str(lvl)+" pred_box", lvl_pred_boxes)
+
+
+        # proposal_boxes, proposal_scores = generate_fpn_proposals_batch(
+        #     multilevel_pred_boxes, multilevel_label_logits, orig_image_dims)
+
+
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
+
+        # proposal_boxes
+        # proposal_scores
 
         multilevel_anchors =      [RPNAnchors(b_anchors.boxes[0, :, :, :, :],
                                               b_anchors.gt_labels[0, :, :, :],
                                               b_anchors.gt_boxes[0, :, :, :, :]) for b_anchors in multilevel_anchors]
-        # self.slice_feature_and_anchors(features, multilevel_anchors)
 
         multilevel_pred_boxes = [b_pred_boxes[0,:, :, :, :] for b_pred_boxes in multilevel_pred_boxes]
         multilevel_box_logits = [b_box_logits[0, :, :, :, :] for b_box_logits in multilevel_box_logits]
@@ -252,14 +278,10 @@ class ResNetFPNModel(DetectionModel):
 
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<1
 
-
-
-
-        for lvl, lvl_pred_boxes in enumerate(multilevel_pred_boxes):
-            check_shape("lvl "+str(lvl)+" pred_box", lvl_pred_boxes)
-
         proposal_boxes, proposal_scores = generate_fpn_proposals(
             multilevel_pred_boxes, multilevel_label_logits, image_shape2d)
+
+
 
         if self.training:
             losses = multilevel_rpn_losses(
@@ -268,6 +290,9 @@ class ResNetFPNModel(DetectionModel):
             losses = []
 
         return BoxProposals(proposal_boxes), losses
+
+
+
 
     def roi_heads(self, images, features, proposals, targets, prepadding_gt_counts):
 
@@ -278,8 +303,6 @@ class ResNetFPNModel(DetectionModel):
 
         images = images[0, :, :, :]
         image_shape2d = tf.shape(images)[1:] # h,w
-
-
 
         # extract single image GT
         gt_boxes = gt_boxes[0, :, :]
