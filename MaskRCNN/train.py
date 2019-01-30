@@ -209,12 +209,12 @@ class ResNetFPNModel(DetectionModel):
 
 
         batched_all_anchors_fpn = []
-        print_op_1 = tf.print("Runtime examination of FPN anchors")
+        print_op_1 = tf.print("Runtime examination of FPN anchors", output_stream=tf.logging.info)
         with tf.control_dependencies([print_op_1]):
             for i, all_anchors_on_level in enumerate(all_anchors_fpn):
                 single_anchor = all_anchors_on_level[0, 0, 0, :]
                 single_location_anchors = all_anchors_on_level[0, 0, :, :]
-                print_op_2 = tf.print(f'FPN anchor ind {i}: ', single_location_anchors)
+                print_op_2 = tf.print(f'FPN anchor ind {i}: ', single_location_anchors, output_stream=tf.logging.info)
 
 
 
