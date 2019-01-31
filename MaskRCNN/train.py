@@ -209,12 +209,12 @@ class ResNetFPNModel(DetectionModel):
 
 
         batched_all_anchors_fpn = []
-        print_op_1 = tf.print("Runtime examination of FPN anchors", output_stream=tf.logging.info)
+        print_op_1 = tf.print("Runtime examination of FPN anchors")
         with tf.control_dependencies([print_op_1]):
             for i, all_anchors_on_level in enumerate(all_anchors_fpn):
                 single_anchor = all_anchors_on_level[0, 0, 0, :]
                 single_location_anchors = all_anchors_on_level[0, 0, :, :]
-                print_op_2 = tf.print(f'FPN anchor ind {i}: ', single_location_anchors, output_stream=tf.logging.info)
+                print_op_2 = tf.print(f'FPN anchor ind {i}: ', single_location_anchors)
 
 
 
@@ -260,14 +260,14 @@ class ResNetFPNModel(DetectionModel):
             check_shape("lvl "+str(lvl)+" pred_box", lvl_pred_boxes)
 
 
-        # proposal_boxes, proposal_scores = generate_fpn_proposals_batch(
-        #     multilevel_pred_boxes, multilevel_label_logits, orig_image_dims)
+        proposal_boxes, proposal_scores = generate_fpn_proposals_batch(
+            multilevel_pred_boxes, multilevel_label_logits, orig_image_dims)
 
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
 
-        # proposal_boxes
-        # proposal_scores
+        proposal_boxes = proposal_boxes[0, :, :]
+        proposal_scores = proposal_scores[0, :]
 
         multilevel_anchors =      [RPNAnchors(b_anchors.boxes[0, :, :, :, :],
                                               b_anchors.gt_labels[0, :, :, :],
@@ -279,8 +279,8 @@ class ResNetFPNModel(DetectionModel):
 
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<1
 
-        proposal_boxes, proposal_scores = generate_fpn_proposals(
-            multilevel_pred_boxes, multilevel_label_logits, image_shape2d)
+        # proposal_boxes, proposal_scores = generate_fpn_proposals(
+        #     multilevel_pred_boxes, multilevel_label_logits, image_shape2d)
 
 
 

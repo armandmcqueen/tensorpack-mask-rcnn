@@ -180,21 +180,41 @@ def generate_rpn_proposals_batch(boxes, scores, prepadding_dims,
     assert boxes.shape.ndims == 3, boxes.shape
     if post_nms_topk is None:
         post_nms_topk = pre_nms_topk
+    topk = tf.minimum(pre_nms_topk, tf.size(scores))
 
     # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<3
 
-    # Turn BS x N x 4 into (BSxN) x 5
+    # Turn BS x N x 4 into (BSxN) x 5 (where 5 is batch_index + box params)
+    # For each image, retrieve pre_nms_topk boxes
 
-    topk = tf.minimum(pre_nms_topk, tf.size(scores))
-    topk_scores, topk_indices = tf.nn.top_k(scores, k=topk, sorted=False)
-    topk_boxes = tf.gather(boxes, topk_indices)
-    topk_boxes = clip_boxes(topk_boxes, img_shape)
+    bs = tf.shape(boxes)[0]
+    b_pre_nms_topk = [pre_nms_topk for _ in range(bs)]
+    b_post_nms_topk = [post_nms_topk for _ in range(bs)]
 
-    topk_boxes_x1y1x2y2 = tf.reshape(topk_boxes, (-1, 2, 2))
-    topk_boxes_x1y1, topk_boxes_x2y2 = tf.split(topk_boxes_x1y1x2y2, 2, axis=1)
+    out = tf.map_fn(single_image_generate_rpn_proposals,
+                    [boxes, scores, prepadding_dims, b_pre_nms_topk, b_post_nms_topk],
+                    dtype=(tf.float32, tf.float32),
+                    back_prop=False,
+                    name="mapfn_generate_fpn_proposals")
+
+    proposal_boxes, proposal_scores = out
+    return tf.stop_gradient(proposal_boxes, name='boxes'), tf.stop_gradient(proposal_scores, name='scores')
+
+
+
+
+def single_image_generate_rpn_proposals(input_tensors):
+    single_image_boxes, single_image_scores, single_image_shape, pre_nms_topk, post_nms_topk = input_tensors
+
+    topk_scores, topk_indices = tf.nn.top_k(single_image_scores, k=pre_nms_topk, sorted=False)
+    topk_boxes = tf.gather(single_image_boxes, topk_indices)
+    topk_boxes = clip_boxes(topk_boxes, single_image_shape)
+
+    topk_boxes_x1y1x2y2 = tf.reshape(topk_boxes, (-1, 2, 2))                        # K x 2 x 2
+    topk_boxes_x1y1, topk_boxes_x2y2 = tf.split(topk_boxes_x1y1x2y2, 2, axis=1)     # K x 1 x 2
     # nx1x2 each
-    wbhb = tf.squeeze(topk_boxes_x2y2 - topk_boxes_x1y1, axis=1)
-    valid = tf.reduce_all(wbhb > cfg.RPN.MIN_SIZE, axis=1)  # n,
+    wbhb = tf.squeeze(topk_boxes_x2y2 - topk_boxes_x1y1, axis=1)                    # K x 2
+    valid = tf.reduce_all(wbhb > cfg.RPN.MIN_SIZE, axis=1)  # n,                    #
     topk_valid_boxes_x1y1x2y2 = tf.boolean_mask(topk_boxes_x1y1x2y2, valid)
     topk_valid_scores = tf.boolean_mask(topk_scores, valid)
 
@@ -211,5 +231,5 @@ def generate_rpn_proposals_batch(boxes, scores, prepadding_dims,
     topk_valid_boxes = tf.reshape(topk_valid_boxes_x1y1x2y2, (-1, 4))
     proposal_boxes = tf.gather(topk_valid_boxes, nms_indices)
     proposal_scores = tf.gather(topk_valid_scores, nms_indices)
-    tf.sigmoid(proposal_scores, name='probs')  # for visualization
-    return tf.stop_gradient(proposal_boxes, name='boxes'), tf.stop_gradient(proposal_scores, name='scores')
+    # tf.sigmoid(proposal_scores, name='probs')  # for visualization
+    return proposal_boxes, proposal_scores

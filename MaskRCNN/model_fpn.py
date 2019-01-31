@@ -251,15 +251,12 @@ def generate_fpn_proposals_batch(
                 label_logits = multilevel_label_logits[lvl]
                 bs = tf.shape(pred_boxes_decoded)[0]
 
-                # Resize orig_image_dims according to level of FPN
-                scale_factor = 1.0 / cfg.FPN.ANCHOR_STRIDES[lvl]
-
                 # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<2
 
                 proposal_boxes, proposal_scores = generate_rpn_proposals_batch(
                     tf.reshape(pred_boxes_decoded, [bs, -1, 4]),
                     tf.reshape(label_logits, [bs, -1]),
-                    orig_images_hw*scale_factor, fpn_nms_topk)
+                    orig_images_hw, fpn_nms_topk)
                 all_boxes.append(proposal_boxes)
                 all_scores.append(proposal_scores)
 
