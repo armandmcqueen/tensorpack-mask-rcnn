@@ -188,8 +188,9 @@ def generate_rpn_proposals_batch(boxes, scores, prepadding_dims,
     # For each image, retrieve pre_nms_topk boxes
 
     bs = tf.shape(boxes)[0]
-    b_pre_nms_topk = [pre_nms_topk for _ in range(bs)]
-    b_post_nms_topk = [post_nms_topk for _ in range(bs)]
+
+    b_pre_nms_topk = tf.tile([pre_nms_topk], bs)
+    b_post_nms_topk = tf.tile([post_nms_topk], bs)
 
     out = tf.map_fn(single_image_generate_rpn_proposals,
                     [boxes, scores, prepadding_dims, b_pre_nms_topk, b_post_nms_topk],
