@@ -9,7 +9,7 @@ from tensorpack.tfutils.summary import add_moving_summary
 
 from config import config as cfg
 from model_box import clip_boxes
-from MaskRCNN.perf import print_runtime_shape
+from perf import print_runtime_shape
 
 
 
