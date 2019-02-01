@@ -238,7 +238,7 @@ def generate_fpn_proposals_batch(
     num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
     assert len(multilevel_pred_boxes) == num_lvl
     assert len(multilevel_label_logits) == num_lvl
-    orig_images_hw = orig_image_dims[:2]
+    orig_images_hw = orig_image_dims[:1]
 
     training = get_current_tower_context().is_training
     all_boxes = []

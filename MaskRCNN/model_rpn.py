@@ -177,6 +177,8 @@ def generate_rpn_proposals_batch(boxes, scores, prepadding_dims,
         scores: k logits
     """
 
+    print_buildtime_shape("gen_rpn_prop.prepadding_dims", prepadding_dims)
+
 
 
     assert boxes.shape.ndims == 3, boxes.shape
