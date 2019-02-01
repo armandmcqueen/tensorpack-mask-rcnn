@@ -8,8 +8,8 @@ from tensorpack.tfutils.scope_utils import auto_reuse_variable_scope, under_name
 from tensorpack.tfutils.summary import add_moving_summary
 
 from config import config as cfg
-from model_box import clip_boxes, clip_boxes_batch
-from perf import print_runtime_shape
+from model_box import clip_boxes
+from MaskRCNN.perf import print_runtime_shape
 
 
 
