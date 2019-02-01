@@ -24,6 +24,7 @@ static inline void CheckScoreSizes(OpKernelContext* context, int num_boxes,
   OP_REQUIRES(context, scores.dims() == 1,
               errors::InvalidArgument("scores must be 1-D",
                                       scores.shape().DebugString()));
+
   OP_REQUIRES(context, scores.dim_size(0) == num_boxes,
               errors::InvalidArgument("scores has incompatible shape"));
 }
@@ -101,23 +102,16 @@ class NonMaxSuppressionCustomOp : public NonMaxSuppressionV3V4CustomBase {
 
  protected:
   void DoComputeAndPostProcess(OpKernelContext* context) override {
-    int max_output_size_val_ = max_output_size_.scalar<int>()();
-    std::vector<int> selected(max_output_size_val_);
-
-    // Allocate output tensors
-    Tensor* output_indices = nullptr;
-    TensorShape output_shape({static_cast<int>(max_output_size_val_)});
-    OP_REQUIRES_OK(context, context->allocate_output(0, output_shape, &output_indices));
 
     functor::NonMaxSuppressionCustomFunctor<Device, T>()(
+      context,
       context->eigen_device<Device>(),
       boxes_.flat<T>().data(),
       scores_.flat<T>().data(),
       num_boxes_,
-      max_output_size_val_,
+      max_output_size_.scalar<int>()(),
       iou_threshold_val_,
-      score_threshold_val_,
-      selected
+      score_threshold_val_
     );
 
   }
@@ -131,6 +125,7 @@ REGISTER_KERNEL_BUILDER(Name("NonMaxSuppressionCustom")
                         .TypeConstraint<float>("T"),
                         NonMaxSuppressionCustomOp<GPUDevice, float>);
 
+/*
 REGISTER_KERNEL_BUILDER(Name("NonMaxSuppressionCustom")
                         .Device(DEVICE_GPU)
                         .HostMemory("max_output_size")
@@ -138,6 +133,6 @@ REGISTER_KERNEL_BUILDER(Name("NonMaxSuppressionCustom")
                         .HostMemory("score_threshold")
                         .TypeConstraint<Eigen::half>("T"),
                         NonMaxSuppressionCustomOp<GPUDevice, Eigen::half>);
-
+*/
 } // namespace tensorflow
 

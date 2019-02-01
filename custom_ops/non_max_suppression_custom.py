@@ -60,18 +60,45 @@ def non_max_suppression_custom(boxes,
     iou_threshold = ops.convert_to_tensor(iou_threshold, name='iou_threshold')
     score_threshold = ops.convert_to_tensor(
         score_threshold, name='score_threshold')
-    return nms_custom.non_max_suppression_custom(boxes, scores, max_output_size,
-                                                 iou_threshold, score_threshold)    
+    scores_sorted, scores_indices = tf.math.top_k(scores, tf.size(scores))
+    boxes_sorted = tf.gather(boxes, scores_indices)
+    selected_indices = nms_custom.non_max_suppression_custom(boxes_sorted, 
+                                                             scores_sorted, 
+                                                             max_output_size,
+                                                             iou_threshold, 
+                                                             score_threshold)    
+    return tf.gather(scores_indices, selected_indices)
     #return gen_image_ops.non_max_suppression_v3(boxes, scores, max_output_size,
                                                 #iou_threshold, score_threshold)
 
 
-with tf.Session() as sess:
-  x = non_max_suppression_custom(tf.constant([[1.1, 2.1, 2.1, 2.1], 
-                                              [1.3, 2.4, 1.6, 2.4]]), 
-                                 tf.constant([1.0, 0.5]), 
-                                 tf.constant(1), 
-                                 0.8, 0.8)
-  z = sess.run([x])
-  print(z)
+'''
+import random
+tf.enable_eager_execution()
 
+a = [ [0, 0,  1, 1],  [0, 0.1,  1, 1.1],  [0, -0.1, 1, 0.9],
+      [0, 10, 1, 11], [0, 10.1, 1, 11.1], [0, 100,   1, 101] ]
+p = [ .9, .75, .6, .95, .5, .3 ]
+max_output = 3
+iou_thresh = 0.5
+score_thresh = 0.4
+
+a = [ [0, 0,  1, 1.] ]
+p = [ .9 ]
+max_output = 3
+iou_thresh = 0.5
+score_thresh = 0.0
+
+a = [ [random.random(), random.random(), random.random(), random.random()] for _ in range(2000) ]
+p = [ random.random() for _ in range(2000) ]
+max_output = 100
+iou_thresh = 0.5
+score_thresh = 0.4
+
+x = non_max_suppression_custom(tf.constant(a),
+                                 tf.constant(p),
+                                 tf.constant(max_output), 
+                                 iou_thresh, score_thresh)
+print(x)
+
+'''

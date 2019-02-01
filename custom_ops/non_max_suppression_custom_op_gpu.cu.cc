@@ -1,129 +1,200 @@
+/**
+ * Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
+ */
 
 #define EIGEN_USE_GPU
 
+#include <stdio.h>
 #include "non_max_suppression_custom_op.h"
+#include "tensorflow/core/framework/tensor.h"
+#include "tensorflow/core/framework/tensor_shape.h"
 
 namespace tensorflow {
 
-// Helper data structure used locally
-struct
-#ifndef __HIP_PLATFORM_HCC__
-    __align__(16)
-#endif
-Box {
-    float x1, y1, x2, y2;
-};
+int const threadsPerBlock = sizeof(unsigned long long) * 8;
 
-#define BOXES_PER_THREAD (8 * sizeof(int))
-#define CHUNK_SIZE 2000
+template <typename T>
+__host__ __device__ __forceinline__ T THCCeilDiv(T a, T b) {
+  return (a + b - 1) / b;
+}
 
-#define CAFFE_CUDA_NUM_THREADS         128
-#define CAFFE_CUDA_NUM_THREADS_2D_DIMX 16
-#define CAFFE_CUDA_NUM_THREADS_2D_DIMY 16
+template <typename T>
+__device__ inline T devIoU(T const * const a, T const * const b) {
+  T left = max(a[0], b[0]), right = min(a[2], b[2]);
+  T top = max(a[1], b[1]), bottom = min(a[3], b[3]);
+  T width = max(right - left + 1, 0.f), height = max(bottom - top + 1, 0.f);
+  T interS = width * height;
+  T Sa = (a[2] - a[0] + 1) * (a[3] - a[1] + 1);
+  T Sb = (b[2] - b[0] + 1) * (b[3] - b[1] + 1);
+  return interS / (Sa + Sb - interS);
+}
 
-const dim3 CAFFE_CUDA_NUM_THREADS_2D = {
-  static_cast<unsigned int>(CAFFE_CUDA_NUM_THREADS_2D_DIMX),
-  static_cast<unsigned int>(CAFFE_CUDA_NUM_THREADS_2D_DIMY),
-  1u
-};
 
-__launch_bounds__(
-    CAFFE_CUDA_NUM_THREADS_2D_DIMX* CAFFE_CUDA_NUM_THREADS_2D_DIMY,
-    4) __global__
-    void NMSKernel(
-        const Box* d_desc_sorted_boxes,
-        const int nboxes,
-        const float thresh) {
-        //const int mask_ld,
-        //int* d_delete_mask) {
-  // Storing boxes used by this CUDA block in the shared memory
-  __shared__ Box shared_i_boxes[CAFFE_CUDA_NUM_THREADS_2D_DIMX];
-  // Same thing with areas
-  __shared__ float shared_i_areas[CAFFE_CUDA_NUM_THREADS_2D_DIMX];
-  // The condition of the for loop is common to all threads in the block
-  // This is necessary to be able to call __syncthreads() inside of the loop
-  for (int i_block_offset = blockIdx.x * blockDim.x; i_block_offset < nboxes;
-       i_block_offset += blockDim.x * gridDim.x) {
-    const int i_to_load = i_block_offset + threadIdx.x;
-    if (i_to_load < nboxes) {
-      // One 1D line load the boxes for x-dimension
-      if (threadIdx.y == 0) {
-        const Box box = d_desc_sorted_boxes[i_to_load];
-        shared_i_areas[threadIdx.x] =
-            (box.x2 - box.x1 + 1.0f) * (box.y2 - box.y1 + 1.0f);
-        shared_i_boxes[threadIdx.x] = box;
-      }
-    }
-    __syncthreads();
-    const int i = i_block_offset + threadIdx.x;
-    for (int j_thread_offset =
-             BOXES_PER_THREAD * (blockIdx.y * blockDim.y + threadIdx.y);
-         j_thread_offset < nboxes;
-         j_thread_offset += BOXES_PER_THREAD * blockDim.y * gridDim.y) {
-      // Note : We can do everything using multiplication,
-      // and use fp16 - we are comparing against a low precision
-      // threshold
-      int above_thresh = 0;
-      bool valid = false;
-      for (int ib = 0; ib < BOXES_PER_THREAD; ++ib) {
-        // This thread will compare Box i and Box j
-        const int j = j_thread_offset + ib;
-        if (i < j && i < nboxes && j < nboxes) {
-          valid = true;
-          const Box j_box = d_desc_sorted_boxes[j];
-          const Box i_box = shared_i_boxes[threadIdx.x];
-          const float j_area =
-              (j_box.x2 - j_box.x1 + 1.0f) * (j_box.y2 - j_box.y1 + 1.0f);
-          const float i_area = shared_i_areas[threadIdx.x];
-          // The following code will not be valid with empty boxes
-          if (i_area == 0.0f || j_area == 0.0f)
-            continue;
-          const float xx1 = fmaxf(i_box.x1, j_box.x1);
-          const float yy1 = fmaxf(i_box.y1, j_box.y1);
-          const float xx2 = fminf(i_box.x2, j_box.x2);
-          const float yy2 = fminf(i_box.y2, j_box.y2);
+template <typename T>
+__global__ void nms_kernel(const int n_boxes, 
+                           const float nms_overlap_thresh,
+                           const T *dev_boxes, 
+                           unsigned long long *dev_mask) {
+  const int row_start = blockIdx.y;
+  const int col_start = blockIdx.x;
 
-          // fdimf computes the positive difference between xx2+1 and xx1
-          const float w = fdimf(xx2 + 1.0f, xx1);
-          const float h = fdimf(yy2 + 1.0f, yy1);
-          const float intersection = w * h;
+  //printf("Block : {%d, %d, %d} threads. ThreadId = %d\n",
+         //blockIdx.x, blockIdx.y, blockIdx.z, threadIdx.x);
+  //printf("Block: %d %d %d Thread: %d %d %d\n", 
+         //blockIdx.x, blockIdx.y, blockIdx.z, threadIdx.x, threadIdx.y, threadIdx.z);
 
-          // Testing for a/b > t
-          // eq with a > b*t (b is !=0)
-          // avoiding divisions
-          const float a = intersection;
-          const float b = i_area + j_area - intersection;
-          const float bt = b * thresh;
-          // eq. to if ovr > thresh
-          if (a > bt) {
-            // we have score[j] <= score[i]
-            above_thresh |= (1U << ib);
-          }
-        }
-      }
-      /*
-      if (valid)
-        d_delete_mask[i * mask_ld + j_thread_offset / BOXES_PER_THREAD] =
-            above_thresh;
-      */
-    }
-    __syncthreads(); // making sure everyone is done reading smem
+  // if (row_start > col_start) return;
+  const int row_size =
+        min(n_boxes - row_start * threadsPerBlock, threadsPerBlock);
+  const int col_size =
+        min(n_boxes - col_start * threadsPerBlock, threadsPerBlock);
+
+  __shared__ T block_boxes[threadsPerBlock * 4];
+  if (threadIdx.x < col_size) {
+    /*
+    block_boxes[threadIdx.x * 5 + 0] =
+        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 0];
+    block_boxes[threadIdx.x * 5 + 1] =
+        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 1];
+    block_boxes[threadIdx.x * 5 + 2] =
+        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 2];
+    block_boxes[threadIdx.x * 5 + 3] =
+        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 3];
+    block_boxes[threadIdx.x * 5 + 4] =
+        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 5 + 4];
+    */
+    block_boxes[threadIdx.x * 4 + 0] =
+        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 4 + 0];
+    block_boxes[threadIdx.x * 4 + 1] =
+        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 4 + 1];
+    block_boxes[threadIdx.x * 4 + 2] =
+        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 4 + 2];
+    block_boxes[threadIdx.x * 4 + 3] =
+        dev_boxes[(threadsPerBlock * col_start + threadIdx.x) * 4 + 3];
   }
+  __syncthreads();
+
+  if (threadIdx.x < row_size) {
+    const int cur_box_idx = threadsPerBlock * row_start + threadIdx.x;
+    const T *cur_box = dev_boxes + cur_box_idx * 4;
+    int i = 0;
+    unsigned long long t = 0;
+    int start = 0;
+    if (row_start == col_start) {
+      start = threadIdx.x + 1;
+    }
+    for (i = start; i < col_size; i++) {
+      if (devIoU(cur_box, block_boxes + i * 4) > nms_overlap_thresh) {
+        t |= 1ULL << i;
+      }
+    }
+    const int col_blocks = THCCeilDiv(n_boxes, threadsPerBlock);
+    dev_mask[cur_box_idx * col_blocks + col_start] = t;
+  }
+}
+
+template <typename T>
+void nms_cuda(const T* boxes_dev,
+              const T* scores, 
+              int boxes_num, 
+              int max_output_size, 
+              float nms_overlap_thresh, 
+              float score_threshold, 
+              std::vector<int>& selected) {
+  using scalar_t = float;
+  // AT_ASSERTM(boxes.type().is_cuda(), "boxes must be a CUDA tensor");
+  // auto scores = boxes.select(1, 4);
+  // auto order_t = std::get<1>(scores.sort(0, /* descending=*/true));
+  // auto boxes_sorted = boxes.index_select(0, order_t);
+
+  // int boxes_num = boxes.size(0);
+
+  const int col_blocks = THCCeilDiv(boxes_num, threadsPerBlock);
+
+  // scalar_t* boxes_dev = boxes_sorted.data<scalar_t>();
+
+  // THCState *state = at::globalContext().lazyInitCUDA(); // TODO replace with getTHCState
+
+  unsigned long long* mask_dev = NULL;
+  // THCudaCheck(THCudaMalloc(state, (void**) &mask_dev,
+  //                      boxes_num * col_blocks * sizeof(unsigned long long)));
+
+  // mask_dev = (unsigned long long*) THCudaMalloc(state, boxes_num * col_blocks * sizeof(unsigned long long));
+  cudaMalloc(&mask_dev, boxes_num * col_blocks * sizeof(unsigned long long));
+
+  dim3 blocks(THCCeilDiv(boxes_num, threadsPerBlock),
+              THCCeilDiv(boxes_num, threadsPerBlock));
+  dim3 threads(threadsPerBlock);
+
+  nms_kernel<<<blocks, threads>>>(boxes_num,
+                                  nms_overlap_thresh,
+                                  boxes_dev,
+                                  mask_dev);
+
+  std::vector<unsigned long long> mask_host(boxes_num * col_blocks);
+  cudaMemcpy(&mask_host[0], 
+             mask_dev, 
+             sizeof(unsigned long long) * boxes_num * col_blocks, 
+             cudaMemcpyDeviceToHost);
+
+  std::vector<unsigned long long> remv(col_blocks);
+  memset(&remv[0], 0, sizeof(unsigned long long) * col_blocks);
+
+  // at::Tensor keep = at::empty({boxes_num}, boxes.options().dtype(at::kLong).device(at::kCPU));
+  // int64_t* keep_out = keep.data<int64_t>();
+
+  int num_to_keep = 0;
+  for (int i = 0; i < boxes_num; i++) {
+    int nblock = i / threadsPerBlock;
+    int inblock = i % threadsPerBlock;
+
+    if (!(remv[nblock] & (1ULL << inblock))) {
+      // keep_out[num_to_keep++] = i;
+      selected[num_to_keep++] = i;
+      unsigned long long *p = &mask_host[0] + i * col_blocks;
+      for (int j = nblock; j < col_blocks; j++) {
+        remv[j] |= p[j];
+      }
+    }
+  }
+
+  cudaFree(mask_dev);
+
+  int keep_size = num_to_keep <= max_output_size ? num_to_keep : max_output_size;
+  selected.resize(keep_size);
+
+  // return std::get<0>(order_t.index({keep.narrow(/*dim=*/0, /*start=*/0, /*length=*/num_to_keep)}).sort(0, false));
 }
 
 namespace functor {
 
 template <typename T>
 void NonMaxSuppressionCustomFunctor<Eigen::GpuDevice, T>::operator()(
+    OpKernelContext* context,
     const Eigen::GpuDevice& d,
     const T* boxes,  // typename TTypes<T, 2>::Tensor boxes
     const T* scores, // typename TTypes<T, 1>::Tensor scores,
     int num_boxes,
     int max_output_size,
     float iou_threshold,
-    float score_threshold,
-    std::vector<int>& selected) { // typename TTypes<int, 1>::Tensor selected_indices
+    float score_threshold) { 
 
+  std::vector<int> selected(num_boxes);
+  
+  // std::cout << selected[0] << std::endl;
+  // std::cout << selected[1] << std::endl;
+  // std::cout << selected[2] << std::endl;
+  // std::cout << selected.size() << std::endl;
+
+  nms_cuda(boxes, scores, num_boxes, max_output_size,
+           iou_threshold, score_threshold, selected);
+
+  // Allocate output tensor
+  Tensor* output_indices = nullptr;
+  TensorShape output_shape({static_cast<int>(selected.size())});
+  OP_REQUIRES_OK(context, context->allocate_output(0, output_shape, &output_indices));
+  cudaMemcpy(output_indices->flat<int>().data(), selected.data(), 
+             selected.size() * sizeof(int), cudaMemcpyHostToDevice);
 }
 
 } // namespace functor
