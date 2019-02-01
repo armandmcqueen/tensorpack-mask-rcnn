@@ -9,12 +9,13 @@ from tensorpack.tfutils.scope_utils import under_name_scope
 
 from config import config
 
+from perf import print_runtime_shape
 
 # Checks at graph_build time
 def check_shape(name, tensor):
     print("[tshape] "+str(name)+": " + str(tensor.shape))
 
-def print_runtime_shape(name, tensor):
+def print_runtime_shapeOLD(name, tensor):
     return tf.print("[runtime_shape] "+name+": "+str(tf.shape(tensor)))
 
 @under_name_scope()
@@ -24,6 +25,7 @@ def clip_boxes(boxes, window, name=None):
         boxes: nx4, xyxy
         window: [h, w]
     """
+
     boxes = tf.maximum(boxes, 0.0)
     m = tf.tile(tf.reverse(window, [0]), [2])    # (4,)
 
@@ -64,8 +66,8 @@ def decode_bbox_target(box_predictions, anchors):
     check_shape("model_box.decode_bbox_target.box_predictions", box_predictions)
     check_shape("model_box.decode_bbox_target.anchors", anchors)
 
-    print_runtime_shape("model_box.decode_bbox_target.box_predictions", box_predictions)
-    print_runtime_shape("model_box.decode_bbox_target.anchors", anchors)
+    print_runtime_shapeOLD("model_box.decode_bbox_target.box_predictions", box_predictions)
+    print_runtime_shapeOLD("model_box.decode_bbox_target.anchors", anchors)
 
 
     orig_shape = tf.shape(anchors)
@@ -229,8 +231,8 @@ class RPNAnchors(namedtuple('_RPNAnchors', ['boxes', 'gt_labels', 'gt_boxes'])):
         check_shape("RPNAnchors.decode_logits().logits", logits)
         check_shape("RPNAnchors.decode_logits().boxes", self.boxes)
 
-        print_runtime_shape("RPNAnchors.decode_logits().logits", logits)
-        print_runtime_shape("RPNAnchors.decode_logits().boxes", self.boxes)
+        print_runtime_shapeOLD("RPNAnchors.decode_logits().logits", logits)
+        print_runtime_shapeOLD("RPNAnchors.decode_logits().boxes", self.boxes)
         return decode_bbox_target(logits, self.boxes)
 
 

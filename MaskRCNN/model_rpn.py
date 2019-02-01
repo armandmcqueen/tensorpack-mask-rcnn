@@ -8,7 +8,7 @@ from tensorpack.tfutils.scope_utils import auto_reuse_variable_scope, under_name
 from tensorpack.tfutils.summary import add_moving_summary
 
 from config import config as cfg
-from model_box import clip_boxes
+from model_box import clip_boxes, clip_boxes_batch
 from perf import print_runtime_shape, print_buildtime_shape
 
 
@@ -225,7 +225,9 @@ def single_image_generate_rpn_proposals(input_tensors):
 
     topk_scores, topk_indices = tf.nn.top_k(scores, k=pre_nms_topk, sorted=False)
     topk_boxes = tf.gather(boxes, topk_indices)
-    topk_boxes = clip_boxes(topk_boxes, img_shape)
+
+    topk_boxes = print_runtime_shape("mapfn.topk_boxes", topk_boxes)
+    topk_boxes = clip_boxes_batch(topk_boxes, img_shape)
 
     topk_boxes_x1y1x2y2 = tf.reshape(topk_boxes, (-1, 2, 2))                        # K x 2 x 2
     topk_boxes_x1y1, topk_boxes_x2y2 = tf.split(topk_boxes_x1y1x2y2, 2, axis=1)     # K x 1 x 2
