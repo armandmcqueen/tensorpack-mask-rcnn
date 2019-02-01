@@ -9,7 +9,7 @@ from tensorpack.tfutils.summary import add_moving_summary
 
 from config import config as cfg
 from model_box import clip_boxes
-from perf import print_runtime_shape
+from perf import print_runtime_shape, print_buildtime_shape
 
 
 
@@ -208,6 +208,12 @@ def generate_rpn_proposals_batch(boxes, scores, prepadding_dims,
 
 def single_image_generate_rpn_proposals(input_tensors):
     boxes, scores, img_shape, pre_nms_topk, post_nms_topk = input_tensors
+
+    print_buildtime_shape("mapfn.boxes", boxes)
+    print_buildtime_shape("mapfn.scores", scores)
+    print_buildtime_shape("mapfn.img_shape", img_shape)
+    print_buildtime_shape("mapfn.pre_nms_topk", pre_nms_topk)
+    print_buildtime_shape("mapfn.post_nms_topk", post_nms_topk)
 
     boxes = print_runtime_shape("mapfn.boxes", boxes)
     scores = print_runtime_shape("mapfn.scores", scores)
