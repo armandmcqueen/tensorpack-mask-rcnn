@@ -43,11 +43,13 @@ def clip_boxes_batch(boxes, batch_padding_dims, name=None):
         boxes: nx4, xyxy
         window: [h, w]
     """
+    boxes = print_runtime_shape("clip_boxes_batch boxes", boxes)
+    batch_padding_dims = print_runtime_shape("clip_boxes_batch batch_padding_dims", batch_padding_dims)
+
     boxes = tf.maximum(boxes, 0.0)
     m = tf.tile(tf.reverse(batch_padding_dims, [0]), [2])    # (4,)
 
-    check_shape("model_box.py boxes", boxes)
-    check_shape("model_box.py m", m)
+    m = print_runtime_shape("clip_boxes_batch m", m)
 
     boxes = tf.minimum(boxes, tf.cast(m, tf.float32), name=name)
     return boxes
