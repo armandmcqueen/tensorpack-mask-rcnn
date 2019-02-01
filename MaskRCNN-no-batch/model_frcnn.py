@@ -15,6 +15,7 @@ from config import config as cfg
 from model_box import decode_bbox_target, encode_bbox_target
 from utils.box_ops import pairwise_iou
 
+from non_max_suppression_custom import non_max_suppression_custom
 
 @under_name_scope()
 def proposal_metrics(iou):
@@ -205,8 +206,10 @@ def fastrcnn_predictions(boxes, scores):
         prob = tf.gather(prob, ids)
         box = tf.gather(box, ids)
         # NMS within each class
-        selection = tf.image.non_max_suppression(
+        selection = non_max_suppression_custom(
             box, prob, cfg.TEST.RESULTS_PER_IM, cfg.TEST.FRCNN_NMS_THRESH)
+        #selection = tf.image.non_max_suppression_custom(
+            #box, prob, cfg.TEST.RESULTS_PER_IM, cfg.TEST.FRCNN_NMS_THRESH)
         selection = tf.gather(ids, selection)
 
         if get_tf_version_tuple() >= (1, 13):
