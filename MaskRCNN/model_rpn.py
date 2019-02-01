@@ -9,7 +9,7 @@ from tensorpack.tfutils.summary import add_moving_summary
 
 from config import config as cfg
 from model_box import clip_boxes, clip_boxes_batch
-import perf
+from perf import print_runtime_shape
 
 
 
@@ -209,11 +209,11 @@ def generate_rpn_proposals_batch(boxes, scores, prepadding_dims,
 def single_image_generate_rpn_proposals(input_tensors):
     boxes, scores, img_shape, pre_nms_topk, post_nms_topk = input_tensors
 
-    boxes = perf.print_runtime_shape("mapfn.boxes", boxes)
-    scores = perf.print_runtime_shape("mapfn.scores", scores)
-    img_shape = perf.print_runtime_shape("mapfn.img_shape", img_shape)
-    pre_nms_topk = perf.print_runtime_shape("mapfn.pre_nms_topk", pre_nms_topk)
-    post_nms_topk = perf.print_runtime_shape("mapfn.post_nms_topk", post_nms_topk)
+    boxes = print_runtime_shape("mapfn.boxes", boxes)
+    scores = print_runtime_shape("mapfn.scores", scores)
+    img_shape = print_runtime_shape("mapfn.img_shape", img_shape)
+    pre_nms_topk = print_runtime_shape("mapfn.pre_nms_topk", pre_nms_topk)
+    post_nms_topk = print_runtime_shape("mapfn.post_nms_topk", post_nms_topk)
 
     topk_scores, topk_indices = tf.nn.top_k(scores, k=pre_nms_topk, sorted=False)
     topk_boxes = tf.gather(boxes, topk_indices)
