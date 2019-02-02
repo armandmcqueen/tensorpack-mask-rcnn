@@ -202,9 +202,11 @@ def generate_rpn_proposals_batch(boxes, scores, prepadding_dims,
                     back_prop=False,
                     name="mapfn_generate_fpn_proposals")
 
-    print(type(out))
-    print_buildtime_shape("map_fn.out", out)
+
+
     proposal_boxes, proposal_scores = out
+    print_buildtime_shape("map_fn.out.proposal_boxes", proposal_boxes)
+    print_buildtime_shape("map_fn.out.proposal_scores", proposal_scores)
     return tf.stop_gradient(proposal_boxes, name='boxes'), tf.stop_gradient(proposal_scores, name='scores')
 
 
