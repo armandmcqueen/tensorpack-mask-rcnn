@@ -32,6 +32,7 @@ from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_p
 from model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
 from model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
 from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
+from perf import print_runtime_shape
 
 try:
     import horovod.tensorflow as hvd
@@ -43,12 +44,7 @@ except ImportError:
 def check_shape(name, tensor):
     print("[tshape] "+str(name)+": " + str(tensor.shape))
 
-def print_runtime_shape(name, tensor):
-    return tf.print("[runtime_shape] "+name+": "+str(tf.shape(tensor)))
 
-def print_runtime_contents(name, tensor):
-    tf.print("[runtime_contents] "+name)
-    tf.print(tensor)
 
 class DetectionModel(ModelDesc):
     def preprocess(self, image):
@@ -109,7 +105,7 @@ class DetectionModel(ModelDesc):
         images = self.preprocess(inputs['images'])     # NCHW
 
         check_shape('images', images)
-        print_runtime_shape("Images", images)
+        images = print_runtime_shape("Images", images)
 
         features = self.backbone(images)
 
@@ -263,11 +259,14 @@ class ResNetFPNModel(DetectionModel):
         proposal_boxes, proposal_scores = generate_fpn_proposals_batch(
             multilevel_pred_boxes, multilevel_label_logits, orig_image_dims)
 
+        proposal_boxes = print_runtime_shape("train.proposal_boxes", proposal_boxes)
+        proposal_scores = print_runtime_shape("train.proposal_scores", proposal_scores)
+
 
         # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
 
         proposal_boxes = proposal_boxes[0, :, :]
-        proposal_scores = proposal_scores[0, :]
+        # proposal_scores_old = proposal_scores[0, :]
 
         multilevel_anchors =      [RPNAnchors(b_anchors.boxes[0, :, :, :, :],
                                               b_anchors.gt_labels[0, :, :, :],
@@ -279,8 +278,11 @@ class ResNetFPNModel(DetectionModel):
 
         # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<1
 
-        # proposal_boxes, proposal_scores = generate_fpn_proposals(
+        # proposal_boxes_old, proposal_scores_old = generate_fpn_proposals(
         #     multilevel_pred_boxes, multilevel_label_logits, image_shape2d)
+        #
+        # proposal_boxes = print_runtime_shape("train.proposal_boxes_old", proposal_boxes)
+        # proposal_scores = print_runtime_shape("train.proposal_scores_old", proposal_scores)
 
 
 
