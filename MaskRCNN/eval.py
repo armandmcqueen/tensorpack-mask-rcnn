@@ -127,6 +127,12 @@ def predict_dataflow(df, model_func, tqdm_bar=None):
         for img, img_id in df:
             results = predict_image(img, model_func)
             for r in results:
+                if img_id <= 2_147_483_647:
+                    img_id = int(img_id)
+                else:
+                    print(type(img_id))
+                    print(img_id)
+                    raise RuntimeError("Image ID is larger than max int size. Workaround did not work")
                 res = {
                     'image_id': img_id,
                     'category_id': r.class_id,
