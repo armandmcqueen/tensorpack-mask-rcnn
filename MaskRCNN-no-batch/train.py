@@ -429,6 +429,9 @@ if __name__ == '__main__':
             else:
                 session_init = get_model_loader(cfg.BACKBONE.WEIGHTS) if cfg.BACKBONE.WEIGHTS else None
 
+        #session_config = tf.ConfigProto(device_count={'GPU': 1})
+        #session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+
         traincfg = TrainConfig(
             model=MODEL,
             data=QueueInput(train_dataflow),
@@ -436,9 +439,9 @@ if __name__ == '__main__':
             steps_per_epoch=stepnum,
             max_epoch=cfg.TRAIN.LR_SCHEDULE[-1] * factor // stepnum,
             session_init=session_init,
+            session_config=None,
             starting_epoch=cfg.TRAIN.STARTING_EPOCH
         )
-
 
 
         if is_horovod:
