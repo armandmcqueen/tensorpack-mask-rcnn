@@ -336,6 +336,39 @@ class BoxProposals(object):
         return tf.gather(self.labels, self.fg_inds(), name='fg_labels')
 
 
+
+class BoxProposalsBatch(object):
+    """
+    A structure to manage box proposals and their relations with ground truth.
+    """
+    def __init__(self, boxes, labels=None, fg_inds_wrt_gt=None):
+        """
+        Args:
+            boxes: Nx4
+            labels: N, each in [0, #class), the true label for each input box
+            fg_inds_wrt_gt: #fg, each in [0, M)
+
+        The last four arguments could be None when not training.
+        """
+        for k, v in locals().items():
+            if k != 'self' and v is not None:
+                setattr(self, k, v)
+
+    @memoized_method
+    def fg_inds(self):
+        """ Returns: #fg indices in [0, N-1] """
+        return tf.reshape(tf.where(self.labels > 0), [-1], name='fg_inds')
+
+    @memoized_method
+    def fg_boxes(self):
+        """ Returns: #fg x4"""
+        return tf.gather(self.boxes, self.fg_inds(), name='fg_boxes')
+
+    @memoized_method
+    def fg_labels(self):
+        """ Returns: #fg"""
+        return tf.gather(self.labels, self.fg_inds(), name='fg_labels')
+
 class FastRCNNHead(object):
     """
     A class to process & decode inputs/outputs of a fastrcnn classification+regression head.
