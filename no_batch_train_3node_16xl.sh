@@ -4,7 +4,7 @@ HOROVOD_TIMELINE=/home/ubuntu/logs/htimeline.json \
 HOROVOD_CYCLE_TIME=0.5 \
 HOROVOD_FUSION_THRESHOLD=67108864 \
 /home/ubuntu/anaconda3/envs/tensorflow_p36/bin/mpirun -np 24 \
---hostfile /home/ubuntu/lhostfile \
+--hostfile /home/ubuntu/hostfile \
 --mca plm_rsh_no_tree_spawn 1 -bind-to none -map-by slot -mca pml ob1 -mca btl ^openib \
 -mca btl_tcp_if_exclude lo,docker0 \
 -mca btl_vader_single_copy_mechanism none \
