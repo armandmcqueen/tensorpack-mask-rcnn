@@ -12,11 +12,3 @@ git clone -b v0.1 https://github.com/NVIDIA/cocoapi.git \
  && pip install -e .
 ```
 
-- Add to cocoapi/PythonAPI/coco.py:
-
-```
-try:
-    import ujson as json
-except ImportError:
-    import json
-```
