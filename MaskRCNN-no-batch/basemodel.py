@@ -220,7 +220,7 @@ def resnet_fpn_backbone(image, num_blocks):
     new_shape2d = tf.cast(tf.ceil(tf.cast(shape2d, tf.float32) / mult) * mult, tf.int32)
     pad_shape2d = new_shape2d - shape2d
     assert len(num_blocks) == 4, num_blocks
-    with tf.variable_scope(name='fp32_vars', custom_getter=float32_variable_storage_getter):
+    with tf.variable_scope(custom_getter=float32_variable_storage_getter):
         with backbone_scope(freeze=freeze_at > 0):
             chan = image.shape[1]
             pad_base = maybe_reverse_pad(2, 3)
