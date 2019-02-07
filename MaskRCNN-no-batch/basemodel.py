@@ -59,6 +59,32 @@ def maybe_reverse_pad(topleft, bottomright):
     return [bottomright, topleft]
 
 
+def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
+                                    initializer=None, regularizer=None,
+                                    trainable=True,
+                                    *args, **kwargs):
+    """Custom variable getter that forces trainable variables to be stored in
+    float32 precision and then casts them to the training precision.
+    """
+    storage_dtype = tf.float32 if trainable else dtype
+    variable = getter(name, shape, dtype=storage_dtype,
+                      initializer=initializer,
+                      regularizer=regularizer,
+                      trainable=trainable,
+                      *args, **kwargs)
+    if trainable and dtype != tf.float32:
+        cast_name = name + '/fp16_cast'
+        try:
+            cast_variable = tf.get_default_graph().get_tensor_by_name(
+                cast_name + ':0'
+            )
+        except KeyError:
+            cast_variable = tf.cast(variable, dtype, name=cast_name)
+        cast_variable._ref = variable._ref
+        variable = cast_variable
+    return variable
+
+
 @contextmanager
 def backbone_scope(freeze):
     """
@@ -194,24 +220,33 @@ def resnet_fpn_backbone(image, num_blocks):
     new_shape2d = tf.cast(tf.ceil(tf.cast(shape2d, tf.float32) / mult) * mult, tf.int32)
     pad_shape2d = new_shape2d - shape2d
     assert len(num_blocks) == 4, num_blocks
-    with backbone_scope(freeze=freeze_at > 0):
-        chan = image.shape[1]
-        pad_base = maybe_reverse_pad(2, 3)
-        l = tf.pad(image, tf.stack(
-            [[0, 0],
-             [0, 0],
-             [pad_base[0], pad_base[1] + pad_shape2d[0]],
-             [pad_base[0], pad_base[1] + pad_shape2d[1]]]))
-        l.set_shape([None, chan, None, None])
-        l = Conv2D('conv0', l, 64, 7, strides=2, padding='VALID')
-        l = tf.pad(l, [[0, 0], [0, 0], maybe_reverse_pad(0, 1), maybe_reverse_pad(0, 1)])
-        l = MaxPooling('pool0', l, 3, strides=2, padding='VALID')
-    with backbone_scope(freeze=freeze_at > 1):
-        c2 = resnet_group('group0', l, resnet_bottleneck, 64, num_blocks[0], 1)
-    with backbone_scope(freeze=False):
-        c3 = resnet_group('group1', c2, resnet_bottleneck, 128, num_blocks[1], 2)
-        c4 = resnet_group('group2', c3, resnet_bottleneck, 256, num_blocks[2], 2)
-        c5 = resnet_group('group3', c4, resnet_bottleneck, 512, num_blocks[3], 2)
+    with tf.variable_scope(name='fp32_vars', custom_getter=float32_variable_storage_getter):
+        with backbone_scope(freeze=freeze_at > 0):
+            chan = image.shape[1]
+            pad_base = maybe_reverse_pad(2, 3)
+            l = tf.pad(image, tf.stack(
+                [[0, 0],
+                [0, 0],
+                [pad_base[0], pad_base[1] + pad_shape2d[0]],
+                [pad_base[0], pad_base[1] + pad_shape2d[1]]]))
+            l.set_shape([None, chan, None, None])
+            l = Conv2D('conv0', l, 64, 7, strides=2, padding='VALID')
+            l = tf.pad(l, [[0, 0], [0, 0], maybe_reverse_pad(0, 1), maybe_reverse_pad(0, 1)])
+            l = MaxPooling('pool0', l, 3, strides=2, padding='VALID')
+        with backbone_scope(freeze=freeze_at > 1):
+            c2 = resnet_group('group0', l, resnet_bottleneck, 64, num_blocks[0], 1)
+        with backbone_scope(freeze=False):
+            c3 = resnet_group('group1', c2, resnet_bottleneck, 128, num_blocks[1], 2)
+            c4 = resnet_group('group2', c3, resnet_bottleneck, 256, num_blocks[2], 2)
+            c5 = resnet_group('group3', c4, resnet_bottleneck, 512, num_blocks[3], 2)
+
     # 32x downsampling up to now
     # size of c5: ceil(input/32)
+
+    c2 = tf.cast(c2, tf.float32)
+    c3 = tf.cast(c3, tf.float32)
+    c4 = tf.cast(c4, tf.float32)
+    c5 = tf.cast(c5, tf.float32)
+
     return c2, c3, c4, c5
+

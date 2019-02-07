@@ -310,7 +310,7 @@ if __name__ == '__main__':
                                           "This argument is the path to the input image file")
     parser.add_argument('--config', help="A list of KEY=VALUE to overwrite those defined in config.py",
                         nargs='+')
-
+    parser.add_argument('--fp16', help="Train backbone in FP16", type=bool, default=False)
 
     #################################################################################################################
     # Performance investigation arguments
