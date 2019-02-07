@@ -127,6 +127,11 @@ def predict_dataflow(df, model_func, tqdm_bar=None):
         for img, img_id in df:
             results = predict_image(img, model_func)
             for r in results:
+                print(f'imd_id: {type(img_id)}')
+                print(f'class_id: {type(r.class_id)}')
+
+                img_id = int(img_id)
+
                 res = {
                     'image_id': img_id,
                     'category_id': r.class_id,
