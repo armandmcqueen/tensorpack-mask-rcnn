@@ -148,7 +148,7 @@ def get_norm(zero_init=False):
 
     def norm(x):
         dtype = x.dtype
-        tf.cast(x, tf.float32)
+        x = tf.cast(x, tf.float32)
         x = Norm(layer_name, x, gamma_initializer=tf.zeros_initializer() if zero_init else None)
         return tf.cast(x, dtype)
 
