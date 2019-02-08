@@ -67,6 +67,7 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
     float32 precision and then casts them to the training precision.
     """
     norm = "norm" or "bn" in name.lower()
+    print(name, norm)
     storage_dtype = tf.float32 if trainable else dtype
     variable = getter(name, shape, dtype=storage_dtype,
                       initializer=initializer,
