@@ -66,12 +66,15 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
     """Custom variable getter that forces trainable variables to be stored in
     float32 precision and then casts them to the training precision.
     """
+    norm = "norm" in name.lower()
     storage_dtype = tf.float32 if trainable else dtype
     variable = getter(name, shape, dtype=storage_dtype,
                       initializer=initializer,
-                      regularizer=regularizer,
+                      regularizer=regularizer if not norm else None,
                       trainable=trainable,
                       *args, **kwargs)
+    if norm:
+        return variable
     if trainable and dtype != tf.float32:
         cast_name = name + '/fp16_cast'
         try:
@@ -141,7 +144,15 @@ def get_norm(zero_init=False):
     else:
         Norm = BatchNorm
         layer_name = 'bn'
-    return lambda x: Norm(layer_name, x, gamma_initializer=tf.zeros_initializer() if zero_init else None)
+
+    def norm(x):
+        dtype = x.dtype
+        tf.cast(x, tf.float32)
+        x = Norm(layer_name, x, gamma_initializer=tf.zeros_initializer() if zero_init else None)
+        return tf.cast(x, dtype)
+
+    return norm
+    #return lambda x: Norm(layer_name, x, gamma_initializer=tf.zeros_initializer() if zero_init else None)
 
 
 def resnet_shortcut(l, n_out, stride, activation=tf.identity):
