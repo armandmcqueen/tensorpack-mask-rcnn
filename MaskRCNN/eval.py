@@ -129,7 +129,7 @@ def predict_dataflow(df, model_func, tqdm_bar=None):
             for r in results:
                 img_id = int(img_id)
                 class_id = int(r.class_id)
-                bbox = list(r.box)
+                bbox = list([float(b) for b in r.box])
                 score = round(float(r.score), 4)
 
                 print("A result")
