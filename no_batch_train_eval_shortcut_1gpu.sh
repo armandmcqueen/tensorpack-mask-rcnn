@@ -15,6 +15,9 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 --output-filename /home/ubuntu/logs/mpirun_logs \
 /home/ubuntu/anaconda3/envs/tensorflow_p36/bin/python3 /home/ubuntu/tensorpack-mask-rcnn/MaskRCNN-no-batch/train.py \
 --logdir /home/ubuntu/logs/train_log \
+--perf \
+--throughput_log_freq 120000 \
+--images_per_step 1 \
 --config MODE_MASK=True \
 MODE_FPN=True \
 DATA.BASEDIR=/home/ubuntu/data \
