@@ -73,7 +73,7 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
                       regularizer=regularizer if not norm else None,
                       trainable=trainable,
                       *args, **kwargs)
-    print(name, "trainable={} dtype={} storage_dtype={} reuse={}".format(trainable, dtype, storage_dtype, kwargs['reuse']))
+    print(name, "trainable={} dtype={} storage_dtype={} id={} reuse={}".format(trainable, dtype, storage_dtype, id(variable), kwargs['reuse']))
 
     if norm:
         return variable
@@ -240,8 +240,8 @@ def resnet_fpn_backbone(image, num_blocks, fp16=True):
         image = tf.cast(image, tf.float16)
 
     with tf.variable_scope(name_or_scope="", 
-                           custom_getter=float32_variable_storage_getter,
-                           reuse=tf.AUTO_REUSE):
+                           custom_getter=float32_variable_storage_getter):
+                           #reuse=tf.AUTO_REUSE):
         with backbone_scope(freeze=freeze_at > 0):
             chan = image.shape[1]
             pad_base = maybe_reverse_pad(2, 3)
