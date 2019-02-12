@@ -67,16 +67,19 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
     float32 precision and then casts them to the training precision.
     """
     norm = "norm" in name.lower() or "bn" in name.lower()
-    print(name, norm)
     storage_dtype = tf.float32 if trainable else dtype
     variable = getter(name, shape, dtype=storage_dtype,
                       initializer=initializer,
                       regularizer=regularizer if not norm else None,
                       trainable=trainable,
                       *args, **kwargs)
+    print(name, "trainable={} dtype={} storage_dtype={}".format(trainable, dtype, storage_dtype))
+
     if norm:
         return variable
+
     if trainable and dtype != tf.float32:
+        print(name, "fp16_cast")
         cast_name = name + '/fp16_cast'
         try:
             cast_variable = tf.get_default_graph().get_tensor_by_name(
@@ -233,7 +236,8 @@ def resnet_fpn_backbone(image, num_blocks):
     pad_shape2d = new_shape2d - shape2d
     assert len(num_blocks) == 4, num_blocks
     image = tf.cast(image, tf.float16)
-    with tf.variable_scope(name_or_scope="fp32_vars", custom_getter=float32_variable_storage_getter):
+
+    with tf.variable_scope(name_or_scope="", custom_getter=float32_variable_storage_getter):
         with backbone_scope(freeze=freeze_at > 0):
             chan = image.shape[1]
             pad_base = maybe_reverse_pad(2, 3)
