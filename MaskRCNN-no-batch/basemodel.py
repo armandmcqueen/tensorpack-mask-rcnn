@@ -73,7 +73,7 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
                       regularizer=regularizer if not norm else None,
                       trainable=trainable,
                       *args, **kwargs)
-    print(name, "trainable={} dtype={} storage_dtype={}".format(trainable, dtype, storage_dtype))
+    print(name, "trainable={} dtype={} storage_dtype={} reuse={}".format(trainable, dtype, storage_dtype, kwargs['reuse']))
 
     if norm:
         return variable
@@ -228,16 +228,20 @@ def resnet_conv5(image, num_block):
         return l
 
 
-def resnet_fpn_backbone(image, num_blocks):
+def resnet_fpn_backbone(image, num_blocks, fp16=True):
     freeze_at = cfg.BACKBONE.FREEZE_AT
     shape2d = tf.shape(image)[2:]
     mult = float(cfg.FPN.RESOLUTION_REQUIREMENT)
     new_shape2d = tf.cast(tf.ceil(tf.cast(shape2d, tf.float32) / mult) * mult, tf.int32)
     pad_shape2d = new_shape2d - shape2d
     assert len(num_blocks) == 4, num_blocks
-    image = tf.cast(image, tf.float16)
 
-    with tf.variable_scope(name_or_scope="", custom_getter=float32_variable_storage_getter):
+    if fp16:
+        image = tf.cast(image, tf.float16)
+
+    with tf.variable_scope(name_or_scope="", 
+                           custom_getter=float32_variable_storage_getter,
+                           reuse=tf.AUTO_REUSE):
         with backbone_scope(freeze=freeze_at > 0):
             chan = image.shape[1]
             pad_base = maybe_reverse_pad(2, 3)
@@ -260,10 +264,11 @@ def resnet_fpn_backbone(image, num_blocks):
     # 32x downsampling up to now
     # size of c5: ceil(input/32)
 
-    c2 = tf.cast(c2, tf.float32)
-    c3 = tf.cast(c3, tf.float32)
-    c4 = tf.cast(c4, tf.float32)
-    c5 = tf.cast(c5, tf.float32)
+    if fp16:
+        c2 = tf.cast(c2, tf.float32)
+        c3 = tf.cast(c3, tf.float32)
+        c4 = tf.cast(c4, tf.float32)
+        c5 = tf.cast(c5, tf.float32)
 
     return c2, c3, c4, c5
 
