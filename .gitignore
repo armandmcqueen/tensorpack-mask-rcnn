@@ -1,5 +1,6 @@
 # armandmcqueen specific
 venv/
+test.py
 
 # tensorpack-specific stuff
 train_log
