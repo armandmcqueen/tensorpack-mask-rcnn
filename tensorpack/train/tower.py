@@ -265,7 +265,7 @@ class SingleCostTrainer(TowerTrainer):
                     aggregation_method=self.AGGREGATION_METHOD)
                 grads = FilterNoneGrad().process(grads)
 
-                scaled_gv = [(g * loss_scale, v) for g, v in grads]
+                scaled_gv = [(g * 1.0 / loss_scale, v) for g, v in grads]
 
                 return scaled_gv
 
