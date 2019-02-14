@@ -15,6 +15,7 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
                       regularizer=regularizer if not norm else None,
                       trainable=trainable,
                       *args, **kwargs)
+
     print(name, "trainable={} dtype={} storage_dtype={} id={} reuse={}".format(trainable, dtype, storage_dtype, id(variable), kwargs['reuse']))
 
     if norm:
@@ -38,6 +39,7 @@ def mixed_precision_scope(mixed=True, *args, **kwargs):
     if not mixed:
         return suppress()
 
-    return tf.variable_scope(name_or_scope="",
+    return tf.variable_scope(name_or_scope=tf.get_variable_scope(),
                              custom_getter=float32_variable_storage_getter,
                              reuse=tf.AUTO_REUSE, *args, **kwargs)
+
