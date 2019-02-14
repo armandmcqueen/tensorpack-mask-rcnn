@@ -92,10 +92,9 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
     return variable
 
 
-@contextmanager
 def mixed_precision_scope(mixed=True, *args, **kwargs):
     if not mixed:
-        yield
+        return contextlib.suppress()
 
     return tf.variable_scope(name_or_scope="",
                              custom_getter=float32_variable_storage_getter, 
