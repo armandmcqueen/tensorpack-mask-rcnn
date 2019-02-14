@@ -14,6 +14,7 @@ from basemodel import GroupNorm
 from config import config as cfg
 from model_box import decode_bbox_target, encode_bbox_target
 from utils.box_ops import pairwise_iou
+from utils.mixed_precision import mixed_precision_scope
 
 from non_max_suppression_custom import non_max_suppression_custom
 
@@ -265,9 +266,12 @@ def fastrcnn_2fc_head(feature):
         2D head feature
     """
     dim = cfg.FPN.FRCNN_FC_HEAD_DIM
-    init = tf.variance_scaling_initializer()
-    hidden = FullyConnected('fc6', feature, dim, kernel_initializer=init, activation=tf.nn.relu)
-    hidden = FullyConnected('fc7', hidden, dim, kernel_initializer=init, activation=tf.nn.relu)
+
+    with mixed_precision_scope(True):
+        init = tf.variance_scaling_initializer(dtype=tf.float16)
+        hidden = FullyConnected('fc6', feature, dim, kernel_initializer=init, activation=tf.nn.relu)
+        hidden = FullyConnected('fc7', hidden, dim, kernel_initializer=init, activation=tf.nn.relu)
+
     return hidden
 
 

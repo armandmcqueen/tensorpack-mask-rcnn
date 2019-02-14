@@ -2,7 +2,7 @@
 # File: basemodel.py
 
 import numpy as np
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 import tensorflow as tf
 
 from tensorpack.models import BatchNorm, Conv2D, MaxPooling, layer_register
@@ -11,6 +11,7 @@ from tensorpack.tfutils.scope_utils import auto_reuse_variable_scope
 from tensorpack.tfutils.varreplace import custom_getter_scope, freeze_variables
 
 from config import config as cfg
+from utils.mixed_precision import mixed_precision_scope
 
 
 @layer_register(log_shape=True)
@@ -57,48 +58,6 @@ def maybe_reverse_pad(topleft, bottomright):
     if cfg.BACKBONE.TF_PAD_MODE:
         return [topleft, bottomright]
     return [bottomright, topleft]
-
-
-def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
-                                    initializer=None, regularizer=None,
-                                    trainable=True,
-                                    *args, **kwargs):
-    """Custom variable getter that forces trainable variables to be stored in
-    float32 precision and then casts them to the training precision.
-    """
-    norm = "norm" in name.lower() or "bn" in name.lower()
-    storage_dtype = tf.float32 if trainable else dtype
-    variable = getter(name, shape, dtype=storage_dtype,
-                      initializer=initializer,
-                      regularizer=regularizer if not norm else None,
-                      trainable=trainable,
-                      *args, **kwargs)
-    print(name, "trainable={} dtype={} storage_dtype={} id={} reuse={}".format(trainable, dtype, storage_dtype, id(variable), kwargs['reuse']))
-
-    if norm:
-        return variable
-
-    if trainable and dtype != tf.float32:
-        print(name, "fp16_cast")
-        cast_name = name + '/fp16_cast'
-        try:
-            cast_variable = tf.get_default_graph().get_tensor_by_name(
-                cast_name + ':0'
-            )
-        except KeyError:
-            cast_variable = tf.cast(variable, dtype, name=cast_name)
-        cast_variable._ref = variable._ref
-        variable = cast_variable
-    return variable
-
-
-def mixed_precision_scope(mixed=True, *args, **kwargs):
-    if not mixed:
-        return contextlib.suppress()
-
-    return tf.variable_scope(name_or_scope="",
-                             custom_getter=float32_variable_storage_getter, 
-                             reuse=tf.AUTO_REUSE, *args, **kwargs)
 
 
 @contextmanager
