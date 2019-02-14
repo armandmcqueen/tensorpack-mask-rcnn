@@ -10,6 +10,7 @@ from tensorpack.tfutils.summary import add_moving_summary
 
 from basemodel import GroupNorm
 from config import config as cfg
+from utils.mixed_precision import mixed_precision_scope
 
 
 @under_name_scope()
@@ -65,7 +66,9 @@ def maskrcnn_upXconv_head(feature, num_category, num_convs, norm=None):
     """
     assert norm in [None, 'GN'], norm
     l = feature
-    with argscope([Conv2D, Conv2DTranspose], data_format='channels_first',
+    l = tf.cast(l, tf.float16)
+    with mixed_precision_scope():
+      with argscope([Conv2D, Conv2DTranspose], data_format='channels_first',
                   kernel_initializer=tf.variance_scaling_initializer(
                       scale=2.0, mode='fan_out',
                       distribution='untruncated_normal' if get_tf_version_tuple() >= (1, 12) else 'normal')):
@@ -76,6 +79,7 @@ def maskrcnn_upXconv_head(feature, num_category, num_convs, norm=None):
                 l = GroupNorm('gn{}'.format(k), l)
         l = Conv2DTranspose('deconv', l, cfg.MRCNN.HEAD_DIM, 2, strides=2, activation=tf.nn.relu)
         l = Conv2D('conv', l, num_category, 1)
+    l = tf.cast(l, tf.float32)
     return l
 
 
