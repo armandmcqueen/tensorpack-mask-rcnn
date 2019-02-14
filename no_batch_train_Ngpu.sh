@@ -2,7 +2,7 @@
 
 VENV=${1:-tensorflow_p36}
 NUM_GPUS=${2:-1}
-STEP_PER_EPOCH=$(echo "120000/${NUM_GPUS}" | bc)
+let STEP_PER_EPOCH=120000/${NUM_GPUS}
 
 echo "Using VENV: $VENV"
 echo "Running on $NUM_GPUS GPUs. Must be 8 or less"
