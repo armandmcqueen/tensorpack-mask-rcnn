@@ -7,7 +7,7 @@ import tensorflow as tf
 
 from ..input_source import PlaceholderInput
 from ..predict.base import OnlinePredictor
-from ..tfutils.gradproc import FilterNoneGrad
+from ..tfutils.gradproc import FilterNoneGrad, ScaleGradient
 from ..tfutils.tower import PredictTowerContext, TowerFuncWrapper, get_current_tower_context
 from ..utils import logger
 from ..utils.argtools import call_only_once, memoized
@@ -253,6 +253,10 @@ class SingleCostTrainer(TowerTrainer):
                     varlist = ctx.get_collection_in_tower(tf.GraphKeys.TRAINABLE_VARIABLES)
                 else:
                     varlist = tf.trainable_variables()
+
+                loss_scale = 8.0
+                cost *= loss_scale
+
                 opt = get_opt_fn()
                 grads = opt.compute_gradients(
                     cost, var_list=varlist,
@@ -260,7 +264,10 @@ class SingleCostTrainer(TowerTrainer):
                     colocate_gradients_with_ops=self.COLOCATE_GRADIENTS_WITH_OPS,
                     aggregation_method=self.AGGREGATION_METHOD)
                 grads = FilterNoneGrad().process(grads)
-                return grads
+
+                scaled_gv = [(g * loss_scale, v) for g, v in grads]
+
+                return scaled_gv
 
             if not self.XLA_COMPILE:
                 return compute_grad_from_inputs(*inputs)

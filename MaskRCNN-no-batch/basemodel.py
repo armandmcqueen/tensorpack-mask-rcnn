@@ -93,6 +93,16 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
 
 
 @contextmanager
+def mixed_precision_scope(mixed=True, *args, **kwargs):
+    if not mixed:
+        yield
+
+    return tf.variable_scope(name_or_scope="",
+                             custom_getter=float32_variable_storage_getter, 
+                             reuse=tf.AUTO_REUSE, *args, **kwargs)
+
+
+@contextmanager
 def backbone_scope(freeze):
     """
     Args:
@@ -239,9 +249,7 @@ def resnet_fpn_backbone(image, num_blocks, fp16=True):
     if fp16:
         image = tf.cast(image, tf.float16)
 
-    with tf.variable_scope(name_or_scope="", 
-                           custom_getter=float32_variable_storage_getter):
-                           #reuse=tf.AUTO_REUSE):
+    with mixed_precision_scope(mixed=fp16):
         with backbone_scope(freeze=freeze_at > 0):
             chan = image.shape[1]
             pad_base = maybe_reverse_pad(2, 3)
