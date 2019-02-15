@@ -15,6 +15,9 @@ git log | head -1 >> ${LOG_DIR}/git_info
 # Copy this script into logging directory
 cp `basename $0` ${LOG_DIR}
 
+# Record environment variables
+env > ${LOG_DIR}/env.txt
+
 # Execute training job
 HOROVOD_TIMELINE=/home/ubuntu/logs/htimeline.json \
 HOROVOD_CYCLE_TIME=0.5 \
