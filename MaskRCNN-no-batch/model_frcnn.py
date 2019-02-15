@@ -209,7 +209,7 @@ def fastrcnn_predictions(boxes, scores):
         # NMS within each class
         #selection = non_max_suppression_custom(
             #box, prob, cfg.TEST.RESULTS_PER_IM, cfg.TEST.FRCNN_NMS_THRESH)
-        selection = tf.image.non_max_suppression_custom(
+        selection = tf.image.non_max_suppression(
             box, prob, cfg.TEST.RESULTS_PER_IM, cfg.TEST.FRCNN_NMS_THRESH)
         selection = tf.gather(ids, selection)
 
