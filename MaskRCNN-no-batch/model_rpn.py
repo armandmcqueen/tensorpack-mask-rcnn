@@ -10,7 +10,7 @@ from tensorpack.tfutils.summary import add_moving_summary
 from config import config as cfg
 from model_box import clip_boxes
 
-from non_max_suppression_custom import non_max_suppression_custom
+#from non_max_suppression_custom import non_max_suppression_custom
 
 @layer_register(log_shape=True)
 @auto_reuse_variable_scope
@@ -142,7 +142,6 @@ def generate_rpn_proposals(boxes, scores, img_shape,
         tf.reverse(topk_valid_boxes_x1y1x2y2, axis=[2]),
         (-1, 4), name='nms_input_boxes')
     #topk_valid_scores = tf.Print(topk_valid_scores, [tf.size(topk_valid_scores)])
-    '''
     nms_indices = tf.image.non_max_suppression(
         topk_valid_boxes_y1x1y2x2,
         topk_valid_scores,
@@ -154,6 +153,7 @@ def generate_rpn_proposals(boxes, scores, img_shape,
         topk_valid_scores,
         max_output_size=post_nms_topk,
         iou_threshold=cfg.RPN.PROPOSAL_NMS_THRESH)
+    '''
 
     topk_valid_boxes = tf.reshape(topk_valid_boxes_x1y1x2y2, (-1, 4))
     proposal_boxes = tf.gather(topk_valid_boxes, nms_indices)
