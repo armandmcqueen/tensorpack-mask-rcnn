@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 
-# Set timestamp, virtualenv, and logging directory
+# Set timestamp and logging directory, begin writing to it.
 TS=`date +'%Y%m%d_%H%M%S'`
-VENV=tensorflow_p36
 LOG_DIR=/home/ubuntu/logs/train_log_${TS}
-
-# Create log directory
 mkdir -p ${LOG_DIR}
+exec &> >(tee ${LOG_DIR}/nohup.out)
+
+# Print evaluated script commands
+set -x
+
+# Set VENV
+VENV=${CONDA_DEFAULT_ENV}
 
 # Write current branch and commit hash to log directory
 git branch | grep \* | awk '{print $2}' > ${LOG_DIR}/git_info
@@ -18,11 +22,17 @@ cp `basename $0` ${LOG_DIR}
 # Record environment variables
 env > ${LOG_DIR}/env.txt
 
+# Record python libaries
+pip freeze > ${LOG_DIR}/requirements.txt
+
+# Record tensorflow shared object linkages (CUDA version?)
+ldd /home/ubuntu/anaconda3/envs/${VENV}/lib/python3.6/site-packages/tensorflow/libtensorflow_framework.so > ${LOG_DIR}/tf_so_links.txt
+
 # Execute training job
 HOROVOD_TIMELINE=/home/ubuntu/logs/htimeline.json \
 HOROVOD_CYCLE_TIME=0.5 \
 HOROVOD_FUSION_THRESHOLD=67108864 \
-/home/ubuntu/anaconda3/envs/${VENV}/bin/mpirun -np 8 -H localhost:8 \
+/home/ubuntu/anaconda3/envs/${VENV}/bin/mpirun -np 2 -H localhost:2 \
 --mca plm_rsh_no_tree_spawn 1 -bind-to none -map-by slot -mca pml ob1 -mca btl ^openib \
 -mca btl_tcp_if_exclude lo,docker0 \
 -mca btl_vader_single_copy_mechanism none \
