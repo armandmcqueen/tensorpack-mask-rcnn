@@ -9,6 +9,14 @@ from tensorpack.tfutils.scope_utils import under_name_scope
 
 from config import config
 
+from perf import print_runtime_shape
+
+# Checks at graph_build time
+def check_shape(name, tensor):
+    print("[tshape] "+str(name)+": " + str(tensor.shape))
+
+def print_runtime_shapeOLD(name, tensor):
+    return tf.print("[runtime_shape] "+name+": "+str(tf.shape(tensor)))
 
 @under_name_scope()
 def clip_boxes(boxes, window, name=None):
@@ -17,8 +25,32 @@ def clip_boxes(boxes, window, name=None):
         boxes: nx4, xyxy
         window: [h, w]
     """
+
     boxes = tf.maximum(boxes, 0.0)
     m = tf.tile(tf.reverse(window, [0]), [2])    # (4,)
+
+    check_shape("model_box.py boxes", boxes)
+    check_shape("model_box.py m", m)
+
+    boxes = tf.minimum(boxes, tf.cast(m, tf.float32), name=name)
+    return boxes
+
+
+@under_name_scope()
+def clip_boxes_batch(boxes, batch_padding_dims, name=None):
+    """
+    Args:
+        boxes: nx4, xyxy
+        window: [h, w]
+    """
+    boxes = print_runtime_shape("clip_boxes_batch boxes", boxes)
+    batch_padding_dims = print_runtime_shape("clip_boxes_batch batch_padding_dims", batch_padding_dims)
+
+    boxes = tf.maximum(boxes, 0.0)
+    m = tf.tile(tf.reverse(batch_padding_dims, [0]), [2])    # (4,)
+
+    m = print_runtime_shape("clip_boxes_batch m", m)
+
     boxes = tf.minimum(boxes, tf.cast(m, tf.float32), name=name)
     return boxes
 
@@ -33,6 +65,13 @@ def decode_bbox_target(box_predictions, anchors):
     Returns:
         box_decoded: (..., 4), float32. With the same shape.
     """
+    check_shape("model_box.decode_bbox_target.box_predictions", box_predictions)
+    check_shape("model_box.decode_bbox_target.anchors", anchors)
+
+    print_runtime_shapeOLD("model_box.decode_bbox_target.box_predictions", box_predictions)
+    print_runtime_shapeOLD("model_box.decode_bbox_target.anchors", anchors)
+
+
     orig_shape = tf.shape(anchors)
     box_pred_txtytwth = tf.reshape(box_predictions, (-1, 2, 2))                 # (BSxfHxfWxNA) x 2 x 2
     box_pred_txty, box_pred_twth = tf.split(box_pred_txtytwth, 2, axis=1)
@@ -62,6 +101,13 @@ def encode_bbox_target(boxes, anchors):
     Returns:
         box_encoded: (..., 4), float32 with the same shape.
     """
+    check_shape("model_box.encode_bbox_target.boxes", boxes)
+    check_shape("model_box.encode_bbox_target.anchors", anchors)
+
+    # boxes = print_runtime_shape("model_box.encode_bbox_target.boxes", boxes)
+    # anchors = print_runtime_shape("model_box.encode_bbox_target.anchors", anchors)
+
+
     anchors_x1y1x2y2 = tf.reshape(anchors, (-1, 2, 2))
     anchors_x1y1, anchors_x2y2 = tf.split(anchors_x1y1x2y2, 2, axis=1)
     waha = anchors_x2y2 - anchors_x1y1
@@ -183,32 +229,42 @@ class RPNAnchors(namedtuple('_RPNAnchors', ['boxes', 'gt_labels', 'gt_boxes'])):
         return encode_bbox_target(self.gt_boxes, self.boxes)
 
     def decode_logits(self, logits):
+        print("Decode logits")
+        check_shape("RPNAnchors.decode_logits().logits", logits)
+        check_shape("RPNAnchors.decode_logits().boxes", self.boxes)
+
+        print_runtime_shapeOLD("RPNAnchors.decode_logits().logits", logits)
+        print_runtime_shapeOLD("RPNAnchors.decode_logits().boxes", self.boxes)
         return decode_bbox_target(logits, self.boxes)
 
-    # @under_name_scope()
-    # def narrow_to(self, featuremap, prepadding_dims):
-    #     """
-    #     Slice anchors to the spatial size of this featuremap.
-    #     Use prepadding_dims to ignore anchors that only sit on padding
-    #
-    #
-    #     featuremap:         N x C x H x W
-    #     prepadding_dims:    N x 2
-    #
-    #
-    #     """
-    #     reduced_anchors = []
-    #
-    #     # For each image, reduce the set of anchors according to prepadding_dims
-    #     for image_num, single_image_anchors in enumerate(self.boxes):
-    #
-    #         shape2d = tf.shape(featuremap)[2:]  # h,w
-    #         slice3d = tf.concat([shape2d, [-1]], axis=0)
-    #         slice4d = tf.concat([shape2d, [-1, -1]], axis=0)
-    #         boxes = tf.slice(self.boxes, [0, 0, 0, 0], slice4d)
-    #         gt_labels = tf.slice(self.gt_labels, [0, 0, 0], slice3d)
-    #         gt_boxes = tf.slice(self.gt_boxes, [0, 0, 0, 0], slice4d)
-    #     return RPNAnchors(boxes, gt_labels, gt_boxes)
+
+    @under_name_scope()
+    def narrow_to(self, featuremap):
+        """
+        Slice anchors to the spatial size of this featuremap.
+        """
+        shape2d = tf.shape(featuremap)[2:]  # h,w
+        slice3d = tf.concat([shape2d, [-1]], axis=0)
+        slice4d = tf.concat([shape2d, [-1, -1]], axis=0)
+        boxes = tf.slice(self.boxes, [0, 0, 0, 0], slice4d)
+        gt_labels = tf.slice(self.gt_labels, [0, 0, 0], slice3d)
+        gt_boxes = tf.slice(self.gt_boxes, [0, 0, 0, 0], slice4d)
+        return RPNAnchors(boxes, gt_labels, gt_boxes)
+
+    @under_name_scope()
+    def narrow_to_batch(self, featuremap):
+        """
+        Slice anchors to the spatial size of this featuremap.
+        """
+        shape2d = tf.shape(featuremap)[2:] # h,w
+        slice4d = tf.concat([[-1], shape2d, [-1]], axis=0)
+        slice5d = tf.concat([[-1], shape2d, [-1, -1]], axis=0)
+        boxes = tf.slice(self.boxes, [0, 0, 0, 0, 0], slice5d)
+        gt_labels = tf.slice(self.gt_labels, [0, 0, 0, 0], slice4d)
+        gt_boxes = tf.slice(self.gt_boxes, [0, 0, 0, 0, 0], slice5d)
+        return RPNAnchors(boxes, gt_labels, gt_boxes)
+
+
 
 
 if __name__ == '__main__':

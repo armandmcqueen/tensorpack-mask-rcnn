@@ -367,7 +367,7 @@ if __name__ == '__main__':
             logger.info("Horovod Rank={}, Size={}".format(hvd.rank(), hvd.size()))
 
         if not is_horovod or hvd.rank() == 0:
-            logger.set_logger_dir(args.logdir, 'd')
+            logger.set_logger_dir(args.logdir, 'k')
 
         finalize_configs(is_training=True)
         stepnum = cfg.TRAIN.STEPS_PER_EPOCH
@@ -429,6 +429,9 @@ if __name__ == '__main__':
             else:
                 session_init = get_model_loader(cfg.BACKBONE.WEIGHTS) if cfg.BACKBONE.WEIGHTS else None
 
+        #session_config = tf.ConfigProto(device_count={'GPU': 1})
+        #session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+
         traincfg = TrainConfig(
             model=MODEL,
             data=QueueInput(train_dataflow),
@@ -436,9 +439,9 @@ if __name__ == '__main__':
             steps_per_epoch=stepnum,
             max_epoch=cfg.TRAIN.LR_SCHEDULE[-1] * factor // stepnum,
             session_init=session_init,
+            session_config=None,
             starting_epoch=cfg.TRAIN.STARTING_EPOCH
         )
-
 
 
         if is_horovod:

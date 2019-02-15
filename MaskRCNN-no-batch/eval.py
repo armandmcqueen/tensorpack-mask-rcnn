@@ -127,11 +127,24 @@ def predict_dataflow(df, model_func, tqdm_bar=None):
         for img, img_id in df:
             results = predict_image(img, model_func)
             for r in results:
+
+                img_id = int(img_id)
+                class_id = int(r.class_id)
+                bbox = list([float(b) for b in r.box])
+                score = round(float(r.score), 4)
+
+                print("A result")
+                print(f'image_id [{type(img_id)}] {img_id}')
+                print(f'class_id [{type(class_id)}] {class_id}')
+                print(f'bbox [{type(bbox)}] {bbox}')
+                print(f'bbox[0] [{type(bbox[0])}] {bbox[0]}')
+                print(f'score [{type(score)}] {score}')
+
                 res = {
                     'image_id': img_id,
-                    'category_id': r.class_id,
-                    'bbox': list(r.box),
-                    'score': round(float(r.score), 4),
+                    'category_id': class_id,
+                    'bbox': bbox,
+                    'score': score,
                 }
 
                 # also append segmentation to results

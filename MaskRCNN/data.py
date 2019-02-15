@@ -471,7 +471,7 @@ def get_train_dataflow(batch_size=4):
 
             gt_padding = max_num_gts - gt_count_for_image
 
-            padded_gt_labels_for_img = np.pad(datapoint["gt_labels"], [0, gt_padding], 'constant')
+            padded_gt_labels_for_img = np.pad(datapoint["gt_labels"], [0, gt_padding], 'constant', constant_values=-1)
             padded_gt_labels.append(padded_gt_labels_for_img)
 
             padded_gt_boxes_for_img = np.pad(datapoint["gt_boxes"],

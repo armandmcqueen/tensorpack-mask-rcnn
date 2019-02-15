@@ -27,11 +27,12 @@ from config import finalize_configs, config as cfg
 from data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
 from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
 from model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align
-from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses
-from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets
+from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, generate_fpn_proposals_batch, multilevel_rpn_losses_batch
+from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets, BoxProposalsBatch
 from model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
 from model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
 from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
+from perf import print_runtime_shape
 
 try:
     import horovod.tensorflow as hvd
@@ -43,8 +44,7 @@ except ImportError:
 def check_shape(name, tensor):
     print("[tshape] "+str(name)+": " + str(tensor.shape))
 
-def print_runtime_shape(name, tensor):
-    return tf.print("[runtime_shape] "+name+": "+str(tf.shape(tensor)))
+
 
 class DetectionModel(ModelDesc):
     def preprocess(self, image):
@@ -105,7 +105,7 @@ class DetectionModel(ModelDesc):
         images = self.preprocess(inputs['images'])     # NCHW
 
         check_shape('images', images)
-        print_runtime_shape("Images", images)
+        images = print_runtime_shape("Images", images)
 
         features = self.backbone(images)
 
@@ -121,7 +121,9 @@ class DetectionModel(ModelDesc):
         proposals, rpn_losses = self.rpn(images, features, anchor_inputs, inputs['orig_image_dims'])  # inputs?
 
         targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
-        head_losses = self.roi_heads(images, features, proposals, targets)
+
+
+        head_losses = self.roi_heads(images, features, proposals, targets, inputs['orig_gt_counts'])
 
         if self.training:
             wd_cost = regularize_cost(
@@ -166,14 +168,20 @@ class ResNetFPNModel(DetectionModel):
             )
         return ret
 
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
+    def slice_feature_and_anchors(self, p23456, anchors):
+        for i, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
+            with tf.name_scope('FPN_slice_lvl{}'.format(i)):
+                anchors[i] = anchors[i].narrow_to(p23456[i])
+    # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
 
-    # def slice_feature_and_anchors(self, p23456, anchors, orig_image_dims):
-    #     orig_image_dims_hw = orig_image_dims[:2]    # Remove irrelevant channel dimension
-    #     for i, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
-    #         with tf.name_scope('FPN_slice_lvl{}'.format(i)):
-    #             orig_image_scale_factor = 1.0 / stride
-    #             projection_dims = orig_image_dims_hw * orig_image_scale_factor
-    #             anchors[i] = anchors[i].narrow_to(p23456[i], projection_dims)
+
+    def slice_feature_and_anchors_batch(self, p23456, anchors):
+        for i, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
+            with tf.name_scope('FPN_batch_slice_lvl{}'.format(i)):
+                anchors[i] = anchors[i].narrow_to_batch(p23456[i])
+
+
 
     def backbone(self, images):
         c2345 = resnet_fpn_backbone(images, cfg.BACKBONE.RESNET_NUM_BLOCKS)
@@ -193,10 +201,23 @@ class ResNetFPNModel(DetectionModel):
         print(type(all_anchors_fpn))
         print("len: "+str(len(all_anchors_fpn)))
 
+
+
+
         batched_all_anchors_fpn = []
-        for all_anchors_on_level in all_anchors_fpn:
-            batched_all_anchors_on_level = tf.stack([all_anchors_on_level for i in range(self.batch_size)])
-            batched_all_anchors_fpn.append(batched_all_anchors_on_level)
+        print_op_1 = tf.print("Runtime examination of FPN anchors")
+        with tf.control_dependencies([print_op_1]):
+            for i, all_anchors_on_level in enumerate(all_anchors_fpn):
+                single_anchor = all_anchors_on_level[0, 0, 0, :]
+                single_location_anchors = all_anchors_on_level[0, 0, :, :]
+                print_op_2 = tf.print(f'FPN anchor ind {i}: ', single_location_anchors)
+
+
+
+                with tf.control_dependencies([print_op_2]):
+
+                    batched_all_anchors_on_level = tf.stack([all_anchors_on_level for i in range(self.batch_size)])
+                    batched_all_anchors_fpn.append(batched_all_anchors_on_level)
 
 
 
@@ -226,29 +247,81 @@ class ResNetFPNModel(DetectionModel):
             check_shape("lvl " + str(lvl) + " label_logits", lvl_label_logits)
 
 
+        self.slice_feature_and_anchors_batch(features, multilevel_anchors)
+
         multilevel_pred_boxes = [anchor.decode_logits(logits)
                                  for anchor, logits in zip(multilevel_anchors, multilevel_box_logits)]
 
         for lvl, lvl_pred_boxes in enumerate(multilevel_pred_boxes):
             check_shape("lvl "+str(lvl)+" pred_box", lvl_pred_boxes)
 
-        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<1
 
-        proposal_boxes, proposal_scores = generate_fpn_proposals(
-            multilevel_pred_boxes, multilevel_label_logits, image_shape2d)
+        proposal_boxes, proposal_scores = generate_fpn_proposals_batch(
+            multilevel_pred_boxes, multilevel_label_logits, orig_image_dims)
+
+        proposal_boxes = print_runtime_shape("train.proposal_boxes", proposal_boxes)
+        proposal_scores = print_runtime_shape("train.proposal_scores", proposal_scores)
+
+
 
         if self.training:
-            losses = multilevel_rpn_losses(
+            losses = multilevel_rpn_losses_batch(
                 multilevel_anchors, multilevel_label_logits, multilevel_box_logits)
         else:
             losses = []
 
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
+
+        proposal_boxes = proposal_boxes[0, :, :]
+        # proposal_scores_old = proposal_scores[0, :]
+
+        multilevel_anchors =      [RPNAnchors(b_anchors.boxes[0, :, :, :, :],
+                                              b_anchors.gt_labels[0, :, :, :],
+                                              b_anchors.gt_boxes[0, :, :, :, :]) for b_anchors in multilevel_anchors]
+
+        multilevel_pred_boxes = [b_pred_boxes[0,:, :, :, :] for b_pred_boxes in multilevel_pred_boxes]
+        multilevel_box_logits = [b_box_logits[0, :, :, :, :] for b_box_logits in multilevel_box_logits]
+        multilevel_label_logits = [b_label_logits[0, :, :, :] for b_label_logits in multilevel_label_logits]
+
+        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<1
+
+        # if self.training:
+        #     losses = multilevel_rpn_losses(
+        #         multilevel_anchors, multilevel_label_logits, multilevel_box_logits)
+        # else:
+        #     losses = []
+
         return BoxProposals(proposal_boxes), losses
 
-    def roi_heads(self, image, features, proposals, targets):
-        image_shape2d = tf.shape(image)[2:]     # h,w
-        assert len(features) == 5, "Features have to be P23456!"
+
+
+
+    def roi_heads(self, images, features, proposals, targets, prepadding_gt_counts):
+
         gt_boxes, gt_labels, *_ = targets
+        image_shape2d = tf.shape(images)[2:] # h,w
+
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
+
+        images = images[0, :, :, :]
+        image_shape2d = tf.shape(images)[1:] # h,w
+
+        # extract single image GT
+        gt_boxes = gt_boxes[0, :, :]
+        gt_labels = gt_labels[0, :]
+
+        # remove padding
+        single_gt_original_count = prepadding_gt_counts[0]
+        gt_boxes = gt_boxes[0:single_gt_original_count, :]
+        gt_labels = gt_labels [0:single_gt_original_count]
+
+
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
+
+
+        assert len(features) == 5, "Features have to be P23456!"
+
+
 
         if self.training:
             proposals = sample_fast_rcnn_targets(proposals.boxes, gt_boxes, gt_labels)
@@ -264,10 +337,18 @@ class ResNetFPNModel(DetectionModel):
 
 
         if self.training:
+            print("self.training == True")
             all_losses = fastrcnn_head.losses()
 
             if cfg.MODE_MASK:
                 gt_masks = targets[2]
+
+                # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
+
+                gt_masks = gt_masks[0, :, :, :]
+
+                # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> UNBATCH
+
                 # maskrcnn loss
                 roi_feature_maskrcnn = multilevel_roi_align(
                     features[:4], proposals.fg_boxes(), 14,

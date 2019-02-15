@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 
-# Set timestamp, virtualenv, and logging directory
+# Set timestamp and logging directory, begin writing to it.
 TS=`date +'%Y%m%d_%H%M%S'`
-VENV=tensorflow_p36
 LOG_DIR=/home/ubuntu/logs/train_log_${TS}
-
-# Create log directory
 mkdir -p ${LOG_DIR}
+exec &> >(tee ${LOG_DIR}/nohup.out)
+
+# Print evaluated script commands
+set -x
+
+# Set VENV
+VENV=${CONDA_DEFAULT_ENV}
 
 # Write current branch and commit hash to log directory
 git branch | grep \* | awk '{print $2}' > ${LOG_DIR}/git_info
@@ -15,8 +19,17 @@ git log | head -1 >> ${LOG_DIR}/git_info
 # Copy this script into logging directory
 cp `basename $0` ${LOG_DIR}
 
+# Record environment variables
+env > ${LOG_DIR}/env.txt
+
+# Record python libaries
+pip freeze > ${LOG_DIR}/requirements.txt
+
+# Record tensorflow shared object linkages (CUDA version?)
+ldd /home/ubuntu/anaconda3/envs/${VENV}/lib/python3.6/site-packages/tensorflow/libtensorflow_framework.so > ${LOG_DIR}/tf_so_links.txt
+
 # Execute training job
-HOROVOD_TIMELINE=/home/ubuntu/logs/htimeline.json \
+HOROVOD_TIMELINE=${LOG_DIR}/htimeline.json \
 HOROVOD_CYCLE_TIME=0.5 \
 HOROVOD_FUSION_THRESHOLD=67108864 \
 /home/ubuntu/anaconda3/envs/${VENV}/bin/mpirun -np 8 -H localhost:8 \
