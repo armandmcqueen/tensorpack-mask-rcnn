@@ -66,8 +66,8 @@ def maskrcnn_upXconv_head(feature, num_category, num_convs, norm=None):
     """
     assert norm in [None, 'GN'], norm
     l = feature
-    #l = tf.cast(l, tf.float16)
-    with mixed_precision_scope(mixed=False):
+    l = tf.cast(l, tf.float16)
+    with mixed_precision_scope(mixed=True):
       with argscope([Conv2D, Conv2DTranspose], data_format='channels_first',
                   kernel_initializer=tf.variance_scaling_initializer(
                       scale=2.0, mode='fan_out',
@@ -76,10 +76,12 @@ def maskrcnn_upXconv_head(feature, num_category, num_convs, norm=None):
         for k in range(num_convs):
             l = Conv2D('fcn{}'.format(k), l, cfg.MRCNN.HEAD_DIM, 3, activation=tf.nn.relu)
             if norm is not None:
+                l = tf.cast(l, tf.float32)
                 l = GroupNorm('gn{}'.format(k), l)
+                l = tf.cast(l, tf.float16)
         l = Conv2DTranspose('deconv', l, cfg.MRCNN.HEAD_DIM, 2, strides=2, activation=tf.nn.relu)
         l = Conv2D('conv', l, num_category, 1)
-    #l = tf.cast(l, tf.float32)
+    l = tf.cast(l, tf.float32)
     return l
 
 
