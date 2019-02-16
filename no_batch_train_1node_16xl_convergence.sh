@@ -45,6 +45,7 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 --logdir ${LOG_DIR} \
 --perf \
 --throughput_log_freq 2000 \
+--summary_period 25 \
 --config MODE_MASK=True \
 MODE_FPN=True \
 DATA.BASEDIR=/home/ubuntu/data \
