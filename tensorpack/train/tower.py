@@ -254,7 +254,7 @@ class SingleCostTrainer(TowerTrainer):
                 else:
                     varlist = tf.trainable_variables()
 
-                loss_scale = 8.0
+                loss_scale = 1024.0
                 cost *= loss_scale
 
                 opt = get_opt_fn()
