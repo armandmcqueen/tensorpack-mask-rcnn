@@ -40,7 +40,7 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 -x NCCL_MIN_NRINGS=8 -x NCCL_DEBUG=INFO \
 -x LD_LIBRARY_PATH -x PATH \
 -x HOROVOD_CYCLE_TIME -x HOROVOD_FUSION_THRESHOLD \
---output-filename /home/ubuntu/logs/mpirun_logs \
+--output-filename ${LOG_DIR}/mpirun_logs \
 /home/ubuntu/anaconda3/envs/${VENV}/bin/python3 /home/ubuntu/tensorpack-mask-rcnn/MaskRCNN-no-batch/train.py \
 --logdir ${LOG_DIR} \
 --perf \
