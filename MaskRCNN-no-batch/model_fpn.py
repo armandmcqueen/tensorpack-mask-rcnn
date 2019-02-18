@@ -15,6 +15,7 @@ from config import config as cfg
 from model_box import roi_align
 from model_rpn import generate_rpn_proposals, rpn_losses
 from utils.box_ops import area as tf_area
+from utils.mixed_precision import mixed_precision_scope
 
 
 @layer_register(log_shape=True)
@@ -32,8 +33,11 @@ def fpn_model(features):
     use_gn = cfg.FPN.NORM == 'GN'
 
     def upsample2x(name, x):
+        #return FixedUnPooling(
+        #    name, x, 2, unpool_mat=np.ones((2, 2), dtype='float32'),
+        #    data_format='channels_first')
         return FixedUnPooling(
-            name, x, 2, unpool_mat=np.ones((2, 2), dtype='float32'),
+            name, x, 2, unpool_mat=np.ones((2, 2), dtype='float16'),
             data_format='channels_first')
 
         # tf.image.resize is, again, not aligned.
@@ -43,8 +47,11 @@ def fpn_model(features):
         #     x = tf.image.resize_nearest_neighbor(x, shape2d * 2, align_corners=True)
         #     x = tf.transpose(x, [0, 3, 1, 2])
         #     return x
-
-    with argscope(Conv2D, data_format='channels_first',
+    
+    print("features", features)
+    #features = tuple(tf.cast(l, tf.float16) for l in features)
+    with mixed_precision_scope(mixed=True):
+      with argscope(Conv2D, data_format='channels_first',
                   activation=tf.identity, use_bias=True,
                   kernel_initializer=tf.variance_scaling_initializer(scale=1.)):
         lat_2345 = [Conv2D('lateral_1x1_c{}'.format(i + 2), c, num_channel, 1)
@@ -63,7 +70,9 @@ def fpn_model(features):
         if use_gn:
             p2345 = [GroupNorm('gn_p{}'.format(i + 2), c) for i, c in enumerate(p2345)]
         p6 = MaxPooling('maxpool_p6', p2345[-1], pool_size=1, strides=2, data_format='channels_first', padding='VALID')
-        return p2345 + [p6]
+        
+        #return p2345 + [p6]
+        return [tf.cast(l, tf.float32) for l in p2345] + [tf.cast(p6, tf.float32)]
 
 
 @under_name_scope()
