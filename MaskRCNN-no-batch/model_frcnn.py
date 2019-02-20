@@ -115,14 +115,19 @@ def fastrcnn_outputs(feature, num_classes, class_agnostic_regression=False):
         cls_logits: N x num_class classification logits
         reg_logits: N x num_classx4 or Nx2x4 if class agnostic
     """
-    classification = FullyConnected(
-        'class', feature, num_classes,
-        kernel_initializer=tf.random_normal_initializer(stddev=0.01))
-    num_classes_for_box = 1 if class_agnostic_regression else num_classes
-    box_regression = FullyConnected(
-        'box', feature, num_classes_for_box * 4,
-        kernel_initializer=tf.random_normal_initializer(stddev=0.001))
-    box_regression = tf.reshape(box_regression, (-1, num_classes_for_box, 4), name='output_box')
+    feature = tf.cast(feature, tf.float16)
+    with mixed_precision_scope(mixed=True):
+        classification = FullyConnected(
+            'class', feature, num_classes,
+            kernel_initializer=tf.random_normal_initializer(stddev=0.01))
+        num_classes_for_box = 1 if class_agnostic_regression else num_classes
+        box_regression = FullyConnected(
+            'box', feature, num_classes_for_box * 4,
+            kernel_initializer=tf.random_normal_initializer(stddev=0.001))
+        box_regression = tf.reshape(box_regression, (-1, num_classes_for_box, 4), name='output_box')
+
+    classification = tf.cast(classification, tf.float32)
+    box_regression = tf.cast(box_regression, tf.float32)
     return classification, box_regression
 
 
