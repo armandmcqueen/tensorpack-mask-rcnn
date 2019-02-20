@@ -115,7 +115,6 @@ def fastrcnn_outputs(feature, num_classes, class_agnostic_regression=False):
         cls_logits: N x num_class classification logits
         reg_logits: N x num_classx4 or Nx2x4 if class agnostic
     """
-    feature = tf.cast(feature, tf.float16)
     with mixed_precision_scope(mixed=True):
         classification = FullyConnected(
             'class', feature, num_classes,
@@ -277,8 +276,8 @@ def fastrcnn_2fc_head(feature):
         hidden = FullyConnected('fc6', feature, dim, kernel_initializer=init, activation=tf.nn.relu)
         hidden = FullyConnected('fc7', hidden, dim, kernel_initializer=init, activation=tf.nn.relu)
 
-    #return hidden
-    return tf.cast(hidden, tf.float32)
+    return hidden
+    #return tf.cast(hidden, tf.float32)
 
 
 @layer_register(log_shape=True)
