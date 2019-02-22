@@ -196,7 +196,7 @@ def resnet_conv5(image, num_block):
         return l
 
 
-def resnet_fpn_backbone(image, num_blocks, fp16=True):
+def resnet_fpn_backbone(image, num_blocks, fp16=False):
     freeze_at = cfg.BACKBONE.FREEZE_AT
     shape2d = tf.shape(image)[2:]
     mult = float(cfg.FPN.RESOLUTION_REQUIREMENT)
@@ -229,12 +229,5 @@ def resnet_fpn_backbone(image, num_blocks, fp16=True):
 
     # 32x downsampling up to now
     # size of c5: ceil(input/32)
-
-    #if fp16:
-    #    c2 = tf.cast(c2, tf.float32)
-    #    c3 = tf.cast(c3, tf.float32)
-    #    c4 = tf.cast(c4, tf.float32)
-    #    c5 = tf.cast(c5, tf.float32)
-
     return c2, c3, c4, c5
 

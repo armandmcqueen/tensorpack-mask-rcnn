@@ -12,6 +12,7 @@ import six
 assert six.PY3, "FasterRCNN requires Python 3!"
 import tensorflow as tf
 import tqdm
+import logger
 
 import tensorpack.utils.viz as tpviz
 from tensorpack import *
@@ -41,6 +42,9 @@ except ImportError:
 
 
 class DetectionModel(ModelDesc):
+    def __init__(self, fp16):
+        self.fp16 = fp16
+
     def preprocess(self, image):
         image = tf.expand_dims(image, 0)
         image = image_preprocess(image, bgr=True)
@@ -97,6 +101,8 @@ class DetectionModel(ModelDesc):
 
 
 class ResNetFPNModel(DetectionModel):
+    def __init__(self, fp16):
+        super(ResNetFPNModel, self).__init__(fp16)
 
     # TODO: Batchify
     def inputs(self):
@@ -125,8 +131,8 @@ class ResNetFPNModel(DetectionModel):
                 anchors[i] = anchors[i].narrow_to(p23456[i])
 
     def backbone(self, image):
-        c2345 = resnet_fpn_backbone(image, cfg.BACKBONE.RESNET_NUM_BLOCKS)
-        p23456 = fpn_model('fpn', c2345)
+        c2345 = resnet_fpn_backbone(image, cfg.BACKBONE.RESNET_NUM_BLOCKS, fp16=self.fp16)
+        p23456 = fpn_model('fpn', c2345, fp16=self.fp16)
         return p23456
 
 
@@ -194,7 +200,7 @@ class ResNetFPNModel(DetectionModel):
                     name_scope='multilevel_roi_align_mask')
                 maskrcnn_head_func = getattr(model_mrcnn, cfg.FPN.MRCNN_HEAD_FUNC)
                 mask_logits = maskrcnn_head_func(
-                    'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY)   # #fg x #cat x 28 x 28
+                    'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY, fp16=self.fp16)   # #fg x #cat x 28 x 28
 
                 target_masks_for_fg = crop_and_resize(
                     tf.expand_dims(gt_masks, 1),
@@ -215,7 +221,7 @@ class ResNetFPNModel(DetectionModel):
                 roi_feature_maskrcnn = multilevel_roi_align(features[:4], final_boxes, 14)
                 maskrcnn_head_func = getattr(model_mrcnn, cfg.FPN.MRCNN_HEAD_FUNC)
                 mask_logits = maskrcnn_head_func(
-                    'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY)   # #fg x #cat x 28 x 28
+                    'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY, fp16=self.fp16)   # #fg x #cat x 28 x 28
                 indices = tf.stack([tf.range(tf.size(final_labels)), tf.cast(final_labels, tf.int32) - 1], axis=1)
                 final_mask_logits = tf.gather_nd(mask_logits, indices)   # #resultx28x28
                 tf.sigmoid(final_mask_logits, name='output/masks')

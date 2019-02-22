@@ -19,7 +19,7 @@ from utils.mixed_precision import mixed_precision_scope
 
 
 @layer_register(log_shape=True)
-def fpn_model(features):
+def fpn_model(features, fp16=False):
     """
     Args:
         features ([tf.Tensor]): ResNet features c2-c5
@@ -33,11 +33,9 @@ def fpn_model(features):
     use_gn = cfg.FPN.NORM == 'GN'
 
     def upsample2x(name, x):
-        #return FixedUnPooling(
-        #    name, x, 2, unpool_mat=np.ones((2, 2), dtype='float32'),
-        #    data_format='channels_first')
+        dtype_str = 'float16' if fp16 else 'float32'
         return FixedUnPooling(
-            name, x, 2, unpool_mat=np.ones((2, 2), dtype='float16'),
+            name, x, 2, unpool_mat=np.ones((2, 2), dtype=dtype_str),
             data_format='channels_first')
 
         # tf.image.resize is, again, not aligned.
@@ -48,9 +46,7 @@ def fpn_model(features):
         #     x = tf.transpose(x, [0, 3, 1, 2])
         #     return x
     
-    print("features", features)
-    #features = tuple(tf.cast(l, tf.float16) for l in features)
-    with mixed_precision_scope(mixed=True):
+    with mixed_precision_scope(mixed=fp16):
       with argscope(Conv2D, data_format='channels_first',
                   activation=tf.identity, use_bias=True,
                   kernel_initializer=tf.variance_scaling_initializer(scale=1.)):

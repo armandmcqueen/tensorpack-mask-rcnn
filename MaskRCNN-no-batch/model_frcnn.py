@@ -258,7 +258,7 @@ FastRCNN heads for FPN:
 
 
 @layer_register(log_shape=True)
-def fastrcnn_2fc_head(feature):
+def fastrcnn_2fc_head(feature, fp16=False):
     """
     Args:
         feature (any shape):
@@ -267,13 +267,18 @@ def fastrcnn_2fc_head(feature):
         2D head feature
     """
     dim = cfg.FPN.FRCNN_FC_HEAD_DIM
-    feature = tf.cast(feature, tf.float16)
-    with mixed_precision_scope(mixed=True):
-        init = tf.variance_scaling_initializer(dtype=tf.float16)
+    if fp16:
+        feature = tf.cast(feature, tf.float16)
+
+    with mixed_precision_scope(mixed=fp16):
+        init = tf.variance_scaling_initializer(dtype=tf.float16 if fp16 else tf.float32)
         hidden = FullyConnected('fc6', feature, dim, kernel_initializer=init, activation=tf.nn.relu)
         hidden = FullyConnected('fc7', hidden, dim, kernel_initializer=init, activation=tf.nn.relu)
 
-    return tf.cast(hidden, tf.float32)
+    if fp16:
+        hidden = tf.cast(hidden, tf.float32)
+
+    return hidden
 
 
 @layer_register(log_shape=True)
