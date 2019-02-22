@@ -44,8 +44,9 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 /home/ubuntu/anaconda3/envs/${VENV}/bin/python3 /home/ubuntu/tensorpack-mask-rcnn/MaskRCNN-no-batch/train.py \
 --logdir ${LOG_DIR} \
 --perf \
+--fp16 \
 --throughput_log_freq 2000 \
---summary_period 25 \
+--summary_period 0 \
 --config MODE_MASK=True \
 MODE_FPN=True \
 DATA.BASEDIR=/home/ubuntu/data \
@@ -58,5 +59,5 @@ BACKBONE.NORM=FreezeBN \
 TRAINER=horovod
 
 #TRAIN.EVAL_PERIOD=1 \
-#TRAIN.STEPS_PER_EPOCH=150 \
+#TRAIN.STEPS_PER_EPOCH=15000 \
 #TRAIN.LR_SCHEDULE='[120000, 160000, 180000]' \
