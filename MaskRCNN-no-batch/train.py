@@ -323,6 +323,8 @@ if __name__ == '__main__':
     parser.add_argument('--tfprof_start_step', help="Step to enable tf profiling", type=int, default=15005)
     parser.add_argument('--tfprof_end_step', help="Step after which tf profiling will be disabled", type=int, default=15010)
 
+    parser.add_argument('--summary_period', help="Write summary events periodically at this interval. Setting it to 0 writes at at the end of an epoch.", type=int, default=0)
+
     #################################################################################################################
 
 
@@ -367,7 +369,7 @@ if __name__ == '__main__':
             logger.info("Horovod Rank={}, Size={}".format(hvd.rank(), hvd.size()))
 
         if not is_horovod or hvd.rank() == 0:
-            logger.set_logger_dir(args.logdir, 'd')
+            logger.set_logger_dir(args.logdir, 'k')
 
         finalize_configs(is_training=True)
         stepnum = cfg.TRAIN.STEPS_PER_EPOCH
@@ -436,6 +438,12 @@ if __name__ == '__main__':
             model=MODEL,
             data=QueueInput(train_dataflow),
             callbacks=callbacks,
+            extra_callbacks=[
+               MovingAverageSummary(),
+               ProgressBar(),
+               MergeAllSummaries(period=args.summary_period),
+               RunUpdateOps()
+            ],
             steps_per_epoch=stepnum,
             max_epoch=cfg.TRAIN.LR_SCHEDULE[-1] * factor // stepnum,
             session_init=session_init,
