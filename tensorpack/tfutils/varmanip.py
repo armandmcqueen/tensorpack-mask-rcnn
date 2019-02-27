@@ -81,6 +81,12 @@ class SessionUpdate(object):
                 return np.int64 if vartype == tf.int64 else np.int32
             return None
 
+        def downcast(vartype, valtype):
+            # allow down-casting
+            if vartype == tf.float16 and valtype == np.float32:
+                return np.float16
+            return None
+
         if hasattr(val, 'dtype'):
             vartype = var.value().dtype
             if vartype != val.dtype:
@@ -90,7 +96,12 @@ class SessionUpdate(object):
                     val = newtype(val)
                     logger.warn(msg + " Load it after casting!")
                 else:
-                    assert vartype == val.dtype, msg
+                    newtype = downcast(var.dtype.base_dtype, val.dtype)
+                    if newtype is not None:
+                        val = newtype(val)
+                        logger.warn(msg + " Load it after downcasting!")
+                    else:
+                        assert vartype == val.dtype, msg
         try:
             var.load(val)
         except tf.errors.InvalidArgumentError:

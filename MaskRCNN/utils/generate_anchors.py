@@ -103,3 +103,8 @@ def _scale_enum(anchor, scales):
     hs = h * scales
     anchors = _mkanchors(ws, hs, x_ctr, y_ctr)
     return anchors
+
+
+if __name__ == '__main__':
+    anchors = generate_anchors(base_size=7,  ratios=[3/4, 4/3, 1, 3], scales=np.array([1.0]))
+    print(anchors)

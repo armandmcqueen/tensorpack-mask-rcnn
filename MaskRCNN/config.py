@@ -115,6 +115,7 @@ _C.TRAIN.WARMUP = 1000   # in terms of iterations. This is not affected by #GPUs
 _C.TRAIN.WARMUP_INIT_LR = 1e-2 * 0.33  # defined for total batch size=8. Otherwise it will be adjusted automatically
 _C.TRAIN.STEPS_PER_EPOCH = 500
 _C.TRAIN.STARTING_EPOCH = 1  # the first epoch to start with, useful to continue a training
+_C.TRAIN.BATCH_SIZE_PER_GPU = 4
 
 # LR_SCHEDULE means equivalent steps when the total batch size is 8.
 # When the total bs!=8, the actual iterations to decrease learning rate, and
@@ -148,7 +149,8 @@ _C.RPN.NEGATIVE_ANCHOR_THRESH = 0.3
 # rpn training -------------------------
 _C.RPN.FG_RATIO = 0.5  # fg ratio among selected RPN anchors
 _C.RPN.BATCH_PER_IM = 256  # total (across FPN levels) number of anchors that are marked valid
-_C.RPN.MIN_SIZE = 0
+_C.RPN.MIN_SIZE = 0.1
+# _C.RPN.MIN_SIZE = 0
 _C.RPN.PROPOSAL_NMS_THRESH = 0.7
 # Anchors which overlap with a crowd box (IOA larger than threshold) will be ignored.
 # Setting this to a value larger than 1.0 will disable the feature.

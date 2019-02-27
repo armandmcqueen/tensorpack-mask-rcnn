@@ -253,6 +253,10 @@ class SingleCostTrainer(TowerTrainer):
                     varlist = ctx.get_collection_in_tower(tf.GraphKeys.TRAINABLE_VARIABLES)
                 else:
                     varlist = tf.trainable_variables()
+
+                loss_scale = 1024.0
+                cost *= loss_scale
+
                 opt = get_opt_fn()
                 grads = opt.compute_gradients(
                     cost, var_list=varlist,
@@ -260,6 +264,9 @@ class SingleCostTrainer(TowerTrainer):
                     colocate_gradients_with_ops=self.COLOCATE_GRADIENTS_WITH_OPS,
                     aggregation_method=self.AGGREGATION_METHOD)
                 grads = FilterNoneGrad().process(grads)
+
+                scaled_gv = [(g * 1.0 / loss_scale, v) for g, v in grads]
+
                 return grads
 
             if not self.XLA_COMPILE:

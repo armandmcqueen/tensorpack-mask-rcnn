@@ -11,6 +11,7 @@ from tensorpack.tfutils.scope_utils import auto_reuse_variable_scope
 from tensorpack.tfutils.varreplace import custom_getter_scope, freeze_variables
 
 from config import config as cfg
+from utils.mixed_precision import mixed_precision_scope
 
 
 @layer_register(log_shape=True)
@@ -115,7 +116,15 @@ def get_norm(zero_init=False):
     else:
         Norm = BatchNorm
         layer_name = 'bn'
-    return lambda x: Norm(layer_name, x, gamma_initializer=tf.zeros_initializer() if zero_init else None)
+
+    def norm(x):
+        dtype = x.dtype
+        x = tf.cast(x, tf.float32)
+        x = Norm(layer_name, x, gamma_initializer=tf.zeros_initializer() if zero_init else None)
+        return tf.cast(x, dtype)
+
+    return norm
+    #return lambda x: Norm(layer_name, x, gamma_initializer=tf.zeros_initializer() if zero_init else None)
 
 
 def resnet_shortcut(l, n_out, stride, activation=tf.identity):
@@ -187,30 +196,36 @@ def resnet_conv5(image, num_block):
         return l
 
 
-def resnet_fpn_backbone(image, num_blocks):
+def resnet_fpn_backbone(image, num_blocks, fp16=False):
     freeze_at = cfg.BACKBONE.FREEZE_AT
     shape2d = tf.shape(image)[2:]
     mult = float(cfg.FPN.RESOLUTION_REQUIREMENT)
     new_shape2d = tf.cast(tf.ceil(tf.cast(shape2d, tf.float32) / mult) * mult, tf.int32)
     pad_shape2d = new_shape2d - shape2d
     assert len(num_blocks) == 4, num_blocks
-    with backbone_scope(freeze=freeze_at > 0):
-        chan = image.shape[1]
-        pad_base = maybe_reverse_pad(2, 3)
-        l = tf.pad(image, tf.stack(
-            [[0, 0], [0, 0],
-             [pad_base[0], pad_base[1] + pad_shape2d[0]],
-             [pad_base[0], pad_base[1] + pad_shape2d[1]]]))
-        l.set_shape([None, chan, None, None])
-        l = Conv2D('conv0', l, 64, 7, strides=2, padding='VALID')
-        l = tf.pad(l, [[0, 0], [0, 0], maybe_reverse_pad(0, 1), maybe_reverse_pad(0, 1)])
-        l = MaxPooling('pool0', l, 3, strides=2, padding='VALID')
-    with backbone_scope(freeze=freeze_at > 1):
-        c2 = resnet_group('group0', l, resnet_bottleneck, 64, num_blocks[0], 1)
-    with backbone_scope(freeze=False):
-        c3 = resnet_group('group1', c2, resnet_bottleneck, 128, num_blocks[1], 2)
-        c4 = resnet_group('group2', c3, resnet_bottleneck, 256, num_blocks[2], 2)
-        c5 = resnet_group('group3', c4, resnet_bottleneck, 512, num_blocks[3], 2)
+
+    if fp16:
+        image = tf.cast(image, tf.float16)
+
+    with mixed_precision_scope(mixed=fp16):
+        with backbone_scope(freeze=freeze_at > 0):
+            chan = image.shape[1]
+            pad_base = maybe_reverse_pad(2, 3)
+            l = tf.pad(image, tf.stack(
+                [[0, 0], [0, 0],
+                [pad_base[0], pad_base[1] + pad_shape2d[0]],
+                [pad_base[0], pad_base[1] + pad_shape2d[1]]]))
+            l.set_shape([None, chan, None, None])
+            l = Conv2D('conv0', l, 64, 7, strides=2, padding='VALID')
+            l = tf.pad(l, [[0, 0], [0, 0], maybe_reverse_pad(0, 1), maybe_reverse_pad(0, 1)])
+            l = MaxPooling('pool0', l, 3, strides=2, padding='VALID')
+        with backbone_scope(freeze=freeze_at > 1):
+            c2 = resnet_group('group0', l, resnet_bottleneck, 64, num_blocks[0], 1)
+        with backbone_scope(freeze=False):
+            c3 = resnet_group('group1', c2, resnet_bottleneck, 128, num_blocks[1], 2)
+            c4 = resnet_group('group2', c3, resnet_bottleneck, 256, num_blocks[2], 2)
+            c5 = resnet_group('group3', c4, resnet_bottleneck, 512, num_blocks[3], 2)
+
     # 32x downsampling up to now
     # size of c5: ceil(input/32)
     return c2, c3, c4, c5

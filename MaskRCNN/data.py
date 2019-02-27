@@ -8,7 +8,7 @@ from tabulate import tabulate
 from termcolor import colored
 
 from tensorpack.dataflow import (
-    DataFromList, MapDataComponent, MultiProcessMapDataZMQ, MultiThreadMapData, TestDataSpeed, imgaug)
+    DataFromList, MapDataComponent, MultiProcessMapDataZMQ, MultiThreadMapData, TestDataSpeed, imgaug, MapData)
 from tensorpack.utils import logger
 from tensorpack.utils.argtools import log_once, memoized
 
@@ -267,10 +267,44 @@ def get_multilevel_rpn_anchor_input(im, boxes, is_crowd):
     return multilevel_inputs
 
 
+def group_by_aspect_ratio(roidbs, batch_size):
+    batched_roidbs = []
+    batch_portrait = []
+    batch_landscape = []
+
+    for i, d in enumerate(roidbs):
+        aspect_ratio = float(d['width']) / float(d['height'])
+        # portrait
+        if aspect_ratio <= 1:
+            batch_portrait.append(d)
+            if len(batch_portrait) == batch_size:
+                batched_roidbs.append(batch_portrait)
+                batch_portrait = []
+        # landscape
+        else:
+            batch_landscape.append(d)
+            if len(batch_landscape) == batch_size:
+                batched_roidbs.append(batch_landscape)
+                batch_landscape = []
+
+    return batched_roidbs
 
 
 
-def get_train_dataflow(batch_size=4):
+def sort_by_aspect_ratio(roidbs, batch_size):
+    sorted_roidbs = sorted(roidbs, 
+                           key=lambda x: float(x['width']) / float(x['height']))
+    batched_roidbs = []
+    batch = []
+    for d in sorted_roidbs:
+        batch.append(d)
+        if len(batch) == batch_size:
+            batched_roidbs.append(batch)
+            batch = []
+    return batched_roidbs
+
+
+def get_train_dataflow(batch_size):
     """
     Return a training dataflow. Each datapoint consists of the following:
 
@@ -301,17 +335,22 @@ def get_train_dataflow(batch_size=4):
         num - len(roidbs), len(roidbs)))
 
     print("Batching roidbs")
+    '''
     batched_roidbs = []
     batch = []
 
-    print("Num roidbs: "+str(len(roidbs)))
     for i, d in enumerate(roidbs):
         if i % batch_size == 0:
             if len(batch) == batch_size:
                 batched_roidbs.append(batch)
             batch = []
         batch.append(d)
+    '''
+
+    batched_roidbs = sort_by_aspect_ratio(roidbs, batch_size)
+    #batched_roidbs = group_by_aspect_ratio(roidbs, batch_size)
     print("Done batching roidbs")
+
 
     # Notes:
     #   - discard any leftover images
@@ -330,6 +369,7 @@ def get_train_dataflow(batch_size=4):
         datapoint_list = []
         for roidb in roidb_batch:
             fname, boxes, klass, is_crowd = roidb['file_name'], roidb['boxes'], roidb['class'], roidb['is_crowd']
+            # print(fname)
             boxes = np.copy(boxes)
             im = cv2.imread(fname, cv2.IMREAD_COLOR)
             assert im is not None, fname
@@ -359,6 +399,7 @@ def get_train_dataflow(batch_size=4):
                 klass = klass[is_crowd == 0]
                 ret['gt_boxes'] = boxes
                 ret['gt_labels'] = klass
+                ret['filename'] = fname
                 if not len(boxes):
                     raise MalformedData("No valid gt_boxes!")
             except MalformedData as e:
@@ -455,6 +496,7 @@ def get_train_dataflow(batch_size=4):
             padded_images.append(padded_image)
 
         batched_datapoint["images"] = np.stack(padded_images)
+        #print(batched_datapoint["images"].shape)
         batched_datapoint["orig_image_dims"] = np.stack(original_image_dims)
 
 
@@ -486,51 +528,60 @@ def get_train_dataflow(batch_size=4):
             h_padding = max_height - datapoint["image"].shape[0]
             w_padding = max_width - datapoint["image"].shape[1]
 
-            padded_gt_masks_for_img = np.pad(datapoint["gt_masks"],
-                                     [[0, gt_padding],
-                                      [0, h_padding],
-                                      [0, w_padding]],
-                                     'constant')
-            padded_gt_masks.append(padded_gt_masks_for_img)
+
+
+            if cfg.MODE_MASK:
+                padded_gt_masks_for_img = np.pad(datapoint["gt_masks"],
+                                         [[0, gt_padding],
+                                          [0, h_padding],
+                                          [0, w_padding]],
+                                         'constant')
+                padded_gt_masks.append(padded_gt_masks_for_img)
 
 
         batched_datapoint["orig_gt_counts"] = np.stack(gt_counts)
         batched_datapoint["gt_labels"] = np.stack(padded_gt_labels)
         batched_datapoint["gt_boxes"] = np.stack(padded_gt_boxes)
-        batched_datapoint["gt_masks"] = np.stack(padded_gt_masks)
+        batched_datapoint["filenames"] = [d["filename"] for d in datapoint_list]
+
+        if cfg.MODE_MASK:
+            batched_datapoint["gt_masks"] = np.stack(padded_gt_masks)
 
         #################################################################################################################
-
+        # print("BATCHED DATAPOINT")
+        # print(batched_datapoint)
+        # print("END BATCHED DATAPOINT")
 
         return batched_datapoint
 
 
-    ds = DataFromList(batched_roidbs, shuffle=True)
+    ds = DataFromList(batched_roidbs, shuffle=False)
 
     #################################################################################################################
     # Test preprocess on a given batch
     #################################################################################################################
-
-    test_batch = batched_roidbs[0]
-
-    print("Running preprocess on test_batch")
-    out = preprocess(test_batch)
-    for k in ['images', 'orig_image_dims', 'anchor_labels_lvl2', 'anchor_boxes_lvl2', 'anchor_labels_lvl3', 'anchor_boxes_lvl3',
-              'anchor_labels_lvl4', 'anchor_boxes_lvl4', 'anchor_labels_lvl5', 'anchor_boxes_lvl5', 'anchor_labels_lvl6',
-              'anchor_boxes_lvl6', 'gt_boxes', 'gt_labels', 'gt_masks', 'orig_gt_counts']:
-        try:
-            print("\nInspecting k: "+k)
-            print(out[k].shape)
-        except Exception:
-            pass
-
-    print("complete")
+    #
+    # test_batch = batched_roidbs[5]
+    #
+    # print("Running preprocess on test_batch")
+    # out = preprocess(test_batch)
+    # for k in ['images', 'orig_image_dims', 'anchor_labels_lvl2', 'anchor_boxes_lvl2', 'anchor_labels_lvl3', 'anchor_boxes_lvl3',
+    #           'anchor_labels_lvl4', 'anchor_boxes_lvl4', 'anchor_labels_lvl5', 'anchor_boxes_lvl5', 'anchor_labels_lvl6',
+    #           'anchor_boxes_lvl6', 'gt_boxes', 'gt_labels', 'gt_masks', 'orig_gt_counts']:
+    #     try:
+    #         print("\nInspecting k: "+k)
+    #         print(out[k].shape)
+    #     except Exception:
+    #         pass
+    #
+    # print("complete")
 
 
     #################################################################################################################
 
     if cfg.TRAINER == 'horovod':
-        ds = MultiThreadMapData(ds, 5, preprocess)
+        ds = MapData(ds, preprocess)
+        # ds = MultiThreadMapData(ds, 5, preprocess)
         # MPI does not like fork()
     else:
         ds = MultiProcessMapDataZMQ(ds, 10, preprocess)

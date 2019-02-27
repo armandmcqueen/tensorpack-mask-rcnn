@@ -1,10 +1,21 @@
 #!/usr/bin/env bash
+IMAGES_PER_GPU=${1:-4}
+NUM_GPU=${2:-1}
+let IMAGES_PER_STEP=${IMAGES_PER_GPU}*${NUM_GPU}
+let STEPS_PER_EPOCH=120000/${IMAGES_PER_STEP}
+
+echo "IMAGES_PER_GPU: ${IMAGES_PER_GPU}"
+echo "NUM_GPU: ${NUM_GPU}"
+echo "IMAGES_PER_STEP: ${IMAGES_PER_STEP}"
+echo "STEPS_PER_EPOCH: ${STEPS_PER_EPOCH}"
+
+
 
 HOROVOD_TIMELINE=/home/ubuntu/logs/htimeline.json \
 HOROVOD_CYCLE_TIME=0.5 \
 HOROVOD_FUSION_THRESHOLD=67108864 \
-/home/ubuntu/anaconda3/envs/tensorflow_p36/bin/mpirun -np 1 \
---H localhost:1 \
+/home/ubuntu/anaconda3/envs/tensorflow_p36/bin/mpirun -np ${NUM_GPU} \
+--H localhost:${NUM_GPU} \
 --mca plm_rsh_no_tree_spawn 1 -bind-to none -map-by slot -mca pml ob1 -mca btl ^openib \
 -mca btl_tcp_if_exclude lo,docker0 \
 -mca btl_vader_single_copy_mechanism none \
@@ -15,14 +26,18 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 --output-filename /home/ubuntu/logs/mpirun_logs \
 /home/ubuntu/anaconda3/envs/tensorflow_p36/bin/python3 /home/ubuntu/tensorpack-mask-rcnn/MaskRCNN/train.py \
 --logdir /home/ubuntu/logs/train_log \
+--fp16 \
+--perf \
+--throughput_log_freq 1 \
+--images_per_step ${IMAGES_PER_STEP} \
 --config MODE_MASK=True \
 MODE_FPN=True \
 DATA.BASEDIR=/home/ubuntu/data \
 DATA.TRAIN='["train2017"]' \
 DATA.VAL='("val2017",)' \
-TRAIN.EVAL_PERIOD=12 \
-TRAIN.STEPS_PER_EPOCH=15000 \
+TRAIN.STEPS_PER_EPOCH=${STEPS_PER_EPOCH} \
 TRAIN.LR_SCHEDULE='[120000, 160000, 180000]' \
 BACKBONE.WEIGHTS=/home/ubuntu/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
 BACKBONE.NORM=FreezeBN \
-TRAINER=horovod
+TRAINER=horovod \
+TRAIN.BATCH_SIZE_PER_GPU=${IMAGES_PER_GPU}
