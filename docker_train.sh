@@ -24,7 +24,7 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 -x LD_LIBRARY_PATH -x PATH \
 -x HOROVOD_CYCLE_TIME -x HOROVOD_FUSION_THRESHOLD \
 --output-filename /tensorpack-mask-rcnn/logs/mpirun_logs \
-/usr/local/bin/python3 /home/ubuntu/tensorpack-mask-rcnn/MaskRCNN/train.py \
+/usr/local/bin/python3 /tensorpack-mask-rcnn/MaskRCNN/train.py \
 --logdir /tensorpack-mask-rcnn/logs/train_log \
 --fp16 \
 --perf \
