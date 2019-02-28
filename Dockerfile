@@ -118,9 +118,9 @@ RUN apt-get install -y --no-install-recommends --allow-downgrades --allow-change
     less \
     iproute
 
-RUN mkdir -p /tensorpack-mask-rcnn
+#RUN mkdir -p /tensorpack-mask-rcnn
 
-RUN mv * /tensorpack-mask-rcnn/
+COPY . /tensorpack-mask-rcnn
 RUN pip3 install --ignore-installed -e /tensorpack-mask-rcnn/
 
 
