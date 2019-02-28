@@ -499,6 +499,9 @@ if __name__ == '__main__':
     parser.add_argument('--tfprof_start_step', help="Step to enable tf profiling", type=int, default=15005)
     parser.add_argument('--tfprof_end_step', help="Step after which tf profiling will be disabled", type=int, default=15010)
 
+    parser.add_argument('--summary_period', help="Write summary events periodically at this interval. Setting it to 0 writes at at the end of an epoch.", type=int, default=0)
+
+
     #################################################################################################################
 
     if get_tf_version_tuple() < (1, 6):
