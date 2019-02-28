@@ -67,8 +67,10 @@ def fpn_model(features, fp16=False):
             p2345 = [GroupNorm('gn_p{}'.format(i + 2), c) for i, c in enumerate(p2345)]
         p6 = MaxPooling('maxpool_p6', p2345[-1], pool_size=1, strides=2, data_format='channels_first', padding='VALID')
         
-        #return p2345 + [p6]
-        return [tf.cast(l, tf.float32) for l in p2345] + [tf.cast(p6, tf.float32)]
+        if fp16:
+            return [tf.cast(l, tf.float32) for l in p2345] + [tf.cast(p6, tf.float32)]
+
+        return p2345 + [p6]
 
 
 @under_name_scope()

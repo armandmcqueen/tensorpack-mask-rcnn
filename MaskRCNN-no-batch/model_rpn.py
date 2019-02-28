@@ -24,7 +24,7 @@ def rpn_head(featuremap, channel, num_anchors, fp16=False):
     if fp16:
         featuremap = tf.cast(featuremap, tf.float16)
 
-    with mixed_precision_scope(True):
+    with mixed_precision_scope(mixed=fp16):
         with argscope(Conv2D, data_format='channels_first',
                     kernel_initializer=tf.random_normal_initializer(stddev=0.01)):
             hidden = Conv2D('conv0', featuremap, channel, 3, activation=tf.nn.relu)
