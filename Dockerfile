@@ -64,7 +64,7 @@ RUN pip3 install --upgrade pip
 RUN pip3 install awscli
 
 
-RUN aws s3 cp s3://${TF_WHEEL_S3_BUCKET}/${TF_WHEEL_S3_KEY } ./tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl
+RUN aws s3 cp s3://${TF_WHEEL_S3_BUCKET}/${TF_WHEEL_S3_KEY} ./tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl
 RUN pip3 install tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl keras h5py
 
 # Install Horovod, temporarily using CUDA stubs
