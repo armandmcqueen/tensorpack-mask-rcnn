@@ -9,6 +9,7 @@ from tensorpack.tfutils.summary import add_moving_summary
 
 from config import config as cfg
 from model_box import clip_boxes
+from utils.mixed_precision import mixed_precision_scope
 
 #from non_max_suppression_custom import non_max_suppression_custom
 
@@ -20,20 +21,26 @@ def rpn_head(featuremap, channel, num_anchors):
         label_logits: fHxfWxNA
         box_logits: fHxfWxNAx4
     """
-    with argscope(Conv2D, data_format='channels_first',
-                  kernel_initializer=tf.random_normal_initializer(stddev=0.01)):
-        hidden = Conv2D('conv0', featuremap, channel, 3, activation=tf.nn.relu)
+    featuremap = tf.cast(featuremap, tf.float16)
+    with mixed_precision_scope(True):
+        with argscope(Conv2D, data_format='channels_first',
+                    kernel_initializer=tf.random_normal_initializer(stddev=0.01)):
+            hidden = Conv2D('conv0', featuremap, channel, 3, activation=tf.nn.relu)
 
-        label_logits = Conv2D('class', hidden, num_anchors, 1)
-        box_logits = Conv2D('box', hidden, 4 * num_anchors, 1)
-        # 1, NA(*4), im/16, im/16 (NCHW)
+            label_logits = Conv2D('class', hidden, num_anchors, 1)
+            box_logits = Conv2D('box', hidden, 4 * num_anchors, 1)
+            # 1, NA(*4), im/16, im/16 (NCHW)
 
-        label_logits = tf.transpose(label_logits, [0, 2, 3, 1])  # 1xfHxfWxNA
-        label_logits = tf.squeeze(label_logits, 0)  # fHxfWxNA
+            label_logits = tf.transpose(label_logits, [0, 2, 3, 1])  # 1xfHxfWxNA
+            label_logits = tf.squeeze(label_logits, 0)  # fHxfWxNA
 
-        shp = tf.shape(box_logits)  # 1x(NAx4)xfHxfW
-        box_logits = tf.transpose(box_logits, [0, 2, 3, 1])  # 1xfHxfWx(NAx4)
-        box_logits = tf.reshape(box_logits, tf.stack([shp[2], shp[3], num_anchors, 4]))  # fHxfWxNAx4
+            shp = tf.shape(box_logits)  # 1x(NAx4)xfHxfW
+            box_logits = tf.transpose(box_logits, [0, 2, 3, 1])  # 1xfHxfWx(NAx4)
+            box_logits = tf.reshape(box_logits, tf.stack([shp[2], shp[3], num_anchors, 4]))  # fHxfWxNAx4
+    
+    label_logits = tf.cast(label_logits, tf.float32)
+    box_logits = tf.cast(box_logits, tf.float32)
+
     return label_logits, box_logits
 
 
