@@ -23,44 +23,38 @@ from tensorpack.tfutils.summary import add_moving_summary
 STATICA_HACK = True
 globals()['kcah_acitats'[::-1].upper()] = False
 if STATICA_HACK:
-    from .basemodel import image_preprocess, resnet_c4_backbone, resnet_conv5, resnet_fpn_backbone
+    from .basemodel import image_preprocess, resnet_fpn_backbone
     from .dataset import DetectionDataset
     from .config import finalize_configs, config as cfg
-    from .data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
-    from .eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
-    from .model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align, crop_and_resize_batch, encode_bbox_target
-    from .model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, \
-        generate_fpn_proposals_batch, multilevel_rpn_losses_batch, multilevel_roi_align_batch, \
+    from .data import get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
+    from .eval import DetectionResult, predict_image, multithread_predict_dataflow
+    from .model_box import RPNAnchors, clip_boxes, crop_and_resize
+    from .model_fpn import fpn_model, multilevel_roi_align, multilevel_rpn_losses_batch, multilevel_roi_align_batch, \
         generate_fpn_proposals_batch_tf_op, multilevel_rpn_losses_batch_shortcut
-    from .model_frcnn import BoxProposals, fastrcnn_outputs, fastrcnn_predictions, \
-        sample_fast_rcnn_targets_batch, fastrcnn_outputs_batch, \
-        FastRCNNHeadBatch, fastrcnn_losses_shortcut
-    from .model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
-    from .model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
+    from .model_frcnn import fastrcnn_predictions, sample_fast_rcnn_targets_batch, fastrcnn_outputs_batch, FastRCNNHeadBatch
+    from .model_mrcnn import maskrcnn_loss
+    from .model_rpn import rpn_head
     from .viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
-    from .perf import print_runtime_shape, print_buildtime_shape, runtime_print, print_runtime_tensor, print_runtime_tensor_loose_branch
-    from .performance import ThroughputTracker
-
+    from .perf import print_runtime_shape, print_buildtime_shape, runtime_print, print_runtime_tensor, \
+        print_runtime_tensor_loose_branch, ThroughputTracker
 else:
 
     import model_frcnn
     import model_mrcnn
-    from basemodel import image_preprocess, resnet_c4_backbone, resnet_conv5, resnet_fpn_backbone
+    from basemodel import image_preprocess, resnet_fpn_backbone
     from dataset import DetectionDataset
     from config import finalize_configs, config as cfg
-    from data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
-    from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
-    from model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align, crop_and_resize_batch, encode_bbox_target
-    from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, \
-        generate_fpn_proposals_batch, multilevel_rpn_losses_batch, multilevel_roi_align_batch, \
+    from data import get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
+    from eval import DetectionResult, predict_image, multithread_predict_dataflow
+    from model_box import RPNAnchors, clip_boxes, crop_and_resize
+    from model_fpn import fpn_model, multilevel_roi_align, multilevel_rpn_losses_batch, multilevel_roi_align_batch, \
         generate_fpn_proposals_batch_tf_op, multilevel_rpn_losses_batch_shortcut
-    from model_frcnn import BoxProposals, fastrcnn_outputs, fastrcnn_predictions, \
-        sample_fast_rcnn_targets_batch, fastrcnn_outputs_batch, FastRCNNHeadBatch, fastrcnn_losses_shortcut
-    from model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
-    from model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
+    from model_frcnn import fastrcnn_predictions, sample_fast_rcnn_targets_batch, fastrcnn_outputs_batch, FastRCNNHeadBatch
+    from model_mrcnn import maskrcnn_loss
+    from model_rpn import rpn_head
     from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
-    from perf import print_runtime_shape, print_buildtime_shape, runtime_print, print_runtime_tensor, print_runtime_tensor_loose_branch
-    from performance import ThroughputTracker
+    from perf import print_runtime_shape, print_buildtime_shape, runtime_print, print_runtime_tensor, \
+        print_runtime_tensor_loose_branch, ThroughputTracker
 
 try:
     import horovod.tensorflow as hvd
@@ -175,8 +169,6 @@ class ResNetFPNModel(ModelDesc):
                 anchors[i] = anchors[i].narrow_to_batch(p23456[i])
 
     def backbone(self, images):
-        # images = print_runtime_tensor("images", images, prefix="train.py.backbone")
-
         c2345 = resnet_fpn_backbone(images, cfg.BACKBONE.RESNET_NUM_BLOCKS, fp16=self.fp16)
         p23456 = fpn_model('fpn', c2345, fp16=self.fp16)
         return p23456
@@ -490,16 +482,26 @@ if __name__ == '__main__':
     #################################################################################################################
     # Performance investigation arguments
     parser.add_argument('--perf', help="Enable performance investigation mode", action="store_true")
-    parser.add_argument('--throughput_log_freq', help="In perf investigation mode, code will print throughput after every throughput_log_freq steps as well as after every epoch", type=int, default=1)
-    parser.add_argument('--images_per_step', help="Number of images in a minibatch (total, not per GPU)", type=int, default=1)
-    parser.add_argument('--num_total_images', help="Number of images in an epoch. = images_per_steps * steps_per_epoch (differs slightly from the total number of images).", type=int, default=120000)
-    parser.add_argument('--summary_period', help="Write summary events periodically at this interval. Setting it to 0 writes at at the end of an epoch.", type=int, default=0)
+    parser.add_argument('--throughput_log_freq', help="In perf investigation mode, code will print throughput after "
+                                                      "every throughput_log_freq steps as well as after every epoch",
+                        type=int, default=1)
+    parser.add_argument('--images_per_step', help="Number of images in a minibatch (total, not per GPU)",
+                        type=int, default=1)
+    parser.add_argument('--num_total_images', help="Number of images in an epoch. = images_per_steps * steps_per_epoch "
+                                                   "(differs slightly from the total number of images).",
+                        type=int, default=120000)
+    parser.add_argument('--summary_period', help="Write summary events periodically at this interval. Setting it to 0 "
+                                                 "writes at at the end of an epoch.",
+                        type=int, default=0)
 
     parser.add_argument('--tfprof', help="Enable tf profiller", action="store_true")
     parser.add_argument('--tfprof_start_step', help="Step to enable tf profiling", type=int, default=15005)
-    parser.add_argument('--tfprof_end_step', help="Step after which tf profiling will be disabled", type=int, default=15010)
+    parser.add_argument('--tfprof_end_step', help="Step after which tf profiling will be disabled",
+                        type=int, default=15010)
 
-    parser.add_argument('--summary_period', help="Write summary events periodically at this interval. Setting it to 0 writes at at the end of an epoch.", type=int, default=0)
+    parser.add_argument('--summary_period', help="Write summary events periodically at this interval. Setting it to 0 "
+                                                 "writes at at the end of an epoch. Increasing frequency hurt throughput",
+                        type=int, default=0)
 
 
     #################################################################################################################
