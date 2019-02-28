@@ -113,7 +113,8 @@ RUN apt-get install -y --no-install-recommends --allow-downgrades --allow-change
     less \
     iproute
 
-RUN pip3 install Cython boto3 ujson opencv-python pycocotools matplotlib
+RUN pip3 install Cython
+RUN pip3 install boto3 ujson opencv-python pycocotools matplotlib
 RUN pip install --ignore-installed numpy==1.14.5
 
 
