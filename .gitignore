@@ -1,6 +1,7 @@
 # armandmcqueen specific
 venv/
 test.py
+tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl
 
 # tensorpack-specific stuff
 train_log
