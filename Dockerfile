@@ -87,9 +87,6 @@ RUN echo "hwloc_base_binding_policy = none" >> /usr/local/etc/openmpi-mca-params
 # Set default NCCL parameters
 RUN echo NCCL_DEBUG=INFO >> /etc/nccl.conf
 
-#ENV LD_LIBRARY_PATH=/usr/local/openmpi/lib:$LD_LIBRARY_PATH
-#ENV PATH /usr/local/openmpi/bin/:$PATH
-#ENV PATH=/usr/local/nvidia/bin:$PATH
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
@@ -112,7 +109,7 @@ RUN apt-get install -y --no-install-recommends --allow-downgrades --allow-change
 
 RUN pip3 install Cython
 RUN pip3 install boto3 ujson opencv-python pycocotools matplotlib
-RUN pip3 install --ignore-installed numpy==1.14.5
+RUN pip3 install --ignore-installed numpy==1.16.2
 
 ARG CACHEBUST=1
 
