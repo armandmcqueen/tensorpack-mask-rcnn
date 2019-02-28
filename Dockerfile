@@ -56,6 +56,7 @@ RUN mkdir /tmp/openmpi && \
 
 # Install TensorFlow and Keras
 RUN pip3 install --upgrade pip
+RUN pip3 install awscli
 RUN aws s3 cp s3://aws-tensorflow-benchmarking/maskrcnn/wheels/sami-tensorflow-1.13.0-cp36-cp36m-linux_x86_64-conv2dtranspose/tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl ./tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl
 
 
