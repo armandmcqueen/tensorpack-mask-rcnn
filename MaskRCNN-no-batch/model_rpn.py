@@ -15,13 +15,15 @@ from utils.mixed_precision import mixed_precision_scope
 
 @layer_register(log_shape=True)
 @auto_reuse_variable_scope
-def rpn_head(featuremap, channel, num_anchors):
+def rpn_head(featuremap, channel, num_anchors, fp16=False):
     """
     Returns:
         label_logits: fHxfWxNA
         box_logits: fHxfWxNAx4
     """
-    featuremap = tf.cast(featuremap, tf.float16)
+    if fp16:
+        featuremap = tf.cast(featuremap, tf.float16)
+
     with mixed_precision_scope(True):
         with argscope(Conv2D, data_format='channels_first',
                     kernel_initializer=tf.random_normal_initializer(stddev=0.01)):
@@ -37,9 +39,10 @@ def rpn_head(featuremap, channel, num_anchors):
             shp = tf.shape(box_logits)  # 1x(NAx4)xfHxfW
             box_logits = tf.transpose(box_logits, [0, 2, 3, 1])  # 1xfHxfWx(NAx4)
             box_logits = tf.reshape(box_logits, tf.stack([shp[2], shp[3], num_anchors, 4]))  # fHxfWxNAx4
-    
-    label_logits = tf.cast(label_logits, tf.float32)
-    box_logits = tf.cast(box_logits, tf.float32)
+
+    if fp16:
+        label_logits = tf.cast(label_logits, tf.float32)
+        box_logits = tf.cast(box_logits, tf.float32)
 
     return label_logits, box_logits
 
