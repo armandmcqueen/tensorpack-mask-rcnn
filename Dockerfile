@@ -103,15 +103,15 @@ RUN mkdir -p /var/run/sshd && \
 
 
 
-
-
-
-ARG CACHEBUST=1
-
 RUN apt-get install -y --no-install-recommends --allow-downgrades --allow-change-held-packages \
     ethtool \
     less \
     iproute
+
+
+ARG CACHEBUST=1
+
+
 
 RUN pip3 install Cython
 RUN pip3 install boto3 ujson opencv-python pycocotools matplotlib
@@ -120,6 +120,7 @@ RUN pip install --ignore-installed numpy==1.14.5
 
 
 COPY . /tensorpack-mask-rcnn
+RUN chmod -R +w /tensorpack-mask-rcnn
 RUN pip3 install --ignore-installed -e /tensorpack-mask-rcnn/
 
 
