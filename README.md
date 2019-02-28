@@ -1,6 +1,8 @@
 # Mask RCNN
 
-Forked from the excellent Tensorpack repo at commit a9dce5b220dca34b15122a9329ba9ff055e8edc6
+Performance focused implementation of Mask RCNN based on the [Tensorpack implementation](https://github.com/tensorpack/tensorpack/tree/master/examples/FasterRCNN).
+
+
 
 ## Folders
 
@@ -13,13 +15,6 @@ Converting code to batch. Work in progress, actively being worked on and broken.
 Original code with batch size = 1 img/GPU. Code should always run successfully - branch to make changes.
 
 
-## pycocotools
+## Tensorpack fork point
 
-Use NVIDIA optimized library from MLPerf
-
-```
-git clone -b v0.1 https://github.com/NVIDIA/cocoapi.git \
- && cd cocoapi/PythonAPI \
- && pip install -e .
-```
-
+Forked from the excellent Tensorpack repo at commit a9dce5b220dca34b15122a9329ba9ff055e8edc6

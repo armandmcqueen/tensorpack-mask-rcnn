@@ -111,6 +111,12 @@ RUN pip3 install Cython
 RUN pip3 install boto3 ujson opencv-python pycocotools matplotlib
 RUN pip3 install --ignore-installed numpy==1.16.2
 
+# TODO: Move to NVIDIA pycoco.
+#git clone -b v0.1 https://github.com/NVIDIA/cocoapi.git \
+#&& cd cocoapi/PythonAPI \
+#&& pip install -e .
+
+
 ARG CACHEBUST=1
 
 
