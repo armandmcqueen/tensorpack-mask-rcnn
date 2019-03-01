@@ -41,11 +41,13 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 -x LD_LIBRARY_PATH -x PATH \
 -x HOROVOD_CYCLE_TIME -x HOROVOD_FUSION_THRESHOLD \
 --output-filename ${LOG_DIR}/mpirun_logs \
-/home/ubuntu/anaconda3/envs/${VENV}/bin/python3 /home/ubuntu/tensorpack-mask-rcnn/MaskRCNN-no-batch/train.py \
+/home/ubuntu/anaconda3/envs/${VENV}/bin/python3 /home/ubuntu/tensorpack-mask-rcnn/MaskRCNN/train.py \
 --logdir ${LOG_DIR} \
+--fp16 \
 --perf \
+--images_per_step 8 \
 --throughput_log_freq 2000 \
---summary_period 25 \
+--summary_period 0 \
 --config MODE_MASK=True \
 MODE_FPN=True \
 DATA.BASEDIR=/home/ubuntu/data \
@@ -55,4 +57,5 @@ TRAIN.STEPS_PER_EPOCH=15000 \
 TRAIN.LR_SCHEDULE='[120000, 160000, 180000]' \
 BACKBONE.WEIGHTS=/home/ubuntu/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
 BACKBONE.NORM=FreezeBN \
+TRAIN.BATCH_SIZE_PER_GPU=1 \
 TRAINER=horovod
