@@ -9,7 +9,6 @@ from tensorpack.tfutils.argscope import argscope
 from tensorpack.tfutils.scope_utils import under_name_scope
 from tensorpack.tfutils.summary import add_moving_summary
 from tensorpack.tfutils.tower import get_current_tower_context
-from utils.mixed_precision import mixed_precision_scope
 
 
 STATICA_HACK = True
@@ -23,6 +22,7 @@ if STATICA_HACK:
     from .utils.box_ops import area as tf_area
     from .utils.box_ops import area_batch as tf_area_batch
     from .perf import print_buildtime_shape, print_runtime_shape, runtime_print, print_runtime_tensor, runtime_print_str
+    from .utils.mixed_precision import mixed_precision_scope
 else:
     from basemodel import GroupNorm
     from config import config as cfg
@@ -32,6 +32,7 @@ else:
     from utils.box_ops import area as tf_area
     from utils.box_ops import area_batch as tf_area_batch
     from perf import print_buildtime_shape, print_runtime_shape, runtime_print, print_runtime_tensor, runtime_print_str
+    from utils.mixed_precision import mixed_precision_scope
 
 
 

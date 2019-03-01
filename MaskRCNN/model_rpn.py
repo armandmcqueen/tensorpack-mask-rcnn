@@ -14,16 +14,18 @@ if STATICA_HACK:
     from .config import config as cfg
     from .model_box import clip_boxes, clip_boxes_batch
     from .perf import print_runtime_shape, print_buildtime_shape, runtime_print, print_runtime_tensor
+    from .utils.mixed_precision import mixed_precision_scope
 else:
     from config import config as cfg
     from model_box import clip_boxes, clip_boxes_batch
     from perf import print_runtime_shape, print_buildtime_shape, runtime_print, print_runtime_tensor
+    from utils.mixed_precision import mixed_precision_scope
 
 
 
 @layer_register(log_shape=True)
 @auto_reuse_variable_scope
-def rpn_head(featuremap, channel, num_anchors):
+def rpn_head(featuremap, channel, num_anchors, fp16=False):
     """
     Returns:
         label_logits: BS x fH x fW x NA
@@ -31,24 +33,34 @@ def rpn_head(featuremap, channel, num_anchors):
     """
     # featuremap = print_runtime_shape("featuremap", featuremap, prefix="rpn_head")
     prefix = "rpn_head"
-    with argscope(Conv2D, data_format='channels_first',
-                  kernel_initializer=tf.random_normal_initializer(stddev=0.01)):
-        hidden = Conv2D('conv0', featuremap, channel, 3, activation=tf.nn.relu)
 
-        label_logits = Conv2D('class', hidden, num_anchors, 1)
-        box_logits = Conv2D('box', hidden, 4 * num_anchors, 1)
-        # BS, NA(*4), im/16, im/16 (NCHW)
+    if fp16:
+        featuremap = tf.cast(featuremap, tf.float16)
 
-        # label_logits = print_runtime_shape("label_logits", label_logits, prefix=prefix)
-        # box_logits = print_runtime_shape("box_logits", box_logits, prefix=prefix)
+    with mixed_precision_scope(mixed=fp16):
+        with argscope(Conv2D, data_format='channels_first',
+                      kernel_initializer=tf.random_normal_initializer(stddev=0.01)):
+            hidden = Conv2D('conv0', featuremap, channel, 3, activation=tf.nn.relu)
+
+            label_logits = Conv2D('class', hidden, num_anchors, 1)
+            box_logits = Conv2D('box', hidden, 4 * num_anchors, 1)
+            # BS, NA(*4), im/16, im/16 (NCHW)
+
+            # label_logits = print_runtime_shape("label_logits", label_logits, prefix=prefix)
+            # box_logits = print_runtime_shape("box_logits", box_logits, prefix=prefix)
 
 
-        label_logits = tf.transpose(label_logits, [0, 2, 3, 1])  # BS x fH x fW x NA
+            label_logits = tf.transpose(label_logits, [0, 2, 3, 1])  # BS x fH x fW x NA
 
-        # shp = tf.shape(box_logits)  # BS x (NAx4) x fH x fW
-        # box_logits = print_runtime_shape("box_logits", box_logits, prefix="rpn_head")
-        # box_logits = tf.transpose(box_logits, [0, 2, 3, 1])  # BS x fH x fW x (NAx4)
-        # box_logits = tf.reshape(box_logits, tf.stack([shp[0], shp[2], shp[3], num_anchors, 4]))  # BS x fH x fW x NA x 4
+            # shp = tf.shape(box_logits)  # BS x (NAx4) x fH x fW
+            # box_logits = print_runtime_shape("box_logits", box_logits, prefix="rpn_head")
+            # box_logits = tf.transpose(box_logits, [0, 2, 3, 1])  # BS x fH x fW x (NAx4)
+            # box_logits = tf.reshape(box_logits, tf.stack([shp[0], shp[2], shp[3], num_anchors, 4]))  # BS x fH x fW x NA x 4
+
+    if fp16:
+        label_logits = tf.cast(label_logits, tf.float32)
+        box_logits = tf.cast(box_logits, tf.float32)
+
     return label_logits, box_logits
 
 

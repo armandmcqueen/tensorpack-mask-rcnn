@@ -183,7 +183,7 @@ class ResNetFPNModel(ModelDesc):
 
 
         # Multi-Level RPN Proposals
-        rpn_outputs = [rpn_head('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS))
+        rpn_outputs = [rpn_head('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS), fp16=self.fp16)
                        for pi in features]
         multilevel_label_logits = [k[0] for k in rpn_outputs]
         multilevel_box_logits = [k[1] for k in rpn_outputs] # BS x (NAx4) x fH x fW
@@ -490,9 +490,6 @@ if __name__ == '__main__':
     parser.add_argument('--num_total_images', help="Number of images in an epoch. = images_per_steps * steps_per_epoch "
                                                    "(differs slightly from the total number of images).",
                         type=int, default=120000)
-    parser.add_argument('--summary_period', help="Write summary events periodically at this interval. Setting it to 0 "
-                                                 "writes at at the end of an epoch.",
-                        type=int, default=0)
 
     parser.add_argument('--tfprof', help="Enable tf profiller", action="store_true")
     parser.add_argument('--tfprof_start_step', help="Step to enable tf profiling", type=int, default=15005)
@@ -500,7 +497,7 @@ if __name__ == '__main__':
                         type=int, default=15010)
 
     parser.add_argument('--summary_period', help="Write summary events periodically at this interval. Setting it to 0 "
-                                                 "writes at at the end of an epoch. Increasing frequency hurt throughput",
+                                                 "writes at the end of an epoch. Increasing frequency hurt throughput",
                         type=int, default=0)
 
 
