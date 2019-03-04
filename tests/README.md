@@ -17,11 +17,11 @@ CUDA_VISIBLE_DEVICES=1 python3 -m unittest tests.nobatch_rpn_loss_test
 
 By specific test case
 ```
-CUDA_VISIBLE_DEVICES=1 python -m unittest tests.nobatch_rpn_loss_test.NoBatchMultilevelRPNLossTest.testMultilevelRpnLoss2
+CUDA_VISIBLE_DEVICES=1 python3 -m unittest tests.nobatch_rpn_loss_test.NoBatchMultilevelRPNLossTest.testMultilevelRpnLoss2
 ```
 
 ALL test cases
 ```
-CUDA_VISIBLE_DEVICES=1 python -m unittest discover -s tests -p '*_test.py'
+CUDA_VISIBLE_DEVICES=1 python3 -m unittest discover -s tests -p '*_test.py'
 ```
   
