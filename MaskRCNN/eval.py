@@ -19,10 +19,10 @@ from tensorpack.tfutils.common import get_tf_version_tuple
 from tensorpack.utils import logger
 from tensorpack.utils.utils import get_tqdm
 
-from common import CustomResize, clip_boxes
-from data import get_eval_dataflow
-from dataset import DetectionDataset
-from config import config as cfg
+from MaskRCNN.common import CustomResize, clip_boxes
+from MaskRCNN.data import get_eval_dataflow
+from MaskRCNN.dataset import DetectionDataset
+from MaskRCNN.config import config as cfg
 
 try:
     import horovod.tensorflow as hvd

@@ -164,7 +164,6 @@ class ResNetFPNModel(DetectionModel):
             #pprint(multilevel_box_logits)
             losses = multilevel_rpn_losses(
                 multilevel_anchors, multilevel_label_logits, multilevel_box_logits)
-            print(losses)
         else:
             losses = []
 
@@ -190,6 +189,7 @@ class ResNetFPNModel(DetectionModel):
 
         if self.training:
             all_losses = fastrcnn_head.losses()
+            print("all_losses", all_losses)
 
             if cfg.MODE_MASK:
                 gt_masks = targets[2]
@@ -439,36 +439,13 @@ if __name__ == '__main__':
         #session_config = tf.ConfigProto(device_count={'GPU': 1})
         #session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
         callbacks.append(DumpTensors([
-            'FPN_slice_lvl0/narrow_to/Slice:0',
-            'FPN_slice_lvl0/narrow_to/Slice_1:0',
-            'FPN_slice_lvl0/narrow_to/Slice_2:0',
-            'FPN_slice_lvl1/narrow_to/Slice:0',
-            'FPN_slice_lvl1/narrow_to/Slice_1:0',
-            'FPN_slice_lvl1/narrow_to/Slice_2:0',
-            'FPN_slice_lvl2/narrow_to/Slice:0',
-            'FPN_slice_lvl2/narrow_to/Slice_1:0',
-            'FPN_slice_lvl2/narrow_to/Slice_2:0',
-            'FPN_slice_lvl3/narrow_to/Slice:0',
-            'FPN_slice_lvl3/narrow_to/Slice_1:0',
-            'FPN_slice_lvl3/narrow_to/Slice_2:0',
-            'FPN_slice_lvl4/narrow_to/Slice:0',
-            'FPN_slice_lvl4/narrow_to/Slice_1:0',
-            'FPN_slice_lvl4/narrow_to/Slice_2:0',
+            "sample_fast_rcnn_targets/sampled_labels:0",
+            "fastrcnn/outputs/class/output:0",
+            "mul_1:0",
+            "fg_box_logits:0",
 
-            'rpn/Squeeze:0',
-            'rpn_1/Squeeze:0',
-            'rpn_2/Squeeze:0',
-            'rpn_3/Squeeze:0',
-            'rpn_4/Squeeze:0',
-
-            'rpn/Reshape:0',
-            'rpn_1/Reshape:0',
-            'rpn_2/Reshape:0',
-            'rpn_3/Reshape:0',
-            'rpn_4/Reshape:0',
-
-            'rpn_losses/label_loss:0',
-            'rpn_losses/box_loss:0'
+            "fastrcnn_losses/label_loss:0",
+            "fastrcnn_losses/box_loss:0"
         ]))
         print(callbacks)
 

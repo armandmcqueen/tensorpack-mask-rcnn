@@ -9,7 +9,6 @@ from tensorpack.tfutils.common import get_tf_version_tuple
 from tensorpack.tfutils.scope_utils import under_name_scope
 from tensorpack.tfutils.summary import add_moving_summary
 from tensorpack.utils.argtools import memoized_method
-from utils.mixed_precision import mixed_precision_scope
 
 
 STATICA_HACK = True
@@ -20,13 +19,14 @@ if STATICA_HACK:
     from .model_box import decode_bbox_target, encode_bbox_target
     from .utils.box_ops import pairwise_iou, pairwise_iou_batch, flatten_gt_boxes
     from .perf import print_buildtime_shape, print_runtime_tensor, print_runtime_shape
+    from .utils.mixed_precision import mixed_precision_scope
 else:
-    from basemodel import GroupNorm
-    from config import config as cfg
-    from model_box import decode_bbox_target, encode_bbox_target
-    from utils.box_ops import pairwise_iou, pairwise_iou_batch, flatten_gt_boxes
-    from perf import print_buildtime_shape, print_runtime_tensor, print_runtime_shape
-
+    from MaskRCNN.basemodel import GroupNorm
+    from MaskRCNN.config import config as cfg
+    from MaskRCNN.model_box import decode_bbox_target, encode_bbox_target
+    from MaskRCNN.utils.box_ops import pairwise_iou, pairwise_iou_batch, flatten_gt_boxes
+    from MaskRCNN.perf import print_buildtime_shape, print_runtime_tensor, print_runtime_shape
+    from MaskRCNN.utils.mixed_precision import mixed_precision_scope
 
 @under_name_scope()
 def proposal_metrics(iou):
@@ -295,6 +295,10 @@ def fastrcnn_losses(labels, label_logits, fg_boxes, fg_box_logits):
         label_loss, box_loss
     """
     prefix = "fastrcnn_losses"
+    print("labels", labels)
+    print("label_logits", label_logits)
+    print("fg_boxes", fg_boxes)
+    print("fg_box_logits", fg_box_logits)
     label_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
         labels=labels, logits=label_logits)
     label_loss = tf.reduce_mean(label_loss, name='label_loss')

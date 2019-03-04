@@ -7,9 +7,9 @@ import tensorflow as tf
 
 from tensorpack.tfutils.scope_utils import under_name_scope
 
-from config import config
+from MaskRCNN.config import config
 
-from perf import print_runtime_shape
+from MaskRCNN.perf import print_runtime_shape
 
 # Checks at graph_build time
 def check_shape(name, tensor):

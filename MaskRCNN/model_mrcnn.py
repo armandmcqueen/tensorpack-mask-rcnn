@@ -8,18 +8,18 @@ from tensorpack.tfutils.common import get_tf_version_tuple
 from tensorpack.tfutils.scope_utils import under_name_scope
 from tensorpack.tfutils.summary import add_moving_summary
 
-from utils.mixed_precision import mixed_precision_scope
-
 STATICA_HACK = True
 globals()['kcah_acitats'[::-1].upper()] = False
 if STATICA_HACK:
     from .basemodel import GroupNorm
     from .config import config as cfg
     from .perf import print_buildtime_shape
+    from .utils.mixed_precision import mixed_precision_scope
 else:
-    from basemodel import GroupNorm
-    from config import config as cfg
-    from perf import print_buildtime_shape
+    from MaskRCNN.basemodel import GroupNorm
+    from MaskRCNN.config import config as cfg
+    from MaskRCNN.perf import print_buildtime_shape
+    from MaskRCNN.utils.mixed_precision import mixed_precision_scope
 
 
 @under_name_scope()

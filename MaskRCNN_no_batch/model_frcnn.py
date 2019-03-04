@@ -136,6 +136,10 @@ def fastrcnn_losses(labels, label_logits, fg_boxes, fg_box_logits):
     Returns:
         label_loss, box_loss
     """
+    print("labels", labels)
+    print("label_logits", label_logits)
+    print("fg_boxes", fg_boxes)
+    print("fg_box_logits", fg_box_logits)
     label_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(
         labels=labels, logits=label_logits)
     label_loss = tf.reduce_mean(label_loss, name='label_loss')

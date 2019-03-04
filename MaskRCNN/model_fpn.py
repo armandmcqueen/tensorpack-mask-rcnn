@@ -24,15 +24,15 @@ if STATICA_HACK:
     from .perf import print_buildtime_shape, print_runtime_shape, runtime_print, print_runtime_tensor, runtime_print_str
     from .utils.mixed_precision import mixed_precision_scope
 else:
-    from basemodel import GroupNorm
-    from config import config as cfg
-    from model_box import roi_align
-    from model_rpn import generate_rpn_proposals, rpn_losses, generate_rpn_proposals_batch, rpn_losses_batch, rpn_losses_batch_iterative
-    from utils.generate_anchors import generate_anchors
-    from utils.box_ops import area as tf_area
-    from utils.box_ops import area_batch as tf_area_batch
-    from perf import print_buildtime_shape, print_runtime_shape, runtime_print, print_runtime_tensor, runtime_print_str
-    from utils.mixed_precision import mixed_precision_scope
+    from MaskRCNN.basemodel import GroupNorm
+    from MaskRCNN.config import config as cfg
+    from MaskRCNN.model_box import roi_align
+    from MaskRCNN.model_rpn import generate_rpn_proposals, rpn_losses, generate_rpn_proposals_batch, rpn_losses_batch, rpn_losses_batch_iterative
+    from MaskRCNN.utils.generate_anchors import generate_anchors
+    from MaskRCNN.utils.box_ops import area as tf_area
+    from MaskRCNN.utils.box_ops import area_batch as tf_area_batch
+    from MaskRCNN.perf import print_buildtime_shape, print_runtime_shape, runtime_print, print_runtime_tensor, runtime_print_str
+    from MaskRCNN.utils.mixed_precision import mixed_precision_scope
 
 
 

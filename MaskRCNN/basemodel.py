@@ -10,8 +10,8 @@ from tensorpack.tfutils import argscope
 from tensorpack.tfutils.scope_utils import auto_reuse_variable_scope
 from tensorpack.tfutils.varreplace import custom_getter_scope, freeze_variables
 
-from config import config as cfg
-from utils.mixed_precision import mixed_precision_scope
+from MaskRCNN.config import config as cfg
+from MaskRCNN.utils.mixed_precision import mixed_precision_scope
 
 
 @layer_register(log_shape=True)

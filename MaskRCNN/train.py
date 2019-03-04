@@ -20,6 +20,7 @@ from tensorpack.tfutils import optimizer
 from tensorpack.tfutils.common import get_tf_version_tuple
 from tensorpack.tfutils.summary import add_moving_summary
 
+
 STATICA_HACK = True
 globals()['kcah_acitats'[::-1].upper()] = False
 if STATICA_HACK:
@@ -37,24 +38,25 @@ if STATICA_HACK:
     from .viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
     from .perf import print_runtime_shape, print_buildtime_shape, runtime_print, print_runtime_tensor, \
         print_runtime_tensor_loose_branch, ThroughputTracker
+    #import .model_frcnn
+    #import .model_mrcnn
 else:
-
-    import model_frcnn
-    import model_mrcnn
-    from basemodel import image_preprocess, resnet_fpn_backbone
-    from dataset import DetectionDataset
-    from config import finalize_configs, config as cfg
-    from data import get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
-    from eval import DetectionResult, predict_image, multithread_predict_dataflow
-    from model_box import RPNAnchors, clip_boxes, crop_and_resize
-    from model_fpn import fpn_model, multilevel_roi_align, multilevel_rpn_losses_batch, multilevel_roi_align_batch, \
+    from MaskRCNN.basemodel import image_preprocess, resnet_fpn_backbone
+    from MaskRCNN.dataset import DetectionDataset
+    from MaskRCNN.config import finalize_configs, config as cfg
+    from MaskRCNN.data import get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
+    from MaskRCNN.eval import DetectionResult, predict_image, multithread_predict_dataflow
+    from MaskRCNN.model_box import RPNAnchors, clip_boxes, crop_and_resize
+    from MaskRCNN.model_fpn import fpn_model, multilevel_roi_align, multilevel_rpn_losses_batch, multilevel_roi_align_batch, \
         generate_fpn_proposals_batch_tf_op, multilevel_rpn_losses_batch_shortcut
-    from model_frcnn import fastrcnn_predictions, sample_fast_rcnn_targets_batch, fastrcnn_outputs_batch, FastRCNNHeadBatch
-    from model_mrcnn import maskrcnn_loss
-    from model_rpn import rpn_head
-    from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
-    from perf import print_runtime_shape, print_buildtime_shape, runtime_print, print_runtime_tensor, \
+    from MaskRCNN.model_frcnn import fastrcnn_predictions, sample_fast_rcnn_targets_batch, fastrcnn_outputs_batch, FastRCNNHeadBatch
+    from MaskRCNN.model_mrcnn import maskrcnn_loss
+    from MaskRCNN.model_rpn import rpn_head
+    from MaskRCNN.viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
+    from MaskRCNN.perf import print_runtime_shape, print_buildtime_shape, runtime_print, print_runtime_tensor, \
         print_runtime_tensor_loose_branch, ThroughputTracker
+    import MaskRCNN.model_frcnn as model_frcnn
+    import MaskRCNN.model_mrcnn as model_mrcnn
 
 try:
     import horovod.tensorflow as hvd

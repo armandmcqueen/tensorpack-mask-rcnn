@@ -16,10 +16,10 @@ if STATICA_HACK:
     from .perf import print_runtime_shape, print_buildtime_shape, runtime_print, print_runtime_tensor
     from .utils.mixed_precision import mixed_precision_scope
 else:
-    from config import config as cfg
-    from model_box import clip_boxes, clip_boxes_batch
-    from perf import print_runtime_shape, print_buildtime_shape, runtime_print, print_runtime_tensor
-    from utils.mixed_precision import mixed_precision_scope
+    from MaskRCNN.config import config as cfg
+    from MaskRCNN.model_box import clip_boxes, clip_boxes_batch
+    from MaskRCNN.perf import print_runtime_shape, print_buildtime_shape, runtime_print, print_runtime_tensor
+    from MaskRCNN.utils.mixed_precision import mixed_precision_scope
 
 
 
@@ -243,7 +243,7 @@ def rpn_losses_batch_iterative(anchor_labels, anchor_boxes, label_logits, box_lo
 
     # box_logits = print_runtime_shape("box_logits", box_logits, prefix=prefix)
     for i in range(cfg.TRAIN.BATCH_SIZE_PER_GPU):
-        si_anchor_labels = anchor_labels[i, :, :, :]
+        #si_anchor_labels = anchor_labels[i, :, :, :]
         with tf.device('/cpu:0'):
             valid_mask = tf.stop_gradient(tf.not_equal(anchor_labels, -1))
             pos_mask = tf.stop_gradient(tf.equal(anchor_labels, 1))
