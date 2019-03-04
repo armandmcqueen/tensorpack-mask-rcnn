@@ -10,11 +10,11 @@ from tensorpack.tfutils.scope_utils import under_name_scope
 from tensorpack.tfutils.summary import add_moving_summary
 from tensorpack.tfutils.tower import get_current_tower_context
 
-from basemodel import GroupNorm
-from config import config as cfg
-from model_box import roi_align
-from model_rpn import generate_rpn_proposals, rpn_losses
-from utils.box_ops import area as tf_area
+from MaskRCNN_no_batch.basemodel import GroupNorm
+from MaskRCNN_no_batch.config import config as cfg
+from MaskRCNN_no_batch.model_box import roi_align
+from MaskRCNN_no_batch.model_rpn import generate_rpn_proposals, rpn_losses
+from MaskRCNN_no_batch.utils.box_ops import area as tf_area
 
 
 @layer_register(log_shape=True)

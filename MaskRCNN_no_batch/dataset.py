@@ -9,7 +9,7 @@ import json
 from tensorpack.utils import logger
 from tensorpack.utils.timer import timed_operation
 
-from config import config as cfg
+from MaskRCNN_no_batch.config import config as cfg
 
 __all__ = ['COCODetection', 'DetectionDataset']
 

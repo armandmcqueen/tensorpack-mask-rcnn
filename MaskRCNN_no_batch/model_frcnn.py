@@ -10,10 +10,10 @@ from tensorpack.tfutils.scope_utils import under_name_scope
 from tensorpack.tfutils.summary import add_moving_summary
 from tensorpack.utils.argtools import memoized_method
 
-from basemodel import GroupNorm
-from config import config as cfg
-from model_box import decode_bbox_target, encode_bbox_target
-from utils.box_ops import pairwise_iou
+from MaskRCNN_no_batch.basemodel import GroupNorm
+from MaskRCNN_no_batch.config import config as cfg
+from MaskRCNN_no_batch.model_box import decode_bbox_target, encode_bbox_target
+from MaskRCNN_no_batch.utils.box_ops import pairwise_iou
 
 
 @under_name_scope()

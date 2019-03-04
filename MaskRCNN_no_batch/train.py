@@ -19,20 +19,20 @@ from tensorpack.tfutils import optimizer
 from tensorpack.tfutils.common import get_tf_version_tuple
 from tensorpack.tfutils.summary import add_moving_summary
 
-import model_frcnn
-import model_mrcnn
-from basemodel import image_preprocess, resnet_c4_backbone, resnet_conv5, resnet_fpn_backbone
-from dataset import DetectionDataset
-from config import finalize_configs, config as cfg
-from data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
-from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
-from model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align
-from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses
-from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets
-from model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
-from model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
-from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
-from performance import ThroughputTracker
+import MaskRCNN_no_batch.model_frcnn as model_frcnn
+import MaskRCNN_no_batch.model_mrcnn as model_mrcnn
+from MaskRCNN_no_batch.basemodel import image_preprocess, resnet_c4_backbone, resnet_conv5, resnet_fpn_backbone
+from MaskRCNN_no_batch.dataset import DetectionDataset
+from MaskRCNN_no_batch.config import finalize_configs, config as cfg
+from MaskRCNN_no_batch.data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
+from MaskRCNN_no_batch.eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
+from MaskRCNN_no_batch.model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align
+from MaskRCNN_no_batch.model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses
+from MaskRCNN_no_batch.model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets
+from MaskRCNN_no_batch.model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
+from MaskRCNN_no_batch.model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
+from MaskRCNN_no_batch.viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
+from MaskRCNN_no_batch.performance import ThroughputTracker
 
 try:
     import horovod.tensorflow as hvd
@@ -158,8 +158,13 @@ class ResNetFPNModel(DetectionModel):
             multilevel_pred_boxes, multilevel_label_logits, image_shape2d)
 
         if self.training:
+            #from pprint import pprint
+            #pprint(multilevel_anchors)
+            #pprint(multilevel_label_logits)
+            #pprint(multilevel_box_logits)
             losses = multilevel_rpn_losses(
                 multilevel_anchors, multilevel_label_logits, multilevel_box_logits)
+            print(losses)
         else:
             losses = []
 
@@ -433,6 +438,39 @@ if __name__ == '__main__':
 
         #session_config = tf.ConfigProto(device_count={'GPU': 1})
         #session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+        callbacks.append(DumpTensors([
+            'FPN_slice_lvl0/narrow_to/Slice:0',
+            'FPN_slice_lvl0/narrow_to/Slice_1:0',
+            'FPN_slice_lvl0/narrow_to/Slice_2:0',
+            'FPN_slice_lvl1/narrow_to/Slice:0',
+            'FPN_slice_lvl1/narrow_to/Slice_1:0',
+            'FPN_slice_lvl1/narrow_to/Slice_2:0',
+            'FPN_slice_lvl2/narrow_to/Slice:0',
+            'FPN_slice_lvl2/narrow_to/Slice_1:0',
+            'FPN_slice_lvl2/narrow_to/Slice_2:0',
+            'FPN_slice_lvl3/narrow_to/Slice:0',
+            'FPN_slice_lvl3/narrow_to/Slice_1:0',
+            'FPN_slice_lvl3/narrow_to/Slice_2:0',
+            'FPN_slice_lvl4/narrow_to/Slice:0',
+            'FPN_slice_lvl4/narrow_to/Slice_1:0',
+            'FPN_slice_lvl4/narrow_to/Slice_2:0',
+
+            'rpn/Squeeze:0',
+            'rpn_1/Squeeze:0',
+            'rpn_2/Squeeze:0',
+            'rpn_3/Squeeze:0',
+            'rpn_4/Squeeze:0',
+
+            'rpn/Reshape:0',
+            'rpn_1/Reshape:0',
+            'rpn_2/Reshape:0',
+            'rpn_3/Reshape:0',
+            'rpn_4/Reshape:0',
+
+            'rpn_losses/label_loss:0',
+            'rpn_losses/box_loss:0'
+        ]))
+        print(callbacks)
 
         traincfg = TrainConfig(
             model=MODEL,

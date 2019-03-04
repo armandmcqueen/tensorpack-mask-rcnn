@@ -7,7 +7,7 @@ import tensorflow as tf
 
 from tensorpack.tfutils.scope_utils import under_name_scope
 
-from config import config
+from MaskRCNN_no_batch.config import config
 
 
 @under_name_scope()

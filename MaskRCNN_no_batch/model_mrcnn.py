@@ -8,8 +8,8 @@ from tensorpack.tfutils.common import get_tf_version_tuple
 from tensorpack.tfutils.scope_utils import under_name_scope
 from tensorpack.tfutils.summary import add_moving_summary
 
-from basemodel import GroupNorm
-from config import config as cfg
+from MaskRCNN_no_batch.basemodel import GroupNorm
+from MaskRCNN_no_batch.config import config as cfg
 
 
 @under_name_scope()
