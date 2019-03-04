@@ -10,9 +10,14 @@ bash download_test_data.sh
 From the base directory `tensorpack-mask-rcnn`, run unit tests
 
 
-By class
+By test case file
 ```
 CUDA_VISIBLE_DEVICES=1 python3 -m unittest tests.nobatch_rpn_loss_test
+```
+
+By class
+```
+CUDA_VISIBLE_DEVICES=1 python3 -m unittest tests.nobatch_rpn_loss_test.NoBatchMultilevelRPNLossTest
 ```
 
 By specific test case
