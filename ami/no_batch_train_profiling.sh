@@ -5,6 +5,7 @@ HOROVOD_CYCLE_TIME=0.5 \
 HOROVOD_FUSION_THRESHOLD=67108864 \
 /home/ubuntu/anaconda3/envs/tensorflow_p36/bin/mpirun -np 8 \
 --H localhost:8 \
+-wdir /home/ubuntu/tensorpack-mask-rcnn \
 --mca plm_rsh_no_tree_spawn 1 -bind-to none -map-by slot -mca pml ob1 -mca btl ^openib \
 -mca btl_tcp_if_exclude lo,docker0 \
 -mca btl_vader_single_copy_mechanism none \
@@ -13,7 +14,7 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 -x LD_LIBRARY_PATH -x PATH \
 -x HOROVOD_CYCLE_TIME -x HOROVOD_FUSION_THRESHOLD \
 --output-filename /home/ubuntu/logs/mpirun_logs \
-/home/ubuntu/anaconda3/envs/tensorflow_p36/bin/python3 /home/ubuntu/tensorpack-mask-rcnn/MaskRCNN-no-batch/train.py \
+/home/ubuntu/anaconda3/envs/tensorflow_p36/bin/python3 -m MaskRCNN_no_batch.train \
 --logdir /home/ubuntu/logs/train_log \
 --perf \
 --throughput_log_freq 1 \
