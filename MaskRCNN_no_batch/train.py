@@ -438,16 +438,6 @@ if __name__ == '__main__':
 
         #session_config = tf.ConfigProto(device_count={'GPU': 1})
         #session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
-        callbacks.append(DumpTensors([
-            "sample_fast_rcnn_targets/sampled_labels:0",
-            "fastrcnn/outputs/class/output:0",
-            "mul_1:0",
-            "fg_box_logits:0",
-
-            "fastrcnn_losses/label_loss:0",
-            "fastrcnn_losses/box_loss:0"
-        ]))
-        print(callbacks)
 
         traincfg = TrainConfig(
             model=MODEL,
