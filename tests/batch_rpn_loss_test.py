@@ -98,16 +98,13 @@ class BatchMultiLevelRPNLossTest(tf.test.TestCase):
                 d['rpn_4/Reshape:0'].reshape(*d['rpn_4/Reshape:0'].shape[:2], -1).transpose(2, 0, 1)[np.newaxis, :],
             ]
 
-            losses = multilevel_rpn_losses_batch(
+            label_loss, box_loss = multilevel_rpn_losses_batch(
                 multilevel_anchors, 
                 multilevel_label_logits, 
                 multilevel_box_logits)
 
-            total_label_loss = losses[0].eval()
-            total_box_loss = losses[1].eval()
-
-            #self.assertEqual(total_label_loss, d['rpn_losses/label_loss:0'])
-            #self.assertEqual(total_box_loss, d['rpn_losses/box_loss:0'])
-            self.assertAlmostEqual(total_label_loss, d['rpn_losses/label_loss:0'], places=8)
-            self.assertAlmostEqual(total_box_loss, d['rpn_losses/box_loss:0'], places=8)
+            #self.assertEqual(label_loss.eval(), d['rpn_losses/label_loss:0'])
+            #self.assertEqual(box_loss.eval(), d['rpn_losses/box_loss:0'])
+            self.assertAlmostEqual(label_loss.eval(), d['rpn_losses/label_loss:0'], places=8)
+            self.assertAlmostEqual(box_loss.eval(), d['rpn_losses/box_loss:0'], places=8)
 

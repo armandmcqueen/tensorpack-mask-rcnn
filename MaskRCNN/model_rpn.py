@@ -238,7 +238,9 @@ def rpn_losses_batch_iterative(anchor_labels, anchor_boxes, label_logits, box_lo
     prefix = "rpn_losses_batch_iterative"
 
     shp = tf.shape(box_logits)
-    box_logits = tf.reshape(box_logits, [shp[0], shp[2], shp[3], -1, 4]) # BS x H x W x A x 4
+    #box_logits = tf.reshape(box_logits, [shp[0], shp[2], shp[3], -1, 4]) # BS x H x W x A x 4
+    box_logits = tf.transpose(box_logits, [0, 2, 3, 1]) # BS x H x W x (A x 4)
+    box_logits = tf.reshape(box_logits, [shp[0], shp[2], shp[3], -1, 4])
 
 
     # box_logits = print_runtime_shape("box_logits", box_logits, prefix=prefix)
