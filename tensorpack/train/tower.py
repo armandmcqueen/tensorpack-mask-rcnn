@@ -254,8 +254,8 @@ class SingleCostTrainer(TowerTrainer):
                 else:
                     varlist = tf.trainable_variables()
 
-                loss_scale = 1024.0
-                cost *= loss_scale
+                #loss_scale = 1024.0
+                #cost *= loss_scale
 
                 opt = get_opt_fn()
                 grads = opt.compute_gradients(
@@ -265,7 +265,7 @@ class SingleCostTrainer(TowerTrainer):
                     aggregation_method=self.AGGREGATION_METHOD)
                 grads = FilterNoneGrad().process(grads)
 
-                scaled_gv = [(g * 1.0 / loss_scale, v) for g, v in grads]
+                #scaled_gv = [(g * 1.0 / loss_scale, v) for g, v in grads]
 
                 return grads
 
