@@ -183,13 +183,18 @@ class ResNetFPNModel(DetectionModel):
         head_feature = fastrcnn_head_func('fastrcnn', roi_feature_fastrcnn)
         fastrcnn_label_logits, fastrcnn_box_logits = fastrcnn_outputs(
             'fastrcnn/outputs', head_feature, cfg.DATA.NUM_CLASS)
-        fastrcnn_head = FastRCNNHead(proposals, fastrcnn_box_logits, fastrcnn_label_logits,
-                                     gt_boxes, tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32))
+
+        regression_weights = tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32)
+
+        fastrcnn_head = FastRCNNHead(proposals,
+                                     fastrcnn_box_logits,
+                                     fastrcnn_label_logits,
+                                     gt_boxes,
+                                     regression_weights)
 
 
         if self.training:
             all_losses = fastrcnn_head.losses()
-            print("all_losses", all_losses)
 
             if cfg.MODE_MASK:
                 gt_masks = targets[2]
