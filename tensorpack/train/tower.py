@@ -2,6 +2,7 @@
 # File: tower.py
 
 from abc import ABCMeta, abstractmethod
+import os
 import six
 import tensorflow as tf
 
