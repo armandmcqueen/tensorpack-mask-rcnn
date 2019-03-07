@@ -281,12 +281,12 @@ class ResNetFPNModel(ModelDesc):
         # fastrcnn_label_logits = print_runtime_shape(f'fastrcnn_label_logits', fastrcnn_label_logits, prefix=prefix)
         # fastrcnn_box_logits = print_runtime_shape(f'fastrcnn_box_logits', fastrcnn_box_logits, prefix=prefix)
 
-
+        regression_weights = tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32, name="bbox_regression_weights")
 
         fastrcnn_head = FastRCNNHeadBatch(fastrcnn_box_logits,
                                           fastrcnn_label_logits,
                                           gt_boxes,
-                                          tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32),
+                                          regression_weights,
                                           batch_indices_for_rois,
                                           prepadding_gt_counts,
                                           proposal_boxes,
