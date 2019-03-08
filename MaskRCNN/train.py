@@ -89,7 +89,7 @@ class ResNetFPNModel(ModelDesc):
         tf.summary.scalar('learning_rate-summary', lr)
 
         # The learning rate in the config is set for 8 GPUs, and we use trainers with average=False.
-        lr = lr / 8.
+        lr = lr * cfg.TRAIN.BATCH_SIZE_PER_GPU / 8.
         opt = tf.train.MomentumOptimizer(lr, 0.9)
         if cfg.TRAIN.NUM_GPUS < 8:
             opt = optimizer.AccumGradOptimizer(opt, 8 // cfg.TRAIN.NUM_GPUS)
