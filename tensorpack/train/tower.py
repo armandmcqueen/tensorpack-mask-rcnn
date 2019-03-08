@@ -5,6 +5,7 @@ from abc import ABCMeta, abstractmethod
 import os
 import six
 import tensorflow as tf
+import os
 
 from ..input_source import PlaceholderInput
 from ..predict.base import OnlinePredictor
@@ -256,7 +257,13 @@ class SingleCostTrainer(TowerTrainer):
                     varlist = tf.trainable_variables()
 
                 if os.getenv("TENSORPACK_FP16"):
+
                     loss_scale = 1024.0
+
+                    if os.getenv("CUSTOM_LOSS_SCALE"):
+                        loss_scale = float(os.getenv("CUSTOM_LOSS_SCALE"))
+
+                    print(f'TENSORPACK_FP16 set. Using FP16 loss scaling of {loss_scale}')
                     cost *= loss_scale
 
                 opt = get_opt_fn()

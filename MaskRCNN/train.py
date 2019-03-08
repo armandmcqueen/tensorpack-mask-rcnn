@@ -132,8 +132,26 @@ class ResNetFPNModel(ModelDesc):
         if self.training:
             wd_cost = regularize_cost(
                     '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
+
+            rpn_label_loss, rpn_box_loss = rpn_losses
+            fr_label_loss, fr_box_loss, mask_loss = head_losses
+
+            wd_cost = print_runtime_tensor("wd_cost", wd_cost, prefix="train.py")
+            rpn_label_loss = print_runtime_tensor("rpn_label_loss", rpn_label_loss, prefix="train.py")
+            rpn_box_loss = print_runtime_tensor("rpn_box_loss", rpn_box_loss, prefix="train.py")
+            fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
+            fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
+            mask_loss = print_runtime_tensor("mask_loss", mask_loss, prefix="train.py")
+
+            head_losses = [fr_label_loss, fr_box_loss, mask_loss]
+            rpn_losses = [rpn_label_loss, rpn_box_loss]
+
+
             total_cost = tf.add_n(
                     rpn_losses + head_losses + [wd_cost], 'total_cost')
+
+            total_cost = print_runtime_tensor("total_cost", total_cost, prefix="train.py")
+
             add_moving_summary(total_cost, wd_cost)
             return total_cost
 
@@ -242,9 +260,6 @@ class ResNetFPNModel(ModelDesc):
         gt_boxes, gt_labels, *_ = targets
         image_shape2d = tf.shape(images)[2:]  # h,w
 
-
-
-
         if self.training:
             proposal_boxes, proposal_labels, proposal_gt_id_for_each_fg = sample_fast_rcnn_targets_batch(
                 proposal_boxes,
@@ -257,11 +272,6 @@ class ResNetFPNModel(ModelDesc):
             proposal_fg_boxes = tf.gather(proposal_boxes, proposal_fg_inds)
             proposal_fg_labels = tf.gather(proposal_labels, proposal_fg_inds)
 
-            # proposal_boxes = print_runtime_shape(f'proposal_boxes', proposal_boxes, prefix=prefix)
-            # proposal_boxes = print_runtime_tensor(f'proposal_boxes', proposal_boxes, prefix=prefix)
-            # proposal_fg_inds = print_runtime_shape(f'proposal_fg_inds', proposal_fg_inds, prefix=prefix)
-            # proposal_fg_boxes = print_runtime_shape(f'proposal_fg_boxes', proposal_fg_boxes, prefix=prefix)
-            # proposal_fg_labels = print_runtime_shape(f'proposal_fg_labels', proposal_fg_labels, prefix=prefix)
 
 
 
@@ -330,12 +340,6 @@ class ResNetFPNModel(ModelDesc):
                     single_image_fg_boxes = tf.gather(proposal_fg_boxes, single_image_fg_indices)[:, 1:]
                     single_image_fg_labels = tf.gather(proposal_fg_labels, single_image_fg_indices)
                     single_image_fg_inds_wrt_gt = proposal_gt_id_for_each_fg[i]
-
-                    print_buildtime_shape("single_image_gt_masks", single_image_gt_masks, prefix=prefix)
-                    print_buildtime_shape("single_image_fg_indices", single_image_fg_indices, prefix=prefix)
-                    print_buildtime_shape("single_image_fg_boxes", single_image_fg_boxes, prefix=prefix)
-                    print_buildtime_shape("single_image_fg_labels", single_image_fg_labels, prefix=prefix)
-                    print_buildtime_shape("single_image_fg_inds_wrt_gt", single_image_fg_inds_wrt_gt, prefix=prefix)
 
                     single_image_gt_masks = tf.expand_dims(single_image_gt_masks, axis=1)
 
@@ -587,6 +591,17 @@ if __name__ == '__main__':
 
         # callbacks.extend([EvalCallback(dataset, *MODEL.get_inference_tensor_names(), args.logdir)
         #                 for dataset in cfg.DATA.VAL])
+
+        # callbacks.append(DumpTensors([
+        #     "oxbow_batch_input_proposal_boxes:0",
+        #     "oxbow_batch_input_gt_boxes:0",
+        #     "oxbow_batch_input_gt_labels:0",
+        #     "oxbow_batch_input_prepadding_gt_counts:0",
+        #     "oxbow_batch_output_proposal_boxes:0",
+        #     "oxbow_batch_output_proposal_labels:0",
+        #     "oxbow_batch_output_proposal_gt_id_for_each_fg:0"
+        # ]))
+
 
         if not is_horovod:
             callbacks.append(GPUUtilizationTracker())

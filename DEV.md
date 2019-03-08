@@ -1,5 +1,10 @@
 # Development Notes
 
+## Temporary Changes
+
+- data.py non-shuffling dataflow
+- sample_fast_rcnn_targets_batch removed randomness
+
 ## Building Tensorflow
 
 Requires custom Tensorflow for GPU optimized ops. Build steps were run on the AWS DLAMI 21.2.

@@ -11,6 +11,7 @@ echo "IMAGES_PER_STEP: ${IMAGES_PER_STEP}"
 echo "STEPS_PER_EPOCH: ${STEPS_PER_EPOCH}"
 
 
+TENSORPACK_FP16=1 \
 HOROVOD_TIMELINE=/tensorpack-mask-rcnn/logs/htimeline.json \
 HOROVOD_CYCLE_TIME=0.5 \
 HOROVOD_FUSION_THRESHOLD=67108864 \
@@ -20,12 +21,18 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 -mca btl_tcp_if_exclude lo,docker0 \
 -mca btl_vader_single_copy_mechanism none \
 -x NCCL_SOCKET_IFNAME=^docker0,lo \
--x NCCL_MIN_NRINGS=8 -x NCCL_DEBUG=INFO \
--x LD_LIBRARY_PATH -x PATH \
--x HOROVOD_CYCLE_TIME -x HOROVOD_FUSION_THRESHOLD \
+-x NCCL_MIN_NRINGS=8 \
+-x NCCL_DEBUG=INFO \
+-x LD_LIBRARY_PATH \
+-x PATH \
+-x HOROVOD_CYCLE_TIME \
+-x HOROVOD_FUSION_THRESHOLD \
+-x CUSTOM_LOSS_SCALE \
+-x TENSORPACK_FP16 \
 --output-filename /tensorpack-mask-rcnn/logs/mpirun_logs \
 /usr/local/bin/python3 /tensorpack-mask-rcnn/MaskRCNN/train.py \
 --logdir /tensorpack-mask-rcnn/logs/train_log \
+--fp16 \
 --perf \
 --throughput_log_freq 1 \
 --images_per_step ${IMAGES_PER_STEP} \

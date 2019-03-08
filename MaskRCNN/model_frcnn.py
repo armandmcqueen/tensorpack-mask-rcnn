@@ -112,7 +112,7 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
 
     Returns:
         A BoxProposals instance.
-        sampled_boxes: tx4 floatbox, the rois
+        sampled_boxes: tx5 floatbox, the rois
         sampled_labels: t int64 labels, in [0, #class). Positive means foreground.
         fg_inds_wrt_gt: #fg indices, each in range [0, m-1].
             It contains the matching GT of each foreground roi.
@@ -133,6 +133,10 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
     for i in range(batch_size):
         image_ious = per_image_ious[i]
         gt_count = orig_gt_counts[i]
+
+        single_image_gt_boxes = gt_boxes[i, :gt_count, :]
+        single_image_gt_boxes = tf.pad(single_image_gt_boxes, [[0,0], [1,0]], mode="CONSTANT", constant_values=i)
+        boxes = tf.concat([boxes, single_image_gt_boxes], axis=0)
 
         iou = tf.concat([image_ious, tf.eye(gt_count)], axis=0)  # (N+M) x M
         best_iou_ind = tf.argmax(iou, axis=1)   # A vector with the index of the GT with the highest IOU,
@@ -160,13 +164,15 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
         num_fg = tf.minimum(int(
             cfg.FRCNN.BATCH_PER_IM * cfg.FRCNN.FG_RATIO),
             tf.size(fg_inds), name='num_fg')
-        fg_inds = tf.random_shuffle(fg_inds)[:num_fg]
+        # fg_inds = tf.random_shuffle(fg_inds)[:num_fg]
+        fg_inds = fg_inds[:num_fg]
 
         bg_inds = tf.reshape(tf.where(tf.logical_not(fg_mask)), [-1])
         num_bg = tf.minimum(
             cfg.FRCNN.BATCH_PER_IM - num_fg,
             tf.size(bg_inds), name='num_bg')
-        bg_inds = tf.random_shuffle(bg_inds)[:num_bg]
+        # bg_inds = tf.random_shuffle(bg_inds)[:num_bg]
+        bg_inds = bg_inds[:num_bg]
 
 
         return fg_inds, bg_inds
@@ -179,9 +185,11 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
     all_ret_labels = []
     all_fg_inds_wrt_gt = []
     for i in range(batch_size):
+        # ious[i] = print_runtime_tensor("ious[i]", ious[i], prefix=prefix)
         fg_inds, bg_inds = sample_fg_bg(ious[i])
 
         # fg_inds = print_runtime_tensor("fg_inds", fg_inds, prefix=prefix)
+        # bg_inds = print_runtime_tensor("bg_inds", bg_inds, prefix=prefix)
 
 
 

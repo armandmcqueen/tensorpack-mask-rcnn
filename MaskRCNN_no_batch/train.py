@@ -32,7 +32,7 @@ from MaskRCNN_no_batch.model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_o
 from MaskRCNN_no_batch.model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
 from MaskRCNN_no_batch.model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
 from MaskRCNN_no_batch.viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
-from MaskRCNN_no_batch.performance import ThroughputTracker
+from MaskRCNN_no_batch.performance import ThroughputTracker, print_runtime_tensor
 
 try:
     import horovod.tensorflow as hvd
@@ -89,8 +89,25 @@ class DetectionModel(ModelDesc):
         if self.training:
             wd_cost = regularize_cost(
                 '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
+
+            rpn_label_loss, rpn_box_loss = rpn_losses
+            fr_label_loss, fr_box_loss, mask_loss = head_losses
+
+            wd_cost = print_runtime_tensor("wd_cost", wd_cost, prefix="train.py")
+            rpn_label_loss = print_runtime_tensor("rpn_label_loss", rpn_label_loss, prefix="train.py")
+            rpn_box_loss = print_runtime_tensor("rpn_box_loss", rpn_box_loss, prefix="train.py")
+            fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
+            fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
+            mask_loss = print_runtime_tensor("mask_loss", mask_loss, prefix="train.py")
+
+            head_losses = [fr_label_loss, fr_box_loss, mask_loss]
+            rpn_losses = [rpn_label_loss, rpn_box_loss]
+
             total_cost = tf.add_n(
                 rpn_losses + head_losses + [wd_cost], 'total_cost')
+
+            total_cost = print_runtime_tensor("total_cost", total_cost, prefix="train.py")
+
             add_moving_summary(total_cost, wd_cost)
             return total_cost
 
@@ -174,8 +191,10 @@ class ResNetFPNModel(DetectionModel):
         assert len(features) == 5, "Features have to be P23456!"
         gt_boxes, gt_labels, *_ = targets
 
+
         if self.training:
             proposals = sample_fast_rcnn_targets(proposals.boxes, gt_boxes, gt_labels)
+
 
         fastrcnn_head_func = getattr(model_frcnn, cfg.FPN.FRCNN_HEAD_FUNC)
         roi_feature_fastrcnn = multilevel_roi_align(features[:4], proposals.boxes, 7)
@@ -443,6 +462,23 @@ if __name__ == '__main__':
 
         #session_config = tf.ConfigProto(device_count={'GPU': 1})
         #session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
+
+        callbacks.append(DumpTensors([
+            "oxbow_nobatch_input_proposal_boxes:0",
+            "oxbow_nobatch_input_gt_boxes:0",
+            "oxbow_nobatch_input_gt_labels:0",
+            "oxbow_nobatch_output_proposal_boxes:0",
+            "oxbow_nobatch_output_proposal_labels:0",
+            "oxbow_nobatch_output_proposal_fg_inds_wrt_gt:0"
+        ]))
+
+
+
+
+
+
+
+
 
         traincfg = TrainConfig(
             model=MODEL,
