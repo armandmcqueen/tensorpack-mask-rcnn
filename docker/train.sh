@@ -4,9 +4,10 @@ IMAGES_PER_GPU=${2:-1}
 let IMAGES_PER_STEP=${IMAGES_PER_GPU}*${NUM_GPU}
 
 
+
 echo ""
-echo "IMAGES_PER_GPU: ${IMAGES_PER_GPU}"
 echo "NUM_GPU: ${NUM_GPU}"
+echo "IMAGES_PER_GPU: ${IMAGES_PER_GPU}"
 echo "IMAGES_PER_STEP: ${IMAGES_PER_STEP}"
 echo ""
 
