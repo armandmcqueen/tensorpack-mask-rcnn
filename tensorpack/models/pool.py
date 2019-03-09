@@ -127,7 +127,11 @@ def FixedUnPooling(x, shape, unpool_mat=None, data_format='channels_last'):
         # perform a tensor-matrix kronecker product
         x = tf.expand_dims(x, -1)       # bchwx1
         mat = tf.expand_dims(unpool_mat, 0)  # 1xshxsw
-        ret = tf.tensordot(x, mat, axes=1)  # bxcxhxwxshxsw
+        #ret = tf.tensordot(x, mat, axes=1)  # bxcxhxwxshxsw
+        x = tf.transpose(x, [4, 0, 1, 2, 3])
+        mat = tf.transpose(mat, [1, 2, 0])
+        ret = tf.tensordot(mat, x, axes=1) # shxswxbxcxhxw
+        ret = tf.transpose(ret, [2, 3, 4, 5, 0, 1]) # bxcxhxwxshxsw
 
         if data_format == 'NHWC':
             ret = tf.transpose(ret, [0, 2, 4, 3, 5, 1])
