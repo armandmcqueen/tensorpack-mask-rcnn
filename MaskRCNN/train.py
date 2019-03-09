@@ -554,7 +554,7 @@ if __name__ == '__main__':
         MODEL = ResNetFPNModel(cfg.TRAIN.BATCH_SIZE_PER_GPU, args.fp16)
         print("Batch size per GPU: " + str(cfg.TRAIN.BATCH_SIZE_PER_GPU))
         img_per_step = cfg.TRAIN.BATCH_SIZE_PER_GPU * cfg.TRAIN.NUM_GPUS
-        steps_per_epoch = args.total_num_images / img_per_step
+        steps_per_epoch = args.num_total_images / img_per_step
 
         # warmup is step based, lr is epoch based
         init_lr = cfg.TRAIN.WARMUP_INIT_LR * min(8. / cfg.TRAIN.NUM_GPUS, 1.)
