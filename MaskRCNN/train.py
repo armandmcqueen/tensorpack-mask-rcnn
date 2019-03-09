@@ -491,8 +491,6 @@ if __name__ == '__main__':
     parser.add_argument('--throughput_log_freq', help="In perf investigation mode, code will print throughput after "
                                                       "every throughput_log_freq steps as well as after every epoch",
                         type=int, default=1)
-    parser.add_argument('--images_per_step', help="Number of images in a minibatch (total, not per GPU)",
-                        type=int, default=1)
     parser.add_argument('--num_total_images', help="Number of images in an epoch. = images_per_steps * steps_per_epoch "
                                                    "(differs slightly from the total number of images).",
                         type=int, default=120000)
@@ -555,19 +553,20 @@ if __name__ == '__main__':
         finalize_configs(is_training=True)
         MODEL = ResNetFPNModel(cfg.TRAIN.BATCH_SIZE_PER_GPU, args.fp16)
         print("Batch size per GPU: " + str(cfg.TRAIN.BATCH_SIZE_PER_GPU))
-        stepnum = cfg.TRAIN.STEPS_PER_EPOCH
+        img_per_step = cfg.TRAIN.BATCH_SIZE_PER_GPU * cfg.TRAIN.NUM_GPUS
+        steps_per_epoch = args.total_num_images / img_per_step
 
         # warmup is step based, lr is epoch based
         init_lr = cfg.TRAIN.WARMUP_INIT_LR * min(8. / cfg.TRAIN.NUM_GPUS, 1.)
         warmup_schedule = [(0, init_lr), (cfg.TRAIN.WARMUP, cfg.TRAIN.BASE_LR)]
-        warmup_end_epoch = cfg.TRAIN.WARMUP * 1. / stepnum
+        warmup_end_epoch = cfg.TRAIN.WARMUP * 1. / steps_per_epoch
         lr_schedule = [(int(warmup_end_epoch + 0.5), cfg.TRAIN.BASE_LR)]
 
         factor = 8. / cfg.TRAIN.NUM_GPUS
         for idx, steps in enumerate(cfg.TRAIN.LR_SCHEDULE[:-1]):
             mult = 0.1 ** (idx + 1)
             lr_schedule.append(
-                    (steps * factor // stepnum, cfg.TRAIN.BASE_LR * mult))
+                    (steps * factor // steps_per_epoch, cfg.TRAIN.BASE_LR * mult))
         logger.info("Warm Up Schedule (steps, value): " + str(warmup_schedule))
         logger.info("LR Schedule (epochs, value): " + str(lr_schedule))
         # train_dataflow = get_train_dataflow(cfg.TRAIN.BATCH_SIZE_PER_GPU)
@@ -607,7 +606,7 @@ if __name__ == '__main__':
             callbacks.append(GPUUtilizationTracker())
 
         if args.perf:
-            callbacks.append(ThroughputTracker(args.images_per_step,
+            callbacks.append(ThroughputTracker(img_per_step,
                                                args.num_total_images,
                                                trigger_every_n_steps=args.throughput_log_freq,
                                                log_fn=logger.info))
@@ -638,8 +637,8 @@ if __name__ == '__main__':
                     MergeAllSummaries(period=args.summary_period),
                     RunUpdateOps()
                 ],
-                steps_per_epoch=stepnum,
-                max_epoch=cfg.TRAIN.LR_SCHEDULE[-1] * factor // stepnum,
+                steps_per_epoch=steps_per_epoch,
+                max_epoch=cfg.TRAIN.LR_SCHEDULE[-1] * factor // steps_per_epoch,
                 session_init=session_init,
                 starting_epoch=cfg.TRAIN.STARTING_EPOCH
         )

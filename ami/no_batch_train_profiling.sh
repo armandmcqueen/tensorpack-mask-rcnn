@@ -24,7 +24,6 @@ MODE_FPN=True \
 DATA.BASEDIR=/home/ubuntu/data \
 DATA.TRAIN='["train2017"]' \
 DATA.VAL='("val2017",)' \
-TRAIN.STEPS_PER_EPOCH=15000 \
 TRAIN.LR_SCHEDULE='[120000, 160000, 180000]' \
 BACKBONE.WEIGHTS=/home/ubuntu/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
 BACKBONE.NORM=FreezeBN \

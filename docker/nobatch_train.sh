@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 NUM_GPU=${1:-1}
 let IMAGES_PER_STEP=${NUM_GPU}
-let STEPS_PER_EPOCH=120000/${IMAGES_PER_STEP}
 
-
+echo ""
 echo "NUM_GPU: ${NUM_GPU}"
 echo "IMAGES_PER_STEP: ${IMAGES_PER_STEP}"
-echo "STEPS_PER_EPOCH: ${STEPS_PER_EPOCH}"
-
+echo ""
 
 HOROVOD_TIMELINE=/tensorpack-mask-rcnn/logs/htimeline.json \
 HOROVOD_CYCLE_TIME=0.5 \
@@ -32,7 +30,6 @@ MODE_FPN=True \
 DATA.BASEDIR=/data \
 DATA.TRAIN='["train2017"]' \
 DATA.VAL='("val2017",)' \
-TRAIN.STEPS_PER_EPOCH=${STEPS_PER_EPOCH} \
 TRAIN.LR_SCHEDULE='[120000, 160000, 180000]' \
 BACKBONE.WEIGHTS=/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
 BACKBONE.NORM=FreezeBN \
