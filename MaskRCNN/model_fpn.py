@@ -126,7 +126,7 @@ def fpn_map_rois_to_levels(boxes):
 
 
 
-@under_name_scope()
+@under_name_scope(name_scope="fpn_map_rois_to_levels")
 def fpn_map_rois_to_levels_batch(boxes):
     """
     Assign boxes to level 2~5.
@@ -192,7 +192,7 @@ def multilevel_roi_align(features, rcnn_boxes, resolution):
 
 
 
-@under_name_scope()
+@under_name_scope(name_scope="multilevel_roi_align")
 def multilevel_roi_align_batch(features, rcnn_boxes, resolution, runtime_tag=None, verbose=False):
     """
     Args:
@@ -348,7 +348,7 @@ def multilevel_rpn_losses_batch(
     assert len(multilevel_box_logits) == num_lvl
 
     losses = []
-    with tf.name_scope('rpn_losses_batch'):
+    with tf.name_scope('rpn_losses'):
         for lvl in range(num_lvl):
             anchors = multilevel_anchors[lvl]
 

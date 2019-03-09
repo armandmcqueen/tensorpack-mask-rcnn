@@ -98,7 +98,7 @@ def proposal_metrics_batch(per_image_ious):
 
 
 
-@under_name_scope()
+@under_name_scope(name_scope="sample_fast_rcnn_targets")
 def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, batch_size):
     """
     Sample some boxes from all proposals for training.
