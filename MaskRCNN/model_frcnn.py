@@ -51,7 +51,7 @@ def proposal_metrics(iou):
 
 
 
-@under_name_scope()
+@under_name_scope(name_scope="proposal_metrics")
 def proposal_metrics_batch(per_image_ious):
     """
     Add summaries for RPN proposals.
