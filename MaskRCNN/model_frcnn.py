@@ -163,19 +163,19 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
         fg_inds = tf.reshape(tf.where(fg_mask), [-1])
         num_fg = tf.minimum(int(
             cfg.FRCNN.BATCH_PER_IM * cfg.FRCNN.FG_RATIO),
-            tf.size(fg_inds), name='num_fg')
+            tf.size(fg_inds))
         # fg_inds = tf.random_shuffle(fg_inds)[:num_fg]
         fg_inds = fg_inds[:num_fg]
 
         bg_inds = tf.reshape(tf.where(tf.logical_not(fg_mask)), [-1])
         num_bg = tf.minimum(
             cfg.FRCNN.BATCH_PER_IM - num_fg,
-            tf.size(bg_inds), name='num_bg')
+            tf.size(bg_inds))
         # bg_inds = tf.random_shuffle(bg_inds)[:num_bg]
         bg_inds = bg_inds[:num_bg]
 
 
-        return fg_inds, bg_inds
+        return num_fg, num_bg, fg_inds, bg_inds
 
 
 
@@ -184,9 +184,13 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
     all_ret_boxes = []
     all_ret_labels = []
     all_fg_inds_wrt_gt = []
+    num_bgs = []
+    num_fgs = []
     for i in range(batch_size):
         # ious[i] = print_runtime_tensor("ious[i]", ious[i], prefix=prefix)
-        fg_inds, bg_inds = sample_fg_bg(ious[i])
+        num_fg, num_bg, fg_inds, bg_inds = sample_fg_bg(ious[i])
+        num_fgs.append(num_fg)
+        num_bgs.append(num_bg)
 
         # fg_inds = print_runtime_tensor("fg_inds", fg_inds, prefix=prefix)
         # bg_inds = print_runtime_tensor("bg_inds", bg_inds, prefix=prefix)
@@ -230,6 +234,7 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
         all_fg_inds_wrt_gt.append(fg_inds_wrt_gt)
 
 
+    add_moving_summary(tf.add_n(num_fgs, name="num_fg"), tf.add_n(num_bgs, name="num_bg"))
 
     ret_boxes = tf.concat(all_ret_boxes, axis=0)    # ? x 5
     ret_labels = tf.concat(all_ret_labels, axis=0)  # ? vector
