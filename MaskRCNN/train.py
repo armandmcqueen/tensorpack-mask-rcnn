@@ -162,9 +162,9 @@ class ResNetFPNModel(ModelDesc):
             total_cost = tf.add_n(
                     rpn_losses + head_losses + [wd_cost], 'total_cost')
 
-            total_cost = print_runtime_tensor("total_cost", total_cost, prefix="train.py")
-
             add_moving_summary(total_cost, wd_cost)
+
+            total_cost = print_runtime_tensor("total_cost", total_cost, prefix="train.py")
 
             return total_cost
 
