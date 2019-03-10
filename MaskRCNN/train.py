@@ -137,19 +137,19 @@ class ResNetFPNModel(ModelDesc):
             wd_cost = regularize_cost(
                     '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
 
-            rpn_label_loss, rpn_box_loss = rpn_losses
-            fr_label_loss, fr_box_loss, mask_loss = head_losses
-
-            wd_cost = print_runtime_tensor("wd_cost", wd_cost, prefix="train.py")
-            rpn_label_loss = print_runtime_tensor("rpn_label_loss", rpn_label_loss, prefix="train.py")
-            rpn_box_loss = print_runtime_tensor("rpn_box_loss", rpn_box_loss, prefix="train.py")
-
-            fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
-            fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
-            mask_loss = print_runtime_tensor("mask_loss", mask_loss, prefix="train.py")
-
-            head_losses = [fr_label_loss, fr_box_loss, mask_loss]
-            rpn_losses = [rpn_label_loss, rpn_box_loss]
+            # rpn_label_loss, rpn_box_loss = rpn_losses
+            # fr_label_loss, fr_box_loss, mask_loss = head_losses
+            #
+            # wd_cost = print_runtime_tensor("wd_cost", wd_cost, prefix="train.py")
+            # rpn_label_loss = print_runtime_tensor("rpn_label_loss", rpn_label_loss, prefix="train.py")
+            # rpn_box_loss = print_runtime_tensor("rpn_box_loss", rpn_box_loss, prefix="train.py")
+            #
+            # fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
+            # fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
+            # mask_loss = print_runtime_tensor("mask_loss", mask_loss, prefix="train.py")
+            #
+            # head_losses = [fr_label_loss, fr_box_loss, mask_loss]
+            # rpn_losses = [rpn_label_loss, rpn_box_loss]
 
 
 
@@ -431,7 +431,8 @@ class ResNetFPNModel(ModelDesc):
                 per_image_fg_labels = []
                 for i in range(cfg.TRAIN.BATCH_SIZE_PER_GPU):
                     prefix = f'roi_heads, batch_idx {i}'
-                    single_image_gt_masks = gt_masks[i, :, :, :]
+                    single_image_gt_count = prepadding_gt_counts[i]
+                    single_image_gt_masks = gt_masks[i, :single_image_gt_count, :, :]
                     single_image_fg_indices = tf.squeeze(tf.where(tf.equal(proposal_fg_boxes[:, 0], i)), axis=1)
                     single_image_fg_boxes = tf.gather(proposal_fg_boxes, single_image_fg_indices)[:, 1:]
                     single_image_fg_labels = tf.gather(proposal_fg_labels, single_image_fg_indices)
