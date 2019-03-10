@@ -111,7 +111,8 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
         orig_gt_counts: BS   # The number of ground truths in the data. Use to unpad gt_labels and gt_boxes
 
     Returns:
-        A BoxProposals instance.
+
+
         sampled_boxes: tx5 floatbox, the rois
         sampled_labels: t int64 labels, in [0, #class). Positive means foreground.
         fg_inds_wrt_gt: #fg indices, each in range [0, m-1].

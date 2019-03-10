@@ -38,6 +38,8 @@ if STATICA_HACK:
     from .viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
     from .perf import print_runtime_shape, print_buildtime_shape, runtime_print, print_runtime_tensor, \
         print_runtime_tensor_loose_branch, ThroughputTracker
+    from .nobatch_fpn_proposals import generate_fpn_proposals_workaround
+    from .nobatch_data import get_train_dataflow as get_nobatch_train_dataflow
     #import .model_frcnn
     #import .model_mrcnn
 else:
@@ -55,6 +57,8 @@ else:
     from MaskRCNN.viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
     from MaskRCNN.perf import print_runtime_shape, print_buildtime_shape, runtime_print, print_runtime_tensor, \
         print_runtime_tensor_loose_branch, ThroughputTracker
+    from MaskRCNN.nobatch_fpn_proposals import generate_fpn_proposals_workaround
+    from MaskRCNN.nobatch_data import get_train_dataflow as get_nobatch_train_dataflow
     import MaskRCNN.model_frcnn as model_frcnn
     import MaskRCNN.model_mrcnn as model_mrcnn
 
@@ -139,6 +143,7 @@ class ResNetFPNModel(ModelDesc):
             wd_cost = print_runtime_tensor("wd_cost", wd_cost, prefix="train.py")
             rpn_label_loss = print_runtime_tensor("rpn_label_loss", rpn_label_loss, prefix="train.py")
             rpn_box_loss = print_runtime_tensor("rpn_box_loss", rpn_box_loss, prefix="train.py")
+
             fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
             fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
             mask_loss = print_runtime_tensor("mask_loss", mask_loss, prefix="train.py")
@@ -147,12 +152,14 @@ class ResNetFPNModel(ModelDesc):
             rpn_losses = [rpn_label_loss, rpn_box_loss]
 
 
+
             total_cost = tf.add_n(
                     rpn_losses + head_losses + [wd_cost], 'total_cost')
 
             total_cost = print_runtime_tensor("total_cost", total_cost, prefix="train.py")
 
             add_moving_summary(total_cost, wd_cost)
+
             return total_cost
 
     def inputs(self):
@@ -205,21 +212,15 @@ class ResNetFPNModel(ModelDesc):
         # Multi-Level RPN Proposals
         rpn_outputs = [rpn_head('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS), fp16=self.fp16)
                        for pi in features]
-        multilevel_label_logits = [k[0] for k in rpn_outputs]
+        multilevel_label_logits = [k[0] for k in rpn_outputs] # BS x fH x fW x NA
         multilevel_box_logits = [k[1] for k in rpn_outputs] # BS x (NAx4) x fH x fW
-
-
-
-        proposal_boxes, proposal_scores = generate_fpn_proposals_batch_tf_op(multilevel_box_logits,
-                                                                             multilevel_label_logits,
-                                                                             orig_image_dims)
 
 
 
 
 
         ############################################################################################
-        # Old way of handling anchors. Might be able to simplify. Only used by rpn_losses
+        # Old way of handling anchors. Might be able to simplify. Only used by rpn_losses (and now gen_proposals workaround)
         ############################################################################################
         all_anchors_fpn = get_all_anchors_fpn()  # For a single image. List, with anchors for each level
         batched_all_anchors_fpn = []
@@ -234,6 +235,101 @@ class ResNetFPNModel(ModelDesc):
                 inputs['anchor_boxes_lvl{}'.format(i + 2)]) for i in range(len(all_anchors_fpn))]
         self.slice_feature_and_anchors_batch(features, multilevel_anchors)
         ############################################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        ############################################################################################
+        # Replace GenerateProposals op with nobatchcode approach
+        ############################################################################################
+        # Op
+
+        proposal_boxes, proposal_scores = generate_fpn_proposals_batch_tf_op(multilevel_box_logits,
+                                                                             multilevel_label_logits,
+                                                                             orig_image_dims)
+
+        ############################################################################################
+        # Workaround
+        ############################################################################################
+
+        # image_shape2d = orig_image_dims[0, :2]
+        #
+        # multilevel_anchors_workaround = [RPNAnchors(
+        #         all_anchors_fpn[i],
+        #         inputs['anchor_labels_lvl{}'.format(i + 2)][0, :, :, :],
+        #         inputs['anchor_boxes_lvl{}'.format(i + 2)][0, :, :, :, :]) for i in range(len(all_anchors_fpn))]
+        #
+        #
+        # for i, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
+        #     with tf.name_scope('workaround_FPN_slice_lvl{}'.format(i)):
+        #         multilevel_anchors_workaround[i] = multilevel_anchors_workaround[i].narrow_to(features[i])
+        #
+        # multilevel_box_logits_workaround = []
+        #
+        # for b_logits in multilevel_box_logits:
+        #     b_logits = b_logits[0, :, :, :] # (NAx4) x fH x fW
+        #     b_logits = tf.transpose(b_logits, [1, 2, 0]) # fH x fW x (NAx4)
+        #     shp = tf.shape(b_logits)
+        #     b_logits = tf.reshape(b_logits, tf.stack([shp[0], shp[1], -1, 4])) # fH x fW x NA x 4
+        #
+        #     multilevel_box_logits_workaround.append(b_logits)
+        #
+        #
+        #
+        #
+        # multilevel_label_logits_workaround = [l_logits[0, :, :, :] for l_logits in multilevel_label_logits]
+        #
+        # multilevel_pred_boxes_workaround = [anchor.decode_logits(logits)
+        #                                     for anchor, logits in zip(multilevel_anchors_workaround, multilevel_box_logits_workaround)]
+        #
+        # proposal_boxes, proposal_scores = generate_fpn_proposals_workaround(
+        #         multilevel_pred_boxes_workaround, multilevel_label_logits_workaround, image_shape2d)
+        #
+        # # filter out size = 0 proposal boxes
+        # # (x1, y1, x2, y2)
+        # x1 = proposal_boxes[:, 0]
+        # y1 = proposal_boxes[:, 1]
+        # x2 = proposal_boxes[:, 2]
+        # y2 = proposal_boxes[:, 3]
+        #
+        # area = (x2-x1)*(y2-y1)
+        #
+        # valid_proposal_box_rows = tf.squeeze(tf.where(area > 0), axis=1)
+        # proposal_boxes = tf.gather(proposal_boxes, valid_proposal_box_rows)
+        #
+        # proposal_boxes = tf.pad(proposal_boxes, [[0, 0], [1, 0]])
+        #
+        # proposal_boxes = print_runtime_tensor("proposal_boxes", proposal_boxes, prefix="train.py")
+
+        ############################################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         if self.training:
 
@@ -569,8 +665,14 @@ if __name__ == '__main__':
                     (steps * factor // steps_per_epoch, cfg.TRAIN.BASE_LR * mult))
         logger.info("Warm Up Schedule (steps, value): " + str(warmup_schedule))
         logger.info("LR Schedule (epochs, value): " + str(lr_schedule))
-        # train_dataflow = get_train_dataflow(cfg.TRAIN.BATCH_SIZE_PER_GPU)
+
+
+
         train_dataflow = get_train_dataflow(cfg.TRAIN.BATCH_SIZE_PER_GPU)
+        # train_dataflow = get_nobatch_train_dataflow()
+
+
+
         # This is what's commonly referred to as "epochs"
         total_passes = cfg.TRAIN.LR_SCHEDULE[-1] * 8 / train_dataflow.size()
         logger.info("Total passes of the training set is: {:.5g}".format(total_passes))

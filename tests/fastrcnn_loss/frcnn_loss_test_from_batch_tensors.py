@@ -96,9 +96,6 @@ class NoBatchFastRCNNLoss(tf.test.TestCase):
             fastrcnn_head = FastRCNNHead(box_proposals, box_logits, label_logits, nonbatch_gt_boxes, regression_weights)
             label_loss, box_loss = fastrcnn_head.losses()
 
-            ################################################################################################
-            # Run Through Batch Codebase
-            ################################################################################################
 
 
 
