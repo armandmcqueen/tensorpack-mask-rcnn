@@ -137,20 +137,26 @@ class ResNetFPNModel(ModelDesc):
             wd_cost = regularize_cost(
                     '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
 
-            # rpn_label_loss, rpn_box_loss = rpn_losses
-            # fr_label_loss, fr_box_loss, mask_loss = head_losses
-            #
-            # wd_cost = print_runtime_tensor("wd_cost", wd_cost, prefix="train.py")
-            # rpn_label_loss = print_runtime_tensor("rpn_label_loss", rpn_label_loss, prefix="train.py")
-            # rpn_box_loss = print_runtime_tensor("rpn_box_loss", rpn_box_loss, prefix="train.py")
-            #
-            # fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
-            # fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
-            # mask_loss = print_runtime_tensor("mask_loss", mask_loss, prefix="train.py")
-            #
-            # head_losses = [fr_label_loss, fr_box_loss, mask_loss]
-            # rpn_losses = [rpn_label_loss, rpn_box_loss]
+            rpn_label_loss, rpn_box_loss = rpn_losses
+            wd_cost = print_runtime_tensor("wd_cost", wd_cost, prefix="train.py")
+            rpn_label_loss = print_runtime_tensor("rpn_label_loss", rpn_label_loss, prefix="train.py")
+            rpn_box_loss = print_runtime_tensor("rpn_box_loss", rpn_box_loss, prefix="train.py")
+            rpn_losses = [rpn_label_loss, rpn_box_loss]
 
+            if cfg.MODE_MASK:
+
+                fr_label_loss, fr_box_loss, mask_loss = head_losses
+                fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
+                fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
+                mask_loss = print_runtime_tensor("mask_loss", mask_loss, prefix="train.py")
+                head_losses = [fr_label_loss, fr_box_loss, mask_loss]
+
+
+            else:
+                fr_label_loss, fr_box_loss = head_losses
+                fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
+                fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
+                head_losses = [fr_label_loss, fr_box_loss]
 
 
             total_cost = tf.add_n(
