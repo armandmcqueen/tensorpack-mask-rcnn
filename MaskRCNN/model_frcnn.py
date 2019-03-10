@@ -234,8 +234,12 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
         all_ret_labels.append(single_image_ret_labels)
         all_fg_inds_wrt_gt.append(fg_inds_wrt_gt)
 
+    total_num_fgs = tf.add_n(num_fgs, name="num_fg")
+    total_num_bgs = tf.add_n(num_bgs, name="num_bg")
 
-    add_moving_summary(tf.add_n(num_fgs, name="num_fg"), tf.add_n(num_bgs, name="num_bg"))
+    total_num_fgs = print_runtime_tensor("total_num_fgs", total_num_fgs)
+
+    add_moving_summary(total_num_fgs, total_num_bgs)
 
     ret_boxes = tf.concat(all_ret_boxes, axis=0)    # ? x 5
     ret_labels = tf.concat(all_ret_labels, axis=0)  # ? vector
