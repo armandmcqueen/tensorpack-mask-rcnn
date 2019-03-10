@@ -137,9 +137,11 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
         image_ious = per_image_ious[i]
         gt_count = orig_gt_counts[i]
 
-        gt_count = print_runtime_shape("gt_count", gt_count)
+        gt_count = print_runtime_tensor("gt_count", gt_count)
 
         single_image_gt_boxes = gt_boxes[i, :gt_count, :]
+
+        single_image_gt_boxes = print_runtime_tensor("single_image_gt_boxes", single_image_gt_boxes)
         single_image_gt_boxes = tf.pad(single_image_gt_boxes, [[0,0], [1,0]], mode="CONSTANT", constant_values=i)
         boxes = tf.concat([boxes, single_image_gt_boxes], axis=0)
 

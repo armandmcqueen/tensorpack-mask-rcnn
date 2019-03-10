@@ -262,6 +262,8 @@ class ResNetFPNModel(ModelDesc):
         ############################################################################################
         # Op
 
+        orig_image_dims = print_runtime_tensor("orig_image_dims", orig_image_dims)
+
         proposal_boxes, proposal_scores = generate_fpn_proposals_batch_tf_op(multilevel_box_logits,
                                                                              multilevel_label_logits,
                                                                              orig_image_dims)
@@ -361,6 +363,8 @@ class ResNetFPNModel(ModelDesc):
 
         gt_boxes, gt_labels, *_ = targets
         image_shape2d = tf.shape(images)[2:]  # h,w
+
+
 
         if self.training:
             proposal_boxes, proposal_labels, proposal_gt_id_for_each_fg = sample_fast_rcnn_targets_batch(
