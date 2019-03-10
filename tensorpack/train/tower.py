@@ -276,6 +276,7 @@ class SingleCostTrainer(TowerTrainer):
 
                 if os.getenv("TENSORPACK_FP16"):
                     scaled_gv = [(g * 1.0 / loss_scale, v) for g, v in grads]
+                    return scaled_gv
 
                 return grads
 
