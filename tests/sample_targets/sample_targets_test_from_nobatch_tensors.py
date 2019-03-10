@@ -7,43 +7,43 @@ from MaskRCNN.model_frcnn import sample_fast_rcnn_targets_batch
 
 class BatchSampleTargets(tf.test.TestCase):
     def testSampleTargets1(self):
-        self.assertFastRCNNLoss("DumpTensor-1.npz")
+        self.assertSampleTargets("DumpTensor-1.npz")
 
     def testSampleTargets2(self):
-        self.assertFastRCNNLoss("DumpTensor-2.npz")
+        self.assertSampleTargets("DumpTensor-2.npz")
 
     def testSampleTargets3(self):
-        self.assertFastRCNNLoss("DumpTensor-3.npz")
+        self.assertSampleTargets("DumpTensor-3.npz")
 
     def testSampleTargets4(self):
-        self.assertFastRCNNLoss("DumpTensor-4.npz")
+        self.assertSampleTargets("DumpTensor-4.npz")
 
     def testSampleTargets5(self):
-        self.assertFastRCNNLoss("DumpTensor-5.npz")
+        self.assertSampleTargets("DumpTensor-5.npz")
 
     def testSampleTargets6(self):
-        self.assertFastRCNNLoss("DumpTensor-6.npz")
+        self.assertSampleTargets("DumpTensor-6.npz")
 
     def testSampleTargets7(self):
-        self.assertFastRCNNLoss("DumpTensor-7.npz")
+        self.assertSampleTargets("DumpTensor-7.npz")
 
     def testSampleTargets8(self):
-        self.assertFastRCNNLoss("DumpTensor-8.npz")
+        self.assertSampleTargets("DumpTensor-8.npz")
 
     def testSampleTargets9(self):
-        self.assertFastRCNNLoss("DumpTensor-9.npz")
+        self.assertSampleTargets("DumpTensor-9.npz")
 
     def testSampleTargets10(self):
-        self.assertFastRCNNLoss("DumpTensor-10.npz")
+        self.assertSampleTargets("DumpTensor-10.npz")
 
     def testSampleTargets11(self):
-        self.assertFastRCNNLoss("DumpTensor-11.npz")
+        self.assertSampleTargets("DumpTensor-11.npz")
 
     def testSampleTargets12(self):
-        self.assertFastRCNNLoss("DumpTensor-12.npz")
+        self.assertSampleTargets("DumpTensor-12.npz")
 
     def testSampleTargets13(self):
-        self.assertFastRCNNLoss("DumpTensor-13.npz")
+        self.assertSampleTargets("DumpTensor-13.npz")
 
 
 
