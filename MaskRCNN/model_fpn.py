@@ -531,13 +531,13 @@ def generate_fpn_proposals_batch_tf_op(
         for lvl in range(num_lvl):
             with tf.name_scope(f'Lvl{lvl}'):
                 im_info = tf.cast(orig_images_hw, tf.float32)
-                # h, w, scale
+                # h, w
 
                 label_logits = multilevel_label_logits[lvl]
                 # label_logits = print_runtime_shape(f'label_logits, lvl{lvl}', label_logits, prefix=bug_prefix)
                 scores = tf.transpose(label_logits, [0, 3, 1, 2])
 
-                box_logits = multilevel_box_logits[lvl] # NHWA4
+                box_logits = multilevel_box_logits[lvl] # N(A4)HW
 
 
 
@@ -626,24 +626,24 @@ def generate_fpn_proposals_batch_tf_op(
                 ################################################################################
                 # Actual generate proposal. Causes crashes
 
-                # rois, rois_probs = tf.generate_bounding_box_proposals(scores,
-                #                                                    bbox_deltas,
-                #                                                    im_info,
-                #                                                    anchors,
-                #                                                    spatial_scale=1.0 / cfg.FPN.ANCHOR_STRIDES[lvl],
-                #                                                    pre_nms_topn=fpn_nms_topk,
-                #                                                    post_nms_topn=fpn_nms_topk,
-                #                                                    nms_threshold=cfg.RPN.PROPOSAL_NMS_THRESH,
-                #                                                    min_size=cfg.RPN.MIN_SIZE)
-
                 rois, rois_probs = tf.generate_bounding_box_proposals(scores,
-                                                                      bbox_deltas,
-                                                                      im_info,
-                                                                      anchors,
-                                                                      pre_nms_topn=fpn_nms_topk,
-                                                                      post_nms_topn=fpn_nms_topk,
-                                                                      nms_threshold=cfg.RPN.PROPOSAL_NMS_THRESH,
-                                                                      min_size=cfg.RPN.MIN_SIZE)
+                                                                   bbox_deltas,
+                                                                   im_info,
+                                                                   anchors,
+                                                                   spatial_scale=1.0 / cfg.FPN.ANCHOR_STRIDES[lvl],
+                                                                   pre_nms_topn=fpn_nms_topk,
+                                                                   post_nms_topn=fpn_nms_topk,
+                                                                   nms_threshold=cfg.RPN.PROPOSAL_NMS_THRESH,
+                                                                   min_size=cfg.RPN.MIN_SIZE)
+
+                # rois, rois_probs = tf.generate_bounding_box_proposals(scores,
+                #                                                       bbox_deltas,
+                #                                                       im_info,
+                #                                                       anchors,
+                #                                                       pre_nms_topn=fpn_nms_topk,
+                #                                                       post_nms_topn=fpn_nms_topk,
+                #                                                       nms_threshold=cfg.RPN.PROPOSAL_NMS_THRESH,
+                #                                                       min_size=cfg.RPN.MIN_SIZE)
                 ################################################################################
 
 

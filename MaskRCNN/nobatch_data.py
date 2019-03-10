@@ -352,7 +352,8 @@ def get_train_dataflow():
 
         ret['gt_boxes'] = ret['gt_boxes'][np.newaxis, :, :]
         ret['gt_labels'] = ret['gt_labels'][np.newaxis, :]
-        ret['gt_masks'] = ret['gt_masks'][np.newaxis, :, :, :]
+        if cfg.MODE_MASK:
+            ret['gt_masks'] = ret['gt_masks'][np.newaxis, :, :, :]
         ret['orig_gt_counts'] = np.asarray([ret['gt_labels'].size])
 
         del ret['image']

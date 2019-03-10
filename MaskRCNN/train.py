@@ -138,33 +138,43 @@ class ResNetFPNModel(ModelDesc):
                     '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
 
             rpn_label_loss, rpn_box_loss = rpn_losses
-            wd_cost = print_runtime_tensor("wd_cost", wd_cost, prefix="train.py")
-            rpn_label_loss = print_runtime_tensor("rpn_label_loss", rpn_label_loss, prefix="train.py")
-            rpn_box_loss = print_runtime_tensor("rpn_box_loss", rpn_box_loss, prefix="train.py")
+            wd_cost = tf.identity(wd_cost, "dump_wd_cost")
+            rpn_label_loss = tf.identity(rpn_label_loss, "dump_rpn_label_loss")
+            rpn_box_loss = tf.identity(rpn_box_loss, "dump_rpn_box_loss")
+            # wd_cost = print_runtime_tensor("wd_cost", wd_cost, prefix="train.py")
+            # rpn_label_loss = print_runtime_tensor("rpn_label_loss", rpn_label_loss, prefix="train.py")
+            # rpn_box_loss = print_runtime_tensor("rpn_box_loss", rpn_box_loss, prefix="train.py")
             rpn_losses = [rpn_label_loss, rpn_box_loss]
 
             if cfg.MODE_MASK:
 
                 fr_label_loss, fr_box_loss, mask_loss = head_losses
-                fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
-                fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
-                mask_loss = print_runtime_tensor("mask_loss", mask_loss, prefix="train.py")
+                fr_label_loss = tf.identity(fr_label_loss, "dump_fr_label_loss")
+                fr_box_loss = tf.identity(fr_box_loss, "dump_fr_box_loss")
+                mask_loss = tf.identity(mask_loss, "dump_mask_loss")
+                # fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
+                # fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
+                # mask_loss = print_runtime_tensor("mask_loss", mask_loss, prefix="train.py")
                 head_losses = [fr_label_loss, fr_box_loss, mask_loss]
 
 
             else:
                 fr_label_loss, fr_box_loss = head_losses
-                fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
-                fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
+                fr_label_loss = tf.identity(fr_label_loss, "dump_fr_label_loss")
+                fr_box_loss = tf.identity(fr_box_loss, "dump_fr_box_loss")
+                # fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
+                # fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
                 head_losses = [fr_label_loss, fr_box_loss]
 
 
             total_cost = tf.add_n(
                     rpn_losses + head_losses + [wd_cost], 'total_cost')
 
+            total_cost = print_runtime_tensor("total_cost", total_cost, prefix="train.py")
+            total_cost = tf.identity(total_cost, "dump_total_cost")
+            
             add_moving_summary(total_cost, wd_cost)
 
-            total_cost = print_runtime_tensor("total_cost", total_cost, prefix="train.py")
 
             return total_cost
 
@@ -214,6 +224,8 @@ class ResNetFPNModel(ModelDesc):
         """
         assert len(cfg.RPN.ANCHOR_SIZES) == len(cfg.FPN.ANCHOR_STRIDES)
 
+        orig_image_dims = tf.identity(orig_image_dims, name="dump_orig_image_dims")
+
 
         # Multi-Level RPN Proposals
         rpn_outputs = [rpn_head('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS), fp16=self.fp16)
@@ -240,6 +252,13 @@ class ResNetFPNModel(ModelDesc):
                 inputs['anchor_labels_lvl{}'.format(i + 2)],
                 inputs['anchor_boxes_lvl{}'.format(i + 2)]) for i in range(len(all_anchors_fpn))]
         self.slice_feature_and_anchors_batch(features, multilevel_anchors)
+
+
+        for i in range(len(all_anchors_fpn)):
+            # print("####")
+            # print(i)
+            inputs[f'anchor_labels_lvl{i+2}'] = tf.identity(inputs[f'anchor_labels_lvl{i+2}'], name=f'dump_anchor_labels_lvl{i+2}')
+            inputs[f'anchor_boxes_lvl{i+2}'] = tf.identity(inputs[f'anchor_boxes_lvl{i+2}'], name=f'dump_anchor_boxes_lvl{i+2}')
         ############################################################################################
 
 
@@ -262,7 +281,7 @@ class ResNetFPNModel(ModelDesc):
         ############################################################################################
         # Op
 
-        orig_image_dims = print_runtime_tensor("orig_image_dims", orig_image_dims)
+        # orig_image_dims = print_runtime_tensor("orig_image_dims", orig_image_dims)
 
         proposal_boxes, proposal_scores = generate_fpn_proposals_batch_tf_op(multilevel_box_logits,
                                                                              multilevel_label_logits,
@@ -679,8 +698,8 @@ if __name__ == '__main__':
 
 
 
-        train_dataflow = get_train_dataflow(cfg.TRAIN.BATCH_SIZE_PER_GPU)
-        # train_dataflow = get_nobatch_train_dataflow()
+        # train_dataflow = get_train_dataflow(cfg.TRAIN.BATCH_SIZE_PER_GPU)
+        train_dataflow = get_nobatch_train_dataflow()
 
 
 
@@ -704,15 +723,56 @@ if __name__ == '__main__':
         # callbacks.extend([EvalCallback(dataset, *MODEL.get_inference_tensor_names(), args.logdir)
         #                 for dataset in cfg.DATA.VAL])
 
-        # callbacks.append(DumpTensors([
-        #     "oxbow_batch_input_proposal_boxes:0",
-        #     "oxbow_batch_input_gt_boxes:0",
-        #     "oxbow_batch_input_gt_labels:0",
-        #     "oxbow_batch_input_prepadding_gt_counts:0",
-        #     "oxbow_batch_output_proposal_boxes:0",
-        #     "oxbow_batch_output_proposal_labels:0",
-        #     "oxbow_batch_output_proposal_gt_id_for_each_fg:0"
-        # ]))
+        callbacks.append(DumpTensors([
+            "sample_fast_rcnn_targets/dump_rois:0",
+            "sample_fast_rcnn_targets/dump_gt_boxes:0",
+            "sample_fast_rcnn_targets/dump_gt_labels:0",
+            "sample_fast_rcnn_targets/dump_per_image_ious:0",
+            "sample_fast_rcnn_targets/dump_single_image_gt_boxes-0:0",
+            "sample_fast_rcnn_targets/dump_iou-0:0",
+            "sample_fast_rcnn_targets/dump_best_iou_ind-0:0",
+            "sample_fast_rcnn_targets/dump_num_fg-0:0",
+            "sample_fast_rcnn_targets/dump_num_fg-0:0",
+            "sample_fast_rcnn_targets/dump_fg_inds_wrt_gt-0:0",
+            "sample_fast_rcnn_targets/dump_all_indices-0:0",
+            "dump_wd_cost:0",
+            "dump_rpn_label_loss:0",
+            "dump_rpn_box_loss:0",
+            "dump_mask_loss:0",
+            "dump_fr_label_loss:0",
+            "dump_fr_box_loss:0",
+            "dump_total_cost:0",
+            "dump_orig_image_dims:0",
+            "dump_anchor_labels_lvl2:0",
+            "dump_anchor_labels_lvl3:0",
+            "dump_anchor_labels_lvl4:0",
+            "dump_anchor_labels_lvl5:0",
+            "dump_anchor_labels_lvl6:0",
+            "dump_anchor_boxes_lvl2:0",
+            "dump_anchor_boxes_lvl3:0",
+            "dump_anchor_boxes_lvl4:0",
+            "dump_anchor_boxes_lvl5:0",
+            "dump_anchor_boxes_lvl6:0",
+
+        ]))
+
+        # "dump_rois:0",
+        # "dump_gt_boxes:0",
+        # "dump_gt_labels:0",
+        # "dump_per_image_ious:0",
+        # "dump_single_image_gt_boxes-0:0",
+        # "dump_iou-0:0",
+        # "dump_best_iou_ind-0:0",
+        # "dump_num_fg-0:0",
+        # "dump_num_fg-0:0",
+        # "fg_inds_wrt_gt-0:0",
+        # "all_indices-0:0",
+
+
+
+
+
+
 
 
         if not is_horovod:
