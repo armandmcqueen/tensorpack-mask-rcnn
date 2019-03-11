@@ -80,6 +80,10 @@ class DetectionModel(ModelDesc):
 
         image = self.preprocess(inputs['image'])     # 1CHW
 
+        for k in inputs.keys():
+            inputs[k] = tf.identity(inputs[k], name=f'inputs_{k}')
+            # print(k, inputs[k])
+
         features = self.backbone(image)
         anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
         proposals, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
@@ -464,13 +468,30 @@ if __name__ == '__main__':
         #session_config = tf.ConfigProto(device_count={'GPU': 1})
         #session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
 
+        # callbacks.append(DumpTensors([
+        #     "oxbow_nobatch_input_proposal_boxes:0",
+        #     "oxbow_nobatch_input_gt_boxes:0",
+        #     "oxbow_nobatch_input_gt_labels:0",
+        #     "oxbow_nobatch_output_proposal_boxes:0",
+        #     "oxbow_nobatch_output_proposal_labels:0",
+        #     "oxbow_nobatch_output_proposal_fg_inds_wrt_gt:0"
+        # ]))
+
         callbacks.append(DumpTensors([
-            "oxbow_nobatch_input_proposal_boxes:0",
-            "oxbow_nobatch_input_gt_boxes:0",
-            "oxbow_nobatch_input_gt_labels:0",
-            "oxbow_nobatch_output_proposal_boxes:0",
-            "oxbow_nobatch_output_proposal_labels:0",
-            "oxbow_nobatch_output_proposal_fg_inds_wrt_gt:0"
+            "inputs_image:0",
+            "inputs_anchor_labels_lvl2:0",
+            "inputs_anchor_boxes_lvl2:0",
+            "inputs_anchor_labels_lvl3:0",
+            "inputs_anchor_boxes_lvl3:0",
+            "inputs_anchor_labels_lvl4:0",
+            "inputs_anchor_boxes_lvl4:0",
+            "inputs_anchor_labels_lvl5:0",
+            "inputs_anchor_boxes_lvl5:0",
+            "inputs_anchor_labels_lvl6:0",
+            "inputs_anchor_boxes_lvl6:0",
+            "inputs_gt_boxes:0",
+            "inputs_gt_labels:0",
+            "inputs_gt_masks:0",
         ]))
 
 

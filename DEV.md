@@ -3,6 +3,7 @@
 ## Temporary Changes
 
 - data.py non-shuffling dataflow
+- data.py no horizontal flip augmentation
 - sample_fast_rcnn_targets_batch removed randomness
 
 ## Building Tensorflow

@@ -361,9 +361,11 @@ def get_train_dataflow(batch_size):
 
 
 
-    aug = imgaug.AugmentorList(
-        [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
-         imgaug.Flip(horiz=True)])
+    # aug = imgaug.AugmentorList(
+    #     [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
+    #      imgaug.Flip(horiz=True)])
+
+    aug = imgaug.AugmentorList([CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)])
 
     def preprocess(roidb_batch):
         datapoint_list = []

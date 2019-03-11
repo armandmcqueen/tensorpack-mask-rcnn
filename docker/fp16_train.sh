@@ -7,6 +7,7 @@ echo "NUM_GPU: ${NUM_GPU}"
 echo "IMAGES_PER_GPU: ${IMAGES_PER_GPU}"
 echo ""
 
+# --use_nobatch_pipeline
 
 TENSORPACK_FP16=1 \
 HOROVOD_TIMELINE=/tensorpack-mask-rcnn/logs/htimeline.json \

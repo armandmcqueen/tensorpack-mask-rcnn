@@ -1,7 +1,7 @@
 FROM nvidia/cuda:10.0-devel-ubuntu16.04
 
 ENV TF_WHEEL_S3_BUCKET=aws-tensorflow-benchmarking
-ENV TF_WHEEL_S3_KEY=maskrcnn/wheels/sami-tensorflow-1.13.0-cp36-cp36m-linux_x86_64-conv2dtranspose/tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl
+ENV TF_WHEEL_S3_KEY=maskrcnn/wheels/sami_20190311/tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl
 
 
 

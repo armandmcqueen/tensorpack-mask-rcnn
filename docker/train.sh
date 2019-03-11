@@ -9,6 +9,9 @@ echo "IMAGES_PER_GPU: ${IMAGES_PER_GPU}"
 echo ""
 
 
+# --use_nobatch_pipeline
+
+
 HOROVOD_TIMELINE=/tensorpack-mask-rcnn/logs/htimeline.json \
 HOROVOD_CYCLE_TIME=0.5 \
 HOROVOD_FUSION_THRESHOLD=67108864 \

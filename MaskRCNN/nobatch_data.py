@@ -8,7 +8,7 @@ from tabulate import tabulate
 from termcolor import colored
 
 from tensorpack.dataflow import (
-    DataFromList, MapDataComponent, MultiProcessMapDataZMQ, MultiThreadMapData, TestDataSpeed, imgaug)
+    DataFromList, MapDataComponent, MultiProcessMapDataZMQ, MultiThreadMapData, TestDataSpeed, imgaug, MapData)
 from tensorpack.utils import logger
 from tensorpack.utils.argtools import log_once, memoized
 
@@ -246,6 +246,12 @@ def get_multilevel_rpn_anchor_input(im, boxes, is_crowd):
     return multilevel_inputs
 
 
+
+def sort_by_aspect_ratio(roidbs):
+    sorted_roidbs = sorted(roidbs,
+                           key=lambda x: float(x['width']) / float(x['height']))
+    return sorted_roidbs
+
 def get_train_dataflow():
     """
     Return a training dataflow. Each datapoint consists of the following:
@@ -271,11 +277,14 @@ def get_train_dataflow():
     logger.info("Filtered {} images which contain no non-crowd groudtruth boxes. Total #images for training: {}".format(
         num - len(roidbs), len(roidbs)))
 
-    ds = DataFromList(roidbs, shuffle=True)
+    roidbs = sort_by_aspect_ratio(roidbs)
+    ds = DataFromList(roidbs, shuffle=False)
 
-    aug = imgaug.AugmentorList(
-        [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
-         imgaug.Flip(horiz=True)])
+    # aug = imgaug.AugmentorList(
+    #     [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
+    #      imgaug.Flip(horiz=True)])
+
+    aug = imgaug.AugmentorList([CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)])
 
     def preprocess(roidb):
         fname, boxes, klass, is_crowd = roidb['file_name'], roidb['boxes'], roidb['class'], roidb['is_crowd']
@@ -338,7 +347,7 @@ def get_train_dataflow():
 
 
         ##### Fixing for batch placeholders
-        ret["filenames"] = ["fake_filename0"]
+        ret["filenames"] = [fname]
         ret["images"] = ret["image"][np.newaxis, :, :, :]
         image_h = ret["image"].shape[0]
         image_w = ret["image"].shape[1]
@@ -361,8 +370,9 @@ def get_train_dataflow():
         return ret
 
     if cfg.TRAINER == 'horovod':
-        ds = MultiThreadMapData(ds, 5, preprocess)
+        # ds = MultiThreadMapData(ds, 5, preprocess)
         # MPI does not like fork()
+        ds = MapData(ds, preprocess)
     else:
         ds = MultiProcessMapDataZMQ(ds, 10, preprocess)
     return ds

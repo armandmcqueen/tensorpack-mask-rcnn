@@ -116,6 +116,11 @@ class ResNetFPNModel(ModelDesc):
         prefix = "train.build_graph"
 
         inputs = dict(zip(self.input_names, inputs))
+
+        for k in inputs.keys():
+            inputs[k] = tf.identity(inputs[k], name=f'inputs_{k}')
+            # print(k, inputs[k])
+
         anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
         prepadding_dims = inputs['orig_image_dims']
 
@@ -609,6 +614,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', help="A list of KEY=VALUE to overwrite those defined in config.py",
                         nargs='+')
     parser.add_argument('--fp16', help="Train in FP16", action="store_true")
+    parser.add_argument('--use_nobatch_pipeline', help="Use the no batch data pipeline. Only works with bs=1", action="store_true")
 
     #################################################################################################################
     # Performance investigation arguments
@@ -696,9 +702,11 @@ if __name__ == '__main__':
         logger.info("LR Schedule (epochs, value): " + str(lr_schedule))
 
 
+        if args.use_nobatch_pipeline:
+            train_dataflow = get_nobatch_train_dataflow()
+        else:
+            train_dataflow = get_train_dataflow(cfg.TRAIN.BATCH_SIZE_PER_GPU)
 
-        train_dataflow = get_train_dataflow(cfg.TRAIN.BATCH_SIZE_PER_GPU)
-        # train_dataflow = get_nobatch_train_dataflow()
 
 
 
@@ -755,17 +763,25 @@ if __name__ == '__main__':
         #
         # ]))
 
-        # "dump_rois:0",
-        # "dump_gt_boxes:0",
-        # "dump_gt_labels:0",
-        # "dump_per_image_ious:0",
-        # "dump_single_image_gt_boxes-0:0",
-        # "dump_iou-0:0",
-        # "dump_best_iou_ind-0:0",
-        # "dump_num_fg-0:0",
-        # "dump_num_fg-0:0",
-        # "fg_inds_wrt_gt-0:0",
-        # "all_indices-0:0",
+        callbacks.append(DumpTensors([
+            "inputs_filenames:0",
+            "inputs_images:0",
+            "inputs_orig_image_dims:0",
+            "inputs_anchor_labels_lvl2:0",
+            "inputs_anchor_boxes_lvl2:0",
+            "inputs_anchor_labels_lvl3:0",
+            "inputs_anchor_boxes_lvl3:0",
+            "inputs_anchor_labels_lvl4:0",
+            "inputs_anchor_boxes_lvl4:0",
+            "inputs_anchor_labels_lvl5:0",
+            "inputs_anchor_boxes_lvl5:0",
+            "inputs_anchor_labels_lvl6:0",
+            "inputs_anchor_boxes_lvl6:0",
+            "inputs_gt_boxes:0",
+            "inputs_gt_labels:0",
+            "inputs_orig_gt_counts:0",
+            "inputs_gt_masks:0",
+        ]))
 
 
 
