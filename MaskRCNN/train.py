@@ -698,8 +698,8 @@ if __name__ == '__main__':
 
 
 
-        # train_dataflow = get_train_dataflow(cfg.TRAIN.BATCH_SIZE_PER_GPU)
-        train_dataflow = get_nobatch_train_dataflow()
+        train_dataflow = get_train_dataflow(cfg.TRAIN.BATCH_SIZE_PER_GPU)
+        # train_dataflow = get_nobatch_train_dataflow()
 
 
 
