@@ -477,22 +477,22 @@ if __name__ == '__main__':
         #     "oxbow_nobatch_output_proposal_fg_inds_wrt_gt:0"
         # ]))
 
-        callbacks.append(DumpTensors([
-            "inputs_image:0",
-            "inputs_anchor_labels_lvl2:0",
-            "inputs_anchor_boxes_lvl2:0",
-            "inputs_anchor_labels_lvl3:0",
-            "inputs_anchor_boxes_lvl3:0",
-            "inputs_anchor_labels_lvl4:0",
-            "inputs_anchor_boxes_lvl4:0",
-            "inputs_anchor_labels_lvl5:0",
-            "inputs_anchor_boxes_lvl5:0",
-            "inputs_anchor_labels_lvl6:0",
-            "inputs_anchor_boxes_lvl6:0",
-            "inputs_gt_boxes:0",
-            "inputs_gt_labels:0",
-            "inputs_gt_masks:0",
-        ]))
+        # callbacks.append(DumpTensors([
+        #     "inputs_image:0",
+        #     "inputs_anchor_labels_lvl2:0",
+        #     "inputs_anchor_boxes_lvl2:0",
+        #     "inputs_anchor_labels_lvl3:0",
+        #     "inputs_anchor_boxes_lvl3:0",
+        #     "inputs_anchor_labels_lvl4:0",
+        #     "inputs_anchor_boxes_lvl4:0",
+        #     "inputs_anchor_labels_lvl5:0",
+        #     "inputs_anchor_boxes_lvl5:0",
+        #     "inputs_anchor_labels_lvl6:0",
+        #     "inputs_anchor_boxes_lvl6:0",
+        #     "inputs_gt_boxes:0",
+        #     "inputs_gt_labels:0",
+        #     "inputs_gt_masks:0",
+        # ]))
 
 
 

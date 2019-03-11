@@ -763,25 +763,25 @@ if __name__ == '__main__':
         #
         # ]))
 
-        callbacks.append(DumpTensors([
-            "inputs_filenames:0",
-            "inputs_images:0",
-            "inputs_orig_image_dims:0",
-            "inputs_anchor_labels_lvl2:0",
-            "inputs_anchor_boxes_lvl2:0",
-            "inputs_anchor_labels_lvl3:0",
-            "inputs_anchor_boxes_lvl3:0",
-            "inputs_anchor_labels_lvl4:0",
-            "inputs_anchor_boxes_lvl4:0",
-            "inputs_anchor_labels_lvl5:0",
-            "inputs_anchor_boxes_lvl5:0",
-            "inputs_anchor_labels_lvl6:0",
-            "inputs_anchor_boxes_lvl6:0",
-            "inputs_gt_boxes:0",
-            "inputs_gt_labels:0",
-            "inputs_orig_gt_counts:0",
-            "inputs_gt_masks:0",
-        ]))
+        # callbacks.append(DumpTensors([
+        #     "inputs_filenames:0",
+        #     "inputs_images:0",
+        #     "inputs_orig_image_dims:0",
+        #     "inputs_anchor_labels_lvl2:0",
+        #     "inputs_anchor_boxes_lvl2:0",
+        #     "inputs_anchor_labels_lvl3:0",
+        #     "inputs_anchor_boxes_lvl3:0",
+        #     "inputs_anchor_labels_lvl4:0",
+        #     "inputs_anchor_boxes_lvl4:0",
+        #     "inputs_anchor_labels_lvl5:0",
+        #     "inputs_anchor_boxes_lvl5:0",
+        #     "inputs_anchor_labels_lvl6:0",
+        #     "inputs_anchor_boxes_lvl6:0",
+        #     "inputs_gt_boxes:0",
+        #     "inputs_gt_labels:0",
+        #     "inputs_orig_gt_counts:0",
+        #     "inputs_gt_masks:0",
+        # ]))
 
 
 
