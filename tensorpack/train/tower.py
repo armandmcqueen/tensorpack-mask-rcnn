@@ -9,7 +9,7 @@ import os
 
 from ..input_source import PlaceholderInput
 from ..predict.base import OnlinePredictor
-from ..tfutils.gradproc import FilterNoneGrad
+from ..tfutils.gradproc import FilterNoneGrad, SummaryGradient
 from ..tfutils.tower import PredictTowerContext, TowerFuncWrapper, get_current_tower_context
 from ..utils import logger
 from ..utils.argtools import call_only_once, memoized
@@ -275,8 +275,13 @@ class SingleCostTrainer(TowerTrainer):
                 grads = FilterNoneGrad().process(grads)
 
                 if os.getenv("TENSORPACK_FP16"):
-                    scaled_gv = [(g * 1.0 / loss_scale, v) for g, v in grads]
-                    return scaled_gv
+                    grads = [(g * 1.0 / loss_scale, v) for g, v in grads]
+
+                if os.getenv("TENSORPACK_SUMMARY_GRADIENT"):
+                    grads = SummaryGradient().process(grads)
+
+                if os.getenv("TENSORPACK_FREEZE_VARS"):
+                    grads = [ (g - g, v) for g, v in grads ]
 
                 return grads
 
