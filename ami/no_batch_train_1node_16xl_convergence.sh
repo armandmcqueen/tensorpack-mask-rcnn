@@ -3,6 +3,7 @@
 # Set timestamp and logging directory, begin writing to it.
 TS=`date +'%Y%m%d_%H%M%S'`
 LOG_DIR=/home/ubuntu/logs/train_log_${TS}
+#LOG_DIR=/tmp/logs
 mkdir -p ${LOG_DIR}
 exec &> >(tee ${LOG_DIR}/nohup.out)
 
@@ -29,7 +30,9 @@ pip freeze > ${LOG_DIR}/requirements.txt
 ldd /home/ubuntu/anaconda3/envs/${VENV}/lib/python3.6/site-packages/tensorflow/libtensorflow_framework.so > ${LOG_DIR}/tf_so_links.txt
 
 # Execute training job
-HOROVOD_TIMELINE=${LOG_DIR}/htimeline.json \
+#HOROVOD_TIMELINE=${LOG_DIR}/htimeline.json \
+#-x TENSORPACK_FP16 \
+#TENSORPACK_FP16=1 \
 HOROVOD_CYCLE_TIME=0.5 \
 HOROVOD_FUSION_THRESHOLD=67108864 \
 /home/ubuntu/anaconda3/envs/${VENV}/bin/mpirun -np 8 -H localhost:8 \
@@ -44,17 +47,14 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 --output-filename ${LOG_DIR}/mpirun_logs \
 /home/ubuntu/anaconda3/envs/${VENV}/bin/python3 -m MaskRCNN.train \
 --logdir ${LOG_DIR} \
---fp16 \
 --perf \
---images_per_step 8 \
 --throughput_log_freq 2000 \
---summary_period 0 \
+--summary_period 25 \
 --config MODE_MASK=True \
 MODE_FPN=True \
 DATA.BASEDIR=/home/ubuntu/data \
 DATA.TRAIN='["train2017"]' \
 DATA.VAL='("val2017",)' \
-TRAIN.STEPS_PER_EPOCH=15000 \
 TRAIN.LR_SCHEDULE='[120000, 160000, 180000]' \
 BACKBONE.WEIGHTS=/home/ubuntu/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
 BACKBONE.NORM=FreezeBN \
