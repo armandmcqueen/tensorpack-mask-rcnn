@@ -535,9 +535,11 @@ def generate_fpn_proposals_batch_tf_op(
 
                 label_logits = multilevel_label_logits[lvl]
                 # label_logits = print_runtime_shape(f'label_logits, lvl{lvl}', label_logits, prefix=bug_prefix)
-                scores = tf.transpose(label_logits, [0, 3, 1, 2])
+                #scores = tf.transpose(label_logits, [0, 3, 1, 2])
+                scores = label_logits
 
-                box_logits = multilevel_box_logits[lvl] # N(A4)HW
+                #box_logits = multilevel_box_logits[lvl] # N(A4)HW
+                box_logits = tf.transpose(multilevel_box_logits[lvl],[0, 3, 1, 2])
 
 
 
