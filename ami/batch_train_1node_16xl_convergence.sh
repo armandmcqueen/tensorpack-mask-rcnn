@@ -45,11 +45,10 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 -x LD_LIBRARY_PATH -x PATH \
 -x HOROVOD_CYCLE_TIME -x HOROVOD_FUSION_THRESHOLD \
 --output-filename ${LOG_DIR}/mpirun_logs \
-/home/ubuntu/anaconda3/envs/${VENV}/bin/python3 -m MaskRCNN_no_batch.train \
+/home/ubuntu/anaconda3/envs/${VENV}/bin/python3 -m MaskRCNN.train \
 --logdir ${LOG_DIR} \
 --perf \
 --throughput_log_freq 2000 \
---images_per_step 8 \
 --summary_period 25 \
 --config MODE_MASK=True \
 MODE_FPN=True \
@@ -59,4 +58,5 @@ DATA.VAL='("val2017",)' \
 TRAIN.LR_SCHEDULE='[120000, 160000, 180000]' \
 BACKBONE.WEIGHTS=/home/ubuntu/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
 BACKBONE.NORM=FreezeBN \
+TRAIN.BATCH_SIZE_PER_GPU=1 \
 TRAINER=horovod
