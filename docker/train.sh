@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 NUM_GPU=${1:-1}
 IMAGES_PER_GPU=${2:-1}
+SUMMARY_PERIOD=${3:-0}
 
 
 echo ""
@@ -28,6 +29,7 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 /usr/local/bin/python3 /tensorpack-mask-rcnn/MaskRCNN/train.py \
 --logdir /logs/train_log \
 --perf \
+--summary_period $SUMMARY_PERIOD \
 --throughput_log_freq 1 \
 --config MODE_MASK=True \
 MODE_FPN=True \
