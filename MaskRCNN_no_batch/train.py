@@ -96,24 +96,42 @@ class DetectionModel(ModelDesc):
                 '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
 
             rpn_label_loss, rpn_box_loss = rpn_losses
-            fr_label_loss, fr_box_loss, mask_loss = head_losses
-
-            wd_cost = print_runtime_tensor("wd_cost", wd_cost, prefix="train.py")
-            rpn_label_loss = print_runtime_tensor("rpn_label_loss", rpn_label_loss, prefix="train.py")
-            rpn_box_loss = print_runtime_tensor("rpn_box_loss", rpn_box_loss, prefix="train.py")
-            fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
-            fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
-            mask_loss = print_runtime_tensor("mask_loss", mask_loss, prefix="train.py")
-
-            head_losses = [fr_label_loss, fr_box_loss, mask_loss]
+            wd_cost = tf.identity(wd_cost, "dump_wd_cost")
+            rpn_label_loss = tf.identity(rpn_label_loss, "dump_rpn_label_loss")
+            rpn_box_loss = tf.identity(rpn_box_loss, "dump_rpn_box_loss")
+            # wd_cost = print_runtime_tensor("wd_cost", wd_cost, prefix="train.py")
+            # rpn_label_loss = print_runtime_tensor("rpn_label_loss", rpn_label_loss, prefix="train.py")
+            # rpn_box_loss = print_runtime_tensor("rpn_box_loss", rpn_box_loss, prefix="train.py")
             rpn_losses = [rpn_label_loss, rpn_box_loss]
 
-            total_cost = tf.add_n(
-                rpn_losses + head_losses + [wd_cost], 'total_cost')
+            if cfg.MODE_MASK:
+
+                fr_label_loss, fr_box_loss, mask_loss = head_losses
+                fr_label_loss = tf.identity(fr_label_loss, "dump_fr_label_loss")
+                fr_box_loss = tf.identity(fr_box_loss, "dump_fr_box_loss")
+                mask_loss = tf.identity(mask_loss, "dump_mask_loss")
+                # fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
+                # fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
+                # mask_loss = print_runtime_tensor("mask_loss", mask_loss, prefix="train.py")
+                head_losses = [fr_label_loss, fr_box_loss, mask_loss]
+
+
+            else:
+                fr_label_loss, fr_box_loss = head_losses
+                fr_label_loss = tf.identity(fr_label_loss, "dump_fr_label_loss")
+                fr_box_loss = tf.identity(fr_box_loss, "dump_fr_box_loss")
+                # fr_label_loss = print_runtime_tensor("fr_label_loss", fr_label_loss, prefix="train.py")
+                # fr_box_loss = print_runtime_tensor("fr_box_loss", fr_box_loss, prefix="train.py")
+                head_losses = [fr_label_loss, fr_box_loss]
+
+            total_cost = tf.add_n(rpn_losses + head_losses + [wd_cost])
 
             total_cost = print_runtime_tensor("total_cost", total_cost, prefix="train.py")
+            total_cost = tf.identity(total_cost, "dump_total_cost")
+            total_cost = tf.identity(total_cost, "total_cost")
 
             add_moving_summary(total_cost, wd_cost)
+
             return total_cost
 
 
