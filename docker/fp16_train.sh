@@ -10,7 +10,7 @@ echo ""
 # --use_nobatch_pipeline
 
 TENSORPACK_FP16=1 \
-HOROVOD_TIMELINE=/tensorpack-mask-rcnn/logs/htimeline.json \
+HOROVOD_TIMELINE=/logs/htimeline.json \
 HOROVOD_CYCLE_TIME=0.5 \
 HOROVOD_FUSION_THRESHOLD=67108864 \
 /usr/local/bin/mpirun -np ${NUM_GPU} \
@@ -27,9 +27,9 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 -x HOROVOD_FUSION_THRESHOLD \
 -x CUSTOM_LOSS_SCALE \
 -x TENSORPACK_FP16 \
---output-filename /tensorpack-mask-rcnn/logs/mpirun_logs \
+--output-filename /logs/mpirun_logs \
 /usr/local/bin/python3 /tensorpack-mask-rcnn/MaskRCNN/train.py \
---logdir /tensorpack-mask-rcnn/logs/train_log \
+--logdir /logs/train_log \
 --fp16 \
 --perf \
 --throughput_log_freq 1 \
