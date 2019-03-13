@@ -140,10 +140,11 @@ class ResNetFPNModel(ModelDesc):
 
         if self.training:
             wd_cost = regularize_cost(
-                    '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
+                    '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY))
 
             rpn_label_loss, rpn_box_loss = rpn_losses
             wd_cost = tf.identity(wd_cost, "dump_wd_cost")
+            wd_cost = tf.identity(wd_cost, "wd_cost")
             rpn_label_loss = tf.identity(rpn_label_loss, "dump_rpn_label_loss")
             rpn_box_loss = tf.identity(rpn_box_loss, "dump_rpn_box_loss")
             # wd_cost = print_runtime_tensor("wd_cost", wd_cost, prefix="train.py")
