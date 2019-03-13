@@ -33,3 +33,4 @@ TRAIN.LR_SCHEDULE='[120000, 160000, 180000]' \
 BACKBONE.WEIGHTS=/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
 BACKBONE.NORM=FreezeBN \
 TRAINER=horovod \
+TRAIN.EVAL_PERIOD=12
