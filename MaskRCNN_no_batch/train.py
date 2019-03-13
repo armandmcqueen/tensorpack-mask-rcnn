@@ -406,7 +406,8 @@ if __name__ == '__main__':
             logger.set_logger_dir(args.logdir, 'k')
 
         finalize_configs(is_training=True)
-        stepnum = cfg.TRAIN.STEPS_PER_EPOCH
+        #stepnum = cfg.TRAIN.STEPS_PER_EPOCH
+        stepnum = cfg.TRAIN.NUM_GPUS
 
         # warmup is step based, lr is epoch based
         init_lr = cfg.TRAIN.WARMUP_INIT_LR * min(8. / cfg.TRAIN.NUM_GPUS, 1.)
