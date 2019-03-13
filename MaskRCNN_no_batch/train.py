@@ -405,7 +405,8 @@ if __name__ == '__main__':
             logger.set_logger_dir(args.logdir, 'k')
 
         finalize_configs(is_training=True)
-        steps_per_epoch = args.num_total_images / cfg.TRAIN.NUM_GPUS
+        images_per_step = cfg.TRAIN.NUM_GPUS
+        steps_per_epoch = args.num_total_images / images_per_step
 
         # warmup is step based, lr is epoch based
         init_lr = cfg.TRAIN.WARMUP_INIT_LR * min(8. / cfg.TRAIN.NUM_GPUS, 1.)
@@ -444,7 +445,7 @@ if __name__ == '__main__':
             callbacks.append(GPUUtilizationTracker())
 
         if args.perf:
-            callbacks.append(ThroughputTracker(args.images_per_step,
+            callbacks.append(ThroughputTracker(images_per_step,
                                                args.num_total_images,
                                                trigger_every_n_steps=args.throughput_log_freq,
                                                log_fn=logger.info))
