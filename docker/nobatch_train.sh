@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 NUM_GPU=${1:-1}
-let IMAGES_PER_STEP=${NUM_GPU}
 
 echo ""
 echo "NUM_GPU: ${NUM_GPU}"
-echo "IMAGES_PER_STEP: ${IMAGES_PER_STEP}"
 echo ""
 
 HOROVOD_TIMELINE=/tensorpack-mask-rcnn/logs/htimeline.json \
@@ -24,7 +22,6 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 --logdir /tensorpack-mask-rcnn/logs/train_log \
 --perf \
 --throughput_log_freq 1 \
---images_per_step ${IMAGES_PER_STEP} \
 --config MODE_MASK=True \
 MODE_FPN=True \
 DATA.BASEDIR=/data \
