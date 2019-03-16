@@ -236,7 +236,7 @@ def generate_fpn_proposals(
 
 @under_name_scope()
 def generate_fpn_proposals_batch_tf_op(
-        multilevel_box_logits, multilevel_label_logits, orig_image_dims):
+        multilevel_anchor_boxes, multilevel_box_logits, multilevel_label_logits, orig_image_dims):
     """
     Args:
         multilevel_box_logits:      #lvl [ BS x (NAx4) x H x W ] boxes
@@ -279,6 +279,11 @@ def generate_fpn_proposals_batch_tf_op(
                 # bbox_deltas = print_runtime_shape(f'bbox_deltas (pre-reshape), lvl {lvl}', bbox_deltas, prefix=bug_prefix)
 
 
+                single_level_anchor_boxes = multilevel_anchor_boxes[lvl]
+                shp = tf.shape(single_level_anchor_boxes)
+                single_level_anchor_boxes = tf.reshape(single_level_anchor_boxes, (shp[0], shp[1], -1))
+
+                '''
                 area = cfg.RPN.ANCHOR_SIZES[lvl] ** 2
                 anchor_list = []
                 for ratio in cfg.RPN.ANCHOR_RATIOS:
@@ -304,6 +309,7 @@ def generate_fpn_proposals_batch_tf_op(
                     anchor_list.append(anchor)
                 # print(anchor_list)
                 anchors = tf.stack(anchor_list)
+                '''
 
 
 
@@ -363,7 +369,8 @@ def generate_fpn_proposals_batch_tf_op(
                 rois, rois_probs = tf.generate_bounding_box_proposals(scores,
                                                                    bbox_deltas,
                                                                    im_info,
-                                                                   anchors,
+                                                                   #anchors,
+                                                                   single_level_anchors,
                                                                    spatial_scale=1.0 / cfg.FPN.ANCHOR_STRIDES[lvl],
                                                                    pre_nms_topn=fpn_nms_topk,
                                                                    post_nms_topn=fpn_nms_topk,

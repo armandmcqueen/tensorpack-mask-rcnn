@@ -41,7 +41,7 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 -x LD_LIBRARY_PATH -x PATH \
 -x HOROVOD_CYCLE_TIME -x HOROVOD_FUSION_THRESHOLD \
 --output-filename ${LOG_DIR}/mpirun_logs \
-/home/ubuntu/anaconda3/envs/${VENV}/bin/python3 /home/ubuntu/tensorpack-mask-rcnn/MaskRCNN-no-batch-convergence/train.py \
+/home/ubuntu/anaconda3/envs/${VENV}/bin/python3 /home/ubuntu/tensorpack-mask-rcnn/MaskRCNN_no_batch_convergence/train.py \
 --logdir ${LOG_DIR} \
 --perf \
 --throughput_log_freq 2000 \
