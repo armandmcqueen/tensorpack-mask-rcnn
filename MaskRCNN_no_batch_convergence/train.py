@@ -35,7 +35,7 @@ from model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
 from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
 from performance import ThroughputTracker
 
-BATCH_GENERATE_PROPOSALS=False
+BATCH_GENERATE_PROPOSALS=True
 
 try:
     import horovod.tensorflow as hvd

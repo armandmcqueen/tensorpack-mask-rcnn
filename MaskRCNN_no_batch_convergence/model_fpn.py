@@ -271,7 +271,7 @@ def generate_fpn_proposals_batch_tf_op(
                 scores = label_logits
 
                 #box_logits = multilevel_box_logits[lvl] # N(A4)HW
-                box_logits = tf.transpose(multilevel_box_logits[lvl],[0, 3, 1, 2])
+                box_logits = tf.transpose(multilevel_box_logits[lvl],[0, 2, 3, 1])
 
 
 
@@ -281,7 +281,8 @@ def generate_fpn_proposals_batch_tf_op(
 
                 single_level_anchor_boxes = multilevel_anchor_boxes[lvl]
                 shp = tf.shape(single_level_anchor_boxes)
-                single_level_anchor_boxes = tf.reshape(single_level_anchor_boxes, (shp[0], shp[1], -1))
+                single_level_anchor_boxes = tf.reshape(single_level_anchor_boxes, (-1, 4))
+                #print("single_level_anchor_boxes", single_level_anchor_boxes)
 
                 '''
                 area = cfg.RPN.ANCHOR_SIZES[lvl] ** 2
@@ -370,7 +371,7 @@ def generate_fpn_proposals_batch_tf_op(
                                                                    bbox_deltas,
                                                                    im_info,
                                                                    #anchors,
-                                                                   single_level_anchors,
+                                                                   single_level_anchor_boxes,
                                                                    spatial_scale=1.0 / cfg.FPN.ANCHOR_STRIDES[lvl],
                                                                    pre_nms_topn=fpn_nms_topk,
                                                                    post_nms_topn=fpn_nms_topk,
