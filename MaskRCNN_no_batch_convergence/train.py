@@ -12,7 +12,6 @@ import six
 assert six.PY3, "FasterRCNN requires Python 3!"
 import tensorflow as tf
 import tqdm
-import logger
 
 import tensorpack.utils.viz as tpviz
 from tensorpack import *
@@ -20,20 +19,38 @@ from tensorpack.tfutils import optimizer
 from tensorpack.tfutils.common import get_tf_version_tuple
 from tensorpack.tfutils.summary import add_moving_summary
 
-import model_frcnn
-import model_mrcnn
-from basemodel import image_preprocess, resnet_c4_backbone, resnet_conv5, resnet_fpn_backbone
-from dataset import DetectionDataset
-from config import finalize_configs, config as cfg
-from data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
-from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
-from model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align
-from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, generate_fpn_proposals_batch_tf_op
-from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets
-from model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
-from model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
-from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
-from performance import ThroughputTracker
+STATICA_HACK = True
+globals()['kcah_acitats'[::-1].upper()] = False
+if STATICA_HACK:
+    from .basemodel import image_preprocess, resnet_c4_backbone, resnet_conv5, resnet_fpn_backbone
+    from .dataset import DetectionDataset
+    from .config import finalize_configs, config as cfg
+    from .data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
+    from .eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
+    from .model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align
+    from .model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, \
+        generate_fpn_proposals_batch_tf_op
+    from .model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets
+    from .model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
+    from .model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
+    from .viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
+    from .performance import ThroughputTracker
+else:
+
+    import model_frcnn
+    import model_mrcnn
+    from basemodel import image_preprocess, resnet_c4_backbone, resnet_conv5, resnet_fpn_backbone
+    from dataset import DetectionDataset
+    from config import finalize_configs, config as cfg
+    from data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
+    from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
+    from model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align
+    from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, generate_fpn_proposals_batch_tf_op
+    from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets
+    from model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
+    from model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
+    from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
+    from performance import ThroughputTracker
 
 BATCH_GENERATE_PROPOSALS=True
 
