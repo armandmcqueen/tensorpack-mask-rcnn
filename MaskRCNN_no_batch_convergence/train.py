@@ -29,8 +29,8 @@ if STATICA_HACK:
     from .eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
     from .model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align
     from .model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, \
-        generate_fpn_proposals_batch_tf_op
-    from .model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets
+        generate_fpn_proposals_batch_tf_op, multilevel_roi_align_tf_op, multilevel_rpn_losses_batch
+    from .model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets, sample_fast_rcnn_targets_batch
     from .model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
     from .model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
     from .viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
@@ -45,14 +45,23 @@ else:
     from data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
     from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
     from model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align
-    from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, generate_fpn_proposals_batch_tf_op
-    from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets
+    from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, \
+        generate_fpn_proposals_batch_tf_op, multilevel_roi_align_tf_op, multilevel_rpn_losses_batch
+    from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets, sample_fast_rcnn_targets_batch
     from model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
     from model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
     from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
     from performance import ThroughputTracker
 
-BATCH_GENERATE_PROPOSALS=True
+BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global arg. In convergence codebase, this is a constant
+
+BATCH_GENERATE_PROPOSALS = False
+BATCH_RPN_LOSS = False
+BATCH_ROI_ALIGN_BOX = False
+BATCH_SAMPLE_TARGETS = False
+BATCH_ROI_ALIGN_MASK = False
+BATCH_CROP_AND_RESIZE_MASK = False
+
 
 try:
     import horovod.tensorflow as hvd
@@ -178,8 +187,15 @@ class ResNetFPNModel(DetectionModel):
                        for pi in features]
         multilevel_label_logits = [k[0] for k in rpn_outputs]
         multilevel_box_logits = [k[1] for k in rpn_outputs]
-        
+
+
+
+
+
+
+        #########################################################################################################
         if not BATCH_GENERATE_PROPOSALS:
+        #########################################################################################################
             multilevel_pred_boxes = [anchor.decode_logits(logits)
                                      for anchor, logits in zip(multilevel_anchors, multilevel_box_logits)]
             proposal_boxes, proposal_scores = generate_fpn_proposals(
@@ -201,10 +217,38 @@ class ResNetFPNModel(DetectionModel):
             proposal_scores = tf.reshape(tf.reshape(proposal_scores, (-1, 5))[:, 1:], (-1,))
             multilevel_label_logits = [tf.squeeze(k, 0) for k in multilevel_label_logits]
             multilevel_box_logits = [k[1] for k in rpn_outputs]
+        #########################################################################################################
+
+
+
+
+
 
         if self.training:
-            losses = multilevel_rpn_losses(
-                multilevel_anchors, multilevel_label_logits, multilevel_box_logits)
+            #########################################################################################################
+            if BATCH_RPN_LOSS:
+            #########################################################################################################
+                all_anchors_fpn = get_all_anchors_fpn()  # For a single image. List, with anchors for each level
+                batched_all_anchors_fpn = []
+
+                for i, all_anchors_on_level in enumerate(all_anchors_fpn):
+                    batched_all_anchors_on_level = tf.stack([all_anchors_on_level for _ in range(BATCH_SIZE_PLACEHOLDER)])
+                    batched_all_anchors_fpn.append(batched_all_anchors_on_level)
+
+                multilevel_anchors = [RPNAnchors(
+                        batched_all_anchors_fpn[i],
+                        inputs['anchor_labels_lvl{}'.format(i + 2)],
+                        inputs['anchor_boxes_lvl{}'.format(i + 2)]) for i in range(len(all_anchors_fpn))]
+
+                # These 3 lines are the self.slice_feature_and_anchors_batch function from the batch code
+                for i, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
+                    with tf.name_scope('FPN_batch_slice_lvl{}'.format(i)):
+                        multilevel_anchors[i] = multilevel_anchors[i].narrow_to_batch(features[i])
+
+                losses = multilevel_rpn_losses_batch(multilevel_anchors, multilevel_label_logits, multilevel_box_logits)
+            else:
+                losses = multilevel_rpn_losses(multilevel_anchors, multilevel_label_logits, multilevel_box_logits)
+            #########################################################################################################
         else:
             losses = []
 
@@ -216,12 +260,53 @@ class ResNetFPNModel(DetectionModel):
         gt_boxes, gt_labels, *_ = targets
 
         if self.training:
-            proposals = sample_fast_rcnn_targets(proposals.boxes, gt_boxes, gt_labels)
+
+
+
+
+            #########################################################################################################
+            if BATCH_SAMPLE_TARGETS:
+            #########################################################################################################
+                prepadding_gt_count = tf.shape(gt_boxes)[0]
+                prepadding_gt_counts = tf.expand_dims(prepadding_gt_count, 0)
+                input_gt_boxes = tf.expand_dims(gt_boxes, 0)
+                input_gt_labels = tf.expand_dims(gt_labels, 0)
+                input_proposal_boxes = tf.pad(proposals.boxes, [[0,0], [1,0]], constant_values=0)
+
+                proposal_boxes, proposal_labels, proposal_gt_id_for_each_fg = sample_fast_rcnn_targets_batch(
+                        input_proposal_boxes,
+                        input_gt_boxes,
+                        input_gt_labels,
+                        prepadding_gt_counts,
+                        batch_size=1)
+
+                proposals = BoxProposals(proposal_boxes[:, 1:], proposal_labels, proposal_gt_id_for_each_fg[0])
+            else:
+                proposals = sample_fast_rcnn_targets(proposals.boxes, gt_boxes, gt_labels)
+            ##########################################################################################################
+
+
+
+
+
+
+
+        ##########################################################################################################
+        if BATCH_ROI_ALIGN_BOX:
+        ##########################################################################################################
+            roi_feature_fastrcnn = multilevel_roi_align_tf_op(features[:4], proposals.boxes, 7)
+        else:
+            roi_feature_fastrcnn = multilevel_roi_align(features[:4], proposals.boxes, 7)
+        ##########################################################################################################
+
+
+
+
+
 
         fastrcnn_head_func = getattr(model_frcnn, cfg.FPN.FRCNN_HEAD_FUNC)
-        roi_feature_fastrcnn = multilevel_roi_align(features[:4], proposals.boxes, 7)
-
         head_feature = fastrcnn_head_func('fastrcnn', roi_feature_fastrcnn)
+
         fastrcnn_label_logits, fastrcnn_box_logits = fastrcnn_outputs(
             'fastrcnn/outputs', head_feature, cfg.DATA.NUM_CLASS)
         fastrcnn_head = FastRCNNHead(proposals, fastrcnn_box_logits, fastrcnn_label_logits,
@@ -234,20 +319,84 @@ class ResNetFPNModel(DetectionModel):
             if cfg.MODE_MASK:
                 gt_masks = targets[2]
                 # maskrcnn loss
-                roi_feature_maskrcnn = multilevel_roi_align(
-                    features[:4], proposals.fg_boxes(), 14,
-                    name_scope='multilevel_roi_align_mask')
+
+
+
+
+                ##########################################################################################################
+                if BATCH_ROI_ALIGN_MASK:
+                ##########################################################################################################
+                    roi_feature_maskrcnn = multilevel_roi_align_tf_op(
+                        features[:4], proposals.fg_boxes(), 14,
+                        name_scope='multilevel_roi_align_mask')
+                else:
+                    roi_feature_maskrcnn = multilevel_roi_align(
+                            features[:4], proposals.fg_boxes(), 14,
+                            name_scope='multilevel_roi_align_mask')
+                ##########################################################################################################
+
+
+
+
+
                 maskrcnn_head_func = getattr(model_mrcnn, cfg.FPN.MRCNN_HEAD_FUNC)
                 mask_logits = maskrcnn_head_func(
                     'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY, fp16=self.fp16)   # #fg x #cat x 28 x 28
 
-                target_masks_for_fg = crop_and_resize(
-                    tf.expand_dims(gt_masks, 1),
-                    proposals.fg_boxes(),
-                    proposals.fg_inds_wrt_gt, 28,
-                    pad_border=False)  # fg x 1x28x28
+
+
+
+
+                ##########################################################################################################
+                if BATCH_CROP_AND_RESIZE_MASK:
+                ##########################################################################################################
+                    prepadding_gt_counts = tf.expand_dims(tf.shape(gt_labels)[0], 0)
+                    proposal_fg_boxes = tf.expand_dims(proposals.fg_boxes(), 0)
+                    proposal_fg_labels = tf.expand_dims(proposals.fg_labels(), 0)
+                    proposal_gt_id_for_each_fg = [proposals.fg_inds_wrt_gt]
+                    orig_image_dims = [image_shape2d]
+
+
+                    per_image_target_masks_for_fg = []
+                    per_image_fg_labels = []
+                    for i in range(BATCH_SIZE_PLACEHOLDER):
+
+                        single_image_gt_count = prepadding_gt_counts[i]
+                        single_image_gt_masks = gt_masks[i, :single_image_gt_count, :, :]
+                        single_image_fg_indices = tf.squeeze(tf.where(tf.equal(proposal_fg_boxes[:, 0], i)), axis=1)
+                        single_image_fg_boxes = tf.gather(proposal_fg_boxes, single_image_fg_indices)[:, 1:]
+                        single_image_fg_labels = tf.gather(proposal_fg_labels, single_image_fg_indices)
+                        single_image_fg_inds_wrt_gt = proposal_gt_id_for_each_fg[i]
+
+                        single_image_gt_masks = tf.expand_dims(single_image_gt_masks, axis=1)
+
+                        single_image_target_masks_for_fg = crop_and_resize(single_image_gt_masks,
+                                                                           single_image_fg_boxes,
+                                                                           single_image_fg_inds_wrt_gt,
+                                                                           28,
+                                                                           orig_image_dims[i],
+                                                                           pad_border=False,
+                                                                           verbose_batch_index=i)  # fg x 1x28x28
+                        per_image_fg_labels.append(single_image_fg_labels)
+                        per_image_target_masks_for_fg.append(single_image_target_masks_for_fg)
+
+                    target_masks_for_fg = tf.concat(per_image_target_masks_for_fg, axis=0)
+                else:
+                    target_masks_for_fg = crop_and_resize(
+                        tf.expand_dims(gt_masks, 1),
+                        proposals.fg_boxes(),
+                        proposals.fg_inds_wrt_gt, 28,
+                        pad_border=False)  # fg x 1x28x28
+                ##########################################################################################################
+
+
+
+
+
+
                 target_masks_for_fg = tf.squeeze(target_masks_for_fg, 1, 'sampled_fg_mask_targets')
-                all_losses.append(maskrcnn_loss(mask_logits, proposals.fg_labels(), target_masks_for_fg))
+                mask_loss = maskrcnn_loss(mask_logits, proposals.fg_labels(), target_masks_for_fg)
+                all_losses.append(mask_loss)
             return all_losses
         else:
             decoded_boxes = fastrcnn_head.decoded_output_boxes()
@@ -414,7 +563,7 @@ if __name__ == '__main__':
             logger.info("Horovod Rank={}, Size={}".format(hvd.rank(), hvd.size()))
 
         if not is_horovod or hvd.rank() == 0:
-            logger.set_logger_dir(args.logdir, 'k')
+            logger.set_logger_dir(args.logdir, 'd')
 
         finalize_configs(is_training=True)
         stepnum = cfg.TRAIN.STEPS_PER_EPOCH

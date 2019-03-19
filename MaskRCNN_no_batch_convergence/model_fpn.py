@@ -13,7 +13,7 @@ from tensorpack.tfutils.tower import get_current_tower_context
 from basemodel import GroupNorm
 from config import config as cfg
 from model_box import roi_align
-from model_rpn import generate_rpn_proposals, rpn_losses
+from model_rpn import generate_rpn_proposals, rpn_losses, rpn_losses_batch_iterative
 from utils.box_ops import area as tf_area
 from utils.mixed_precision import mixed_precision_scope
 
@@ -125,6 +125,46 @@ def multilevel_roi_align(features, rcnn_boxes, resolution):
     # Crop patches from corresponding levels
     for i, boxes, featuremap in zip(itertools.count(), level_boxes, features):
         with tf.name_scope('roi_level{}'.format(i + 2)):
+            boxes_on_featuremap = boxes * (1.0 / cfg.FPN.ANCHOR_STRIDES[i])
+            all_rois.append(roi_align(featuremap, boxes_on_featuremap, resolution))
+
+            # roi_feature_maps = tf.roi_align(featuremap,
+            #                                 boxes,
+            #                                 pooled_height=resolution,
+            #                                 pooled_width=resolution,
+            #                                 spatial_scale=1.0 / cfg.FPN.ANCHOR_STRIDES[i],
+            #                                 sampling_ratio=2)
+            # all_rois.append(roi_feature_maps)
+
+    # this can fail if using TF<=1.8 with MKL build
+    all_rois = tf.concat(all_rois, axis=0)  # NCHW
+    # Unshuffle to the original order, to match the original samples
+    level_id_perm = tf.concat(level_ids, axis=0)  # A permutation of 1~N
+    level_id_invert_perm = tf.invert_permutation(level_id_perm)
+    all_rois = tf.gather(all_rois, level_id_invert_perm)
+    return all_rois
+
+
+
+
+@under_name_scope(name_scope="multilevel_roi_align")
+def multilevel_roi_align_tf_op(features, rcnn_boxes, resolution):
+    """
+    Args:
+        features ([tf.Tensor]): 4 FPN feature level 2-5
+        rcnn_boxes (tf.Tensor): nx4 boxes
+        resolution (int): output spatial resolution
+    Returns:
+        NxC x res x res
+    """
+    assert len(features) == 4, features
+    # Reassign rcnn_boxes to levels
+    level_ids, level_boxes = fpn_map_rois_to_levels(rcnn_boxes)
+    all_rois = []
+
+    # Crop patches from corresponding levels
+    for i, boxes, featuremap in zip(itertools.count(), level_boxes, features):
+        with tf.name_scope('roi_level{}'.format(i + 2)):
             #boxes_on_featuremap = boxes * (1.0 / cfg.FPN.ANCHOR_STRIDES[i])
             #all_rois.append(roi_align(featuremap, boxes_on_featuremap, resolution))
 
@@ -143,7 +183,6 @@ def multilevel_roi_align(features, rcnn_boxes, resolution):
     level_id_invert_perm = tf.invert_permutation(level_id_perm)
     all_rois = tf.gather(all_rois, level_id_invert_perm)
     return all_rois
-
 
 def multilevel_rpn_losses(
         multilevel_anchors, multilevel_label_logits, multilevel_box_logits):
@@ -175,6 +214,58 @@ def multilevel_rpn_losses(
         total_box_loss = tf.add_n(losses[1::2], name='box_loss')
         add_moving_summary(total_label_loss, total_box_loss)
     return [total_label_loss, total_box_loss]
+
+
+
+
+
+def multilevel_rpn_losses_batch(
+        multilevel_anchors, multilevel_label_logits, multilevel_box_logits):
+    """
+    Args:
+        multilevel_anchors: #lvl RPNAnchors (batch formulation)
+        multilevel_label_logits: #lvl tensors of shape BS x H x W x A
+        multilevel_box_logits: #lvl tensors of shape BS x (A*4) x H x W
+
+    Returns:
+        label_loss, box_loss
+    """
+    num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
+    assert len(multilevel_anchors) == num_lvl
+    assert len(multilevel_label_logits) == num_lvl
+    assert len(multilevel_box_logits) == num_lvl
+
+    losses = []
+    with tf.name_scope('rpn_losses'):
+        for lvl in range(num_lvl):
+            anchors = multilevel_anchors[lvl]
+
+            label_loss, box_loss = rpn_losses_batch_iterative(
+                    anchors.gt_labels,
+                    anchors.encoded_gt_boxes(),
+                    multilevel_label_logits[lvl],
+                    multilevel_box_logits[lvl],
+                    name_scope='level{}'.format(lvl + 2),
+                    print_anchor_tensors=lvl == 0)
+            #
+            # label_loss, box_loss = rpn_losses_batch(
+            #     anchors.gt_labels,
+            #     anchors.encoded_gt_boxes(),
+            #     multilevel_label_logits[lvl],
+            #     multilevel_box_logits[lvl],
+            #     name_scope='level{}'.format(lvl + 2),
+            #     print_anchor_tensors=lvl==0)
+            #
+
+            losses.extend([label_loss, box_loss])
+
+        total_label_loss = tf.add_n(losses[::2], name='label_loss')
+        total_box_loss = tf.add_n(losses[1::2], name='box_loss')
+        add_moving_summary(total_label_loss, total_box_loss)
+    return [total_label_loss, total_box_loss]
+
+
+
 
 
 @under_name_scope()

@@ -66,3 +66,35 @@ def pairwise_iou(boxlist1, boxlist2):
     return tf.where(
         tf.equal(intersections, 0.0),
         tf.zeros_like(intersections), tf.truediv(intersections, unions))
+
+
+
+@under_name_scope()
+def pairwise_iou_batch(proposal_boxes, gt_boxes, orig_gt_counts, batch_size):
+    """Computes pairwise intersection-over-union between box collections.
+    Args:
+      boxlist1: Nx5                             (batch_index, x1, y1, x2, t2)
+      boxlist2: BS x MaxNumGTs x 4
+      orig_gt_counts: BS
+    Returns:
+        list of length BS, each element is output of pairwise_iou: N x M
+        (where N is number of boxes for image and M is number of GTs for image)
+    """
+
+    prefix = "pairwise_iou_batch"
+
+    # For each image index, extract a ?x4 boxlist and gt_boxlist
+
+    per_images_iou = []
+    for batch_idx in range(batch_size):
+
+        box_mask_for_image = tf.equal(proposal_boxes[:, 0], batch_idx)
+
+        single_image_boxes = tf.boolean_mask(proposal_boxes, box_mask_for_image)
+        single_image_boxes = single_image_boxes[:, 1:]
+        single_image_gt_boxes = gt_boxes[batch_idx, 0:orig_gt_counts[batch_idx], :]
+        single_image_iou = pairwise_iou(single_image_boxes, single_image_gt_boxes)
+
+        per_images_iou.append(single_image_iou)
+
+    return per_images_iou

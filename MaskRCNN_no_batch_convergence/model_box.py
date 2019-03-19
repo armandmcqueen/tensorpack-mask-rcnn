@@ -198,6 +198,19 @@ class RPNAnchors(namedtuple('_RPNAnchors', ['boxes', 'gt_labels', 'gt_boxes'])):
         gt_boxes = tf.slice(self.gt_boxes, [0, 0, 0, 0], slice4d)
         return RPNAnchors(boxes, gt_labels, gt_boxes)
 
+    @under_name_scope()
+    def narrow_to_batch(self, featuremap):
+        """
+        Slice anchors to the spatial size of this featuremap.
+        """
+        shape2d = tf.shape(featuremap)[2:]  # h,w
+        slice4d = tf.concat([[-1], shape2d, [-1]], axis=0)
+        slice5d = tf.concat([[-1], shape2d, [-1, -1]], axis=0)
+        boxes = tf.slice(self.boxes, [0, 0, 0, 0, 0], slice5d)
+        gt_labels = tf.slice(self.gt_labels, [0, 0, 0, 0], slice4d)
+        gt_boxes = tf.slice(self.gt_boxes, [0, 0, 0, 0, 0], slice5d)
+        return RPNAnchors(boxes, gt_labels, gt_boxes)
+
 
 if __name__ == '__main__':
     """

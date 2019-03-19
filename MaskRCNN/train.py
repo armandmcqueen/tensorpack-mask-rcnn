@@ -492,6 +492,7 @@ class ResNetFPNModel(ModelDesc):
 
 
                 target_masks_for_fg = tf.concat(per_image_target_masks_for_fg, axis=0)
+
                 target_masks_for_fg = tf.squeeze(target_masks_for_fg, 1, 'sampled_fg_mask_targets')
 
                 fg_labels = tf.concat(per_image_fg_labels, axis=0)
