@@ -348,14 +348,23 @@ class ResNetFPNModel(DetectionModel):
 
 
                 ##########################################################################################################
-                if BATCH_CROP_AND_RESIZE_MASK:
                 ##########################################################################################################
-                    prepadding_gt_counts = tf.expand_dims(tf.shape(gt_labels)[0], axis=0)
-                    proposal_fg_boxes = tf.expand_dims(proposals.fg_boxes(), axis=0)
-                    proposal_fg_labels = tf.expand_dims(proposals.fg_labels(), axis=0)
-                    proposal_gt_id_for_each_fg = [proposals.fg_inds_wrt_gt]
-                    orig_image_dims = [image_shape2d]
-                    gt_masks = tf.expand_dims(gt_masks, axis=0)
+                if BATCH_CROP_AND_RESIZE_MASK:
+
+                    prepadding_gt_counts = tf.expand_dims(tf.shape(gt_labels)[0], axis=0) # 1 x NumGT
+                    proposal_fg_boxes = tf.pad(proposals.fg_boxes(), [[1, 0], [0,0]], constant_values=0) # NumFG x 5
+                    proposal_fg_labels = proposals.fg_labels() # vector of length NumFG
+                    proposal_gt_id_for_each_fg = [proposals.fg_inds_wrt_gt] # list [ vectors length NumFG ]
+                    orig_image_dims = [image_shape2d]       # list [ 2 ]
+                    gt_masks = tf.expand_dims(gt_masks, axis=0) # 1 x NumGT x H x W
+
+                    print("-----------")
+                    print(prepadding_gt_counts)
+                    print(proposal_fg_boxes)
+                    print(proposal_fg_labels)
+                    print(proposal_gt_id_for_each_fg)
+                    print(orig_image_dims)
+                    print(gt_masks)
 
 
                     per_image_target_masks_for_fg = []
