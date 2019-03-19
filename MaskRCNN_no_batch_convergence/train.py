@@ -385,8 +385,7 @@ class ResNetFPNModel(DetectionModel):
                                                                            single_image_fg_inds_wrt_gt,
                                                                            28,
                                                                            orig_image_dims[i],
-                                                                           pad_border=False,
-                                                                           verbose_batch_index=i)  # fg x 1x28x28
+                                                                           pad_border=False)  # fg x 1x28x28
                         per_image_fg_labels.append(single_image_fg_labels)
                         per_image_target_masks_for_fg.append(single_image_target_masks_for_fg)
 
