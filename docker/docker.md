@@ -34,3 +34,7 @@ Logs will be exposed to the ec2 instance at ~/logs.
 `ctl + p + q` will detach
 `docker ps` will give info on the running docker containers including convenient name.
 `docker attach $CONTAINER_NAME` will reattach to the running docker container.
+
+## Notes
+
+The current Dockerfile uses the wheel built for 16xl. The wheel built for 24xl might have a performance improvement, but it does not run on 16xl due to different available instruction sets.

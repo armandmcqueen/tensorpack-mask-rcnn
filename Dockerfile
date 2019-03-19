@@ -1,7 +1,12 @@
 FROM nvidia/cuda:10.0-devel-ubuntu16.04
 
 ENV TF_WHEEL_S3_BUCKET=aws-tensorflow-benchmarking
-ENV TF_WHEEL_S3_KEY=maskrcnn/wheels/sami_20190311/tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl
+ENV TF_WHEEL_S3_KEY_P3DN_24XL=maskrcnn/wheels/sami_20190311/tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl
+ENV TF_WHEEL_S3_KEY_P3_16XL=maskrcnn/wheels/tf_20190318_p3.16xl/tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl
+
+
+# p3.16xl wheel should work for both 24xl and 16xl, but might not hit ideal performance on 24xl due to available instruction sets (performance impact is unconfirmed)
+ENV TF_WHEEL_S3_KEY=${TF_WHEEL_S3_KEY_P3_16XL}
 
 
 
