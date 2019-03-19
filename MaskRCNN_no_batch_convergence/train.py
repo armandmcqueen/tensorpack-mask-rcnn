@@ -350,11 +350,12 @@ class ResNetFPNModel(DetectionModel):
                 ##########################################################################################################
                 if BATCH_CROP_AND_RESIZE_MASK:
                 ##########################################################################################################
-                    prepadding_gt_counts = tf.expand_dims(tf.shape(gt_labels)[0], 0)
-                    proposal_fg_boxes = tf.expand_dims(proposals.fg_boxes(), 0)
-                    proposal_fg_labels = tf.expand_dims(proposals.fg_labels(), 0)
+                    prepadding_gt_counts = tf.expand_dims(tf.shape(gt_labels)[0], axis=0)
+                    proposal_fg_boxes = tf.expand_dims(proposals.fg_boxes(), axis=0)
+                    proposal_fg_labels = tf.expand_dims(proposals.fg_labels(), axis=0)
                     proposal_gt_id_for_each_fg = [proposals.fg_inds_wrt_gt]
                     orig_image_dims = [image_shape2d]
+                    gt_masks = tf.expand_dims(gt_masks, axis=0)
 
 
                     per_image_target_masks_for_fg = []

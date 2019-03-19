@@ -32,14 +32,15 @@ Running on Node 3.
 Running on Node 4.
 
 
-### Mask crop and resize
+### RPN loss
 
 Running on Node 5
 
 
-### RPN loss
 
-Running on Node 6
+### Mask crop and resize
+
+Running on Node 6 (debugging)
 
 
 ### To Add
