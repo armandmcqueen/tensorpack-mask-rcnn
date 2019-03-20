@@ -352,7 +352,7 @@ class ResNetFPNModel(DetectionModel):
                 if BATCH_CROP_AND_RESIZE_MASK:
 
                     prepadding_gt_counts = tf.expand_dims(tf.shape(gt_labels)[0], axis=0) # 1 x NumGT
-                    proposal_fg_boxes = tf.pad(proposals.fg_boxes(), [[1, 0], [0,0]], constant_values=0) # NumFG x 5
+                    proposal_fg_boxes = tf.pad(proposals.fg_boxes(), [[0, 0], [1,0]], constant_values=0) # NumFG x 5
                     proposal_fg_labels = proposals.fg_labels() # vector of length NumFG
                     proposal_gt_id_for_each_fg = [proposals.fg_inds_wrt_gt] # list [ vectors length NumFG ]
                     orig_image_dims = [image_shape2d]       # list [ 2 ]
@@ -372,11 +372,14 @@ class ResNetFPNModel(DetectionModel):
                     for i in range(BATCH_SIZE_PLACEHOLDER):
 
                         single_image_gt_count = prepadding_gt_counts[i]
-                        single_image_gt_masks = gt_masks[i, :single_image_gt_count, :, :]
+                        single_image_gt_masks = gt_masks[i, :single_image_gt_count, :, :] # NumGT x H x w (maybe? might have length 1 dim at beginning)
                         single_image_fg_indices = tf.squeeze(tf.where(tf.equal(proposal_fg_boxes[:, 0], i)), axis=1)
                         single_image_fg_boxes = tf.gather(proposal_fg_boxes, single_image_fg_indices)[:, 1:]
                         single_image_fg_labels = tf.gather(proposal_fg_labels, single_image_fg_indices)
                         single_image_fg_inds_wrt_gt = proposal_gt_id_for_each_fg[i]
+
+                        print(type(single_image_fg_inds_wrt_gt))
+                        assert isinstance(single_image_fg_inds_wrt_gt, tf.Tensor)
 
                         single_image_gt_masks = tf.expand_dims(single_image_gt_masks, axis=1)
 
