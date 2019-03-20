@@ -27,7 +27,7 @@ if STATICA_HACK:
     from .config import finalize_configs, config as cfg
     from .data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
     from .eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
-    from .model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align
+    from .model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align, crop_and_resize_from_batch_codebase
     from .model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, \
         generate_fpn_proposals_batch_tf_op, multilevel_roi_align_tf_op, multilevel_rpn_losses_batch
     from .model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets, sample_fast_rcnn_targets_batch
@@ -44,7 +44,7 @@ else:
     from config import finalize_configs, config as cfg
     from data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
     from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
-    from model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align
+    from model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align, crop_and_resize_from_batch_codebase
     from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, \
         generate_fpn_proposals_batch_tf_op, multilevel_roi_align_tf_op, multilevel_rpn_losses_batch
     from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets, sample_fast_rcnn_targets_batch
@@ -380,12 +380,13 @@ class ResNetFPNModel(DetectionModel):
 
                         single_image_gt_masks = tf.expand_dims(single_image_gt_masks, axis=1)
 
-                        single_image_target_masks_for_fg = crop_and_resize(single_image_gt_masks,
+                        single_image_target_masks_for_fg = crop_and_resize_from_batch_codebase(single_image_gt_masks,
                                                                            single_image_fg_boxes,
                                                                            single_image_fg_inds_wrt_gt,
                                                                            28,
                                                                            orig_image_dims[i],
-                                                                           pad_border=False)  # fg x 1x28x28
+                                                                           pad_border=False,
+                                                                           verbose_batch_index=i)  # fg x 1x28x28
                         per_image_fg_labels.append(single_image_fg_labels)
                         per_image_target_masks_for_fg.append(single_image_target_masks_for_fg)
 
