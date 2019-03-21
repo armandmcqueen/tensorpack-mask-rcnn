@@ -25,9 +25,8 @@ Converges. Maybe 0.3% off on small objects. Probably deserves a repeat later
 
 ### Sample targets
 
-bbox: 2% worse accuracy on small, 1% worse on medium. 
-segm: Similar
-Unacceptable. Given other evidence, likely an issue with the way I inserted the batch code into the convergence code
+Fixed issue where randomness was disabled. 
+Running on Node 1
 
 ### RPN loss
 
@@ -47,12 +46,11 @@ Converges
 
 ### Fast RCNN Losses (includes FastRCNN.__init__)
 
-Developing
-Running on Node 4
+Converges
 
 ### Mask Loss
 
-Converging
+Converges
 
 
 ### To Add

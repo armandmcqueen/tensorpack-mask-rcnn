@@ -21,10 +21,12 @@ aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/converge
 aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_roialign_mask_20190320 ~/old_logs/convergence_codebase_iso_roialign_box_20190320
 aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_sampletargets_20190320 ~/old_logs/convergence_codebase_iso_sampletargets_20190320
 aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_rpnloss_20190320 ~/old_logs/convergence_codebase_iso_rpnloss_20190320
+aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_fastrcnn_losses_20190321 ~/old_logs/convergence_codebase_iso_fastrcnn_losses_20190321
 
 
 
 
 # sudo rm ~/logs/htimeline.json
 # aws s3 cp --recursive logs/ s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_XXXXXXX/
+
 
