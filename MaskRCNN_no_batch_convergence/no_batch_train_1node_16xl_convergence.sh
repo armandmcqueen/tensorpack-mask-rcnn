@@ -29,23 +29,30 @@ pip freeze > ${LOG_DIR}/requirements.txt
 ldd /home/ubuntu/anaconda3/envs/${VENV}/lib/python3.6/site-packages/tensorflow/libtensorflow_framework.so > ${LOG_DIR}/tf_so_links.txt
 
 # Execute training job
-HOROVOD_TIMELINE=${LOG_DIR}/htimeline.json \
+# HOROVOD_TIMELINE=${LOG_DIR}/htimeline.json \
+#HOROVOD_AUTOTUNE=1 \
+#HOROVOD_AUTOTUNE_LOG=${LOG_DIR}/hvd_autotune.log \
 HOROVOD_CYCLE_TIME=0.5 \
 HOROVOD_FUSION_THRESHOLD=67108864 \
+HOROVOD_LOG_LEVEL=INFO \
+TENSORPACK_FP16=1 \
 /home/ubuntu/anaconda3/envs/${VENV}/bin/mpirun -np 8 -H localhost:8 \
 --mca plm_rsh_no_tree_spawn 1 -bind-to none -map-by slot -mca pml ob1 -mca btl ^openib \
 -mca btl_tcp_if_exclude lo,docker0 \
 -mca btl_vader_single_copy_mechanism none \
 -x NCCL_SOCKET_IFNAME=^docker0,lo \
 -x NCCL_MIN_NRINGS=8 -x NCCL_DEBUG=INFO \
+-x HOROVOD_CYCLE_TIME \
+-x HOROVOD_FUSION_THRESHOLD \
+-x TENSORPACK_FP16 \
 -x LD_LIBRARY_PATH -x PATH \
--x HOROVOD_CYCLE_TIME -x HOROVOD_FUSION_THRESHOLD \
 --output-filename ${LOG_DIR}/mpirun_logs \
 /home/ubuntu/anaconda3/envs/${VENV}/bin/python3 /home/ubuntu/tensorpack-mask-rcnn/MaskRCNN_no_batch_convergence/train.py \
 --logdir ${LOG_DIR} \
 --perf \
+--fp16 \
 --throughput_log_freq 2000 \
---summary_period 25 \
+--summary_period 0 \
 --config MODE_MASK=True \
 MODE_FPN=True \
 DATA.BASEDIR=/home/ubuntu/data \
@@ -57,6 +64,10 @@ BACKBONE.WEIGHTS=/home/ubuntu/data/pretrained-models/ImageNet-R50-AlignPadding.n
 BACKBONE.NORM=FreezeBN \
 TRAINER=horovod
 
+#-x HOROVOD_AUTOTUNE \
+#-x HOROVOD_AUTOTUNE_LOG \
+#-x HOROVOD_LOG_LEVEL=INFO \
+#-x HOROVOD_CYCLE_TIME -x HOROVOD_FUSION_THRESHOLD \
 #TRAIN.EVAL_PERIOD=1 \
 #TRAIN.STEPS_PER_EPOCH=15000 \
 #TRAIN.LR_SCHEDULE='[120000, 160000, 180000]' \
