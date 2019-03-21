@@ -283,7 +283,7 @@ class ResNetFPNModel(DetectionModel):
                         input_gt_boxes,
                         input_gt_labels,
                         prepadding_gt_counts,
-                        batch_size=1)
+                        batch_size=BATCH_SIZE_PLACEHOLDER)
 
                 proposals = BoxProposals(proposal_boxes[:, 1:], proposal_labels, proposal_gt_id_for_each_fg[0])
             else:
