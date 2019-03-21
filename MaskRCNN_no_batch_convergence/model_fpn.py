@@ -488,14 +488,14 @@ def generate_fpn_proposals_batch_tf_op(
 
 
         proposal_boxes = tf.concat(all_boxes, axis=0)  # (#lvl x BS) x K x 5
-        #print_buildtime_shape("proposal_boxes (0)", proposal_boxes, prefix=prefix)
         proposal_boxes = tf.reshape(proposal_boxes, [-1, 5])        # (#lvl x BS x K) x 5
-        #print_buildtime_shape("proposal_boxes (1)", proposal_boxes, prefix=prefix)
 
         proposal_scores = tf.concat(all_scores, axis=0)  # (#lvl x BS) x K
-        #print_buildtime_shape("proposal_scores (0)", proposal_scores, prefix=prefix)
         proposal_scores = tf.reshape(proposal_scores, [-1])         # (#lvl x BS x 5) vector
-        #print_buildtime_shape("proposal_scores (1)", proposal_scores, prefix=prefix)
+
+        proposal_topk = tf.minimum(tf.size(proposal_scores), fpn_nms_topk)
+        proposal_scores, topk_indices = tf.nn.top_k(proposal_scores, k=proposal_topk, sorted=False)
+        proposal_boxes = tf.gather(proposal_boxes, topk_indices)
 
     else:
         raise RuntimeError("Only level-wise predictions are supported with batches")

@@ -8,12 +8,10 @@ Add pieces of the batch code to the nobatch code 1-by-1. Each piece must have a 
 
 Converges
 
-**Important** - this was run when only 4 flags existed and again with 6 flags. As more flags are added, we increase the chance that we accidentally break the all_disabled codepath. We will need to repeat this experiment as we add more flags)
-
 
 ### GenerateProposals 
 
-Developing (including final topk)
+With new topk code, it converges!
  
 ### ROI Align box
 
@@ -39,21 +37,22 @@ Converges.
 
 ### Mask crop and resize
 
-Running on Node 6
+Converges.
 
 
 ### Fast RCNN Outputs
 
-Developing
+Converges
 
 
 ### Fast RCNN Losses (includes FastRCNN.__init__)
 
 Developing
+Running on Node 4
 
 ### Mask Loss
 
-Developing
+Converging
 
 
 ### To Add

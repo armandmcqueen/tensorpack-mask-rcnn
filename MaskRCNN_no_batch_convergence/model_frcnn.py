@@ -346,6 +346,32 @@ def fastrcnn_outputs(feature, num_classes, class_agnostic_regression=False):
     return classification, box_regression
 
 
+
+
+@layer_register(log_shape=True)
+def fastrcnn_outputs_batch(feature, num_classes, class_agnostic_regression=False):
+    """
+    Args:
+        feature (any shape):
+        num_classes(int): num_category + 1
+        class_agnostic_regression (bool): if True, regression to N x 1 x 4
+
+    Returns:
+        cls_logits: N x num_class classification logits
+        reg_logits: N x num_classx4 or Nx2x4 if class agnostic
+    """
+    classification = FullyConnected(
+        'class', feature, num_classes,
+        kernel_initializer=tf.random_normal_initializer(stddev=0.01))
+    num_classes_for_box = 1 if class_agnostic_regression else num_classes
+    box_regression = FullyConnected(
+        'box', feature, num_classes_for_box * 4,
+        kernel_initializer=tf.random_normal_initializer(stddev=0.001))
+    box_regression = tf.reshape(box_regression, [-1, num_classes_for_box, 4], name='output_box')
+    return classification, box_regression
+
+
+
 @under_name_scope()
 def fastrcnn_losses(labels, label_logits, fg_boxes, fg_box_logits):
     """
@@ -566,6 +592,146 @@ class BoxProposals(object):
     def fg_labels(self):
         """ Returns: #fg"""
         return tf.gather(self.labels, self.fg_inds(), name='fg_labels')
+
+
+
+
+
+
+class FastRCNNHeadBatch(object):
+    """
+    A class to process & decode inputs/outputs of a fastrcnn classification+regression head.
+    """
+    def __init__(self,
+                 box_logits,
+                 label_logits,
+                 bbox_regression_weights,
+                 proposal_batch_idx_map,
+                 prepadding_gt_counts,
+                 proposal_boxes):
+        """
+        Args:
+            proposals: BoxProposalsBatch (boxes=Nx5)
+            box_logits: Nx#classx4 or Nx1x4, the output of the head
+            label_logits: Nx#class, the output of the head
+            gt_boxes: BS x MaxGTs x 4
+            bbox_regression_weights: a 4 element tensor
+            proposal_batch_idx_map: N element vector with batch index from that BoxProposal.box
+        """
+        self.box_logits = box_logits
+        self.label_logits = label_logits
+
+        self.bbox_regression_weights = bbox_regression_weights
+        self.proposal_batch_idx_map = proposal_batch_idx_map
+        self.prepadding_gt_counts = prepadding_gt_counts
+
+        self.proposal_boxes = proposal_boxes
+
+        self._bbox_class_agnostic = int(box_logits.shape[1]) == 1
+
+        self.training_info_available = False
+
+
+    def add_training_info(self,
+                          gt_boxes,
+                          proposal_labels,
+                          proposal_fg_inds,
+                          proposal_fg_boxes,
+                          proposal_fg_labels,
+                          proposal_gt_id_for_each_fg):
+
+        self.gt_boxes = gt_boxes
+        self.proposal_labels = proposal_labels
+        self.proposal_fg_inds = proposal_fg_inds
+        self.proposal_fg_boxes = proposal_fg_boxes
+        self.proposal_fg_labels = proposal_fg_labels
+        self.proposal_gt_id_for_each_fg = proposal_gt_id_for_each_fg
+
+        self.training_info_available = True
+
+
+
+    @memoized_method
+    def losses(self, batch_size_per_gpu, shortcut=False):
+
+        assert self.training_info_available, "In order to calculate losses, we need to know GT info, but " \
+                                             "add_training_info was never called"
+
+        if shortcut:
+            proposal_label_loss = tf.cast(tf.reduce_mean(self.proposal_labels), dtype=tf.float32)
+            proposal_boxes_loss = tf.cast(tf.reduce_mean(self.proposal_boxes), dtype=tf.float32)
+            proposal_fg_boxes_loss = tf.cast(tf.reduce_mean(self.proposal_fg_boxes), dtype=tf.float32)
+            gt_box_loss = tf.cast(tf.reduce_mean(self.gt_boxes), dtype=tf.float32)
+
+            bbox_reg_loss = tf.cast(tf.reduce_mean(self.bbox_regression_weights), dtype=tf.float32)
+            label_logit_loss = tf.cast(tf.reduce_mean(self.label_logits), dtype=tf.float32)
+
+            total_loss = proposal_label_loss + proposal_boxes_loss + proposal_fg_boxes_loss + gt_box_loss \
+                         + bbox_reg_loss + label_logit_loss
+            return [total_loss]
+
+        all_labels = []
+        all_label_logits = []
+        all_encoded_fg_gt_boxes = []
+        all_fg_box_logits = []
+        for i in range(batch_size_per_gpu):
+
+            single_image_fg_inds_wrt_gt = self.proposal_gt_id_for_each_fg[i]
+
+            single_image_gt_boxes = self.gt_boxes[i, :self.prepadding_gt_counts[i], :] # NumGT x 4
+            gt_for_each_fg = tf.gather(single_image_gt_boxes, single_image_fg_inds_wrt_gt) # NumFG x 4
+            single_image_fg_boxes_indices = tf.where(tf.equal(self.proposal_fg_boxes[:, 0], i))
+            single_image_fg_boxes_indices = tf.squeeze(single_image_fg_boxes_indices, axis=1)
+
+            single_image_fg_boxes = tf.gather(self.proposal_fg_boxes, single_image_fg_boxes_indices) # NumFG x 5
+            single_image_fg_boxes = single_image_fg_boxes[:, 1:]  # NumFG x 4
+
+            encoded_fg_gt_boxes = encode_bbox_target(gt_for_each_fg, single_image_fg_boxes) * self.bbox_regression_weights
+
+            single_image_box_indices = tf.squeeze(tf.where(tf.equal(self.proposal_boxes[:, 0], i)), axis=1)
+            single_image_labels = tf.gather(self.proposal_labels, single_image_box_indices) # Vector len N
+            single_image_label_logits = tf.gather(self.label_logits, single_image_box_indices)
+
+            single_image_box_logits = tf.gather(self.box_logits, single_image_box_indices)
+
+            single_image_fg_box_logits = tf.gather(single_image_box_logits, single_image_fg_boxes_indices)
+
+            all_labels.append(single_image_labels)
+            all_label_logits.append(single_image_label_logits)
+            all_encoded_fg_gt_boxes.append(encoded_fg_gt_boxes)
+            all_fg_box_logits.append(single_image_fg_box_logits)
+
+
+
+        return fastrcnn_losses(
+            tf.concat(all_labels, axis=0),
+            tf.concat(all_label_logits, axis=0),
+            tf.concat(all_encoded_fg_gt_boxes, axis=0),
+            tf.concat(all_fg_box_logits, axis=0)
+        )
+
+
+    # ------ NOTHING HERE HAS BEEN BATCHIFIED CAREFULLY. --------
+    @memoized_method
+    def decoded_output_boxes(self):
+        """ Returns: N x #class x 4 """
+        nobatch_proposal_boxes = self.proposal_boxes[:, 1:]
+        anchors = tf.tile(tf.expand_dims(nobatch_proposal_boxes, 1),
+                          [1, cfg.DATA.NUM_CLASS, 1])  # N x #class x 4
+        decoded_boxes = decode_bbox_target(
+                self.box_logits / self.bbox_regression_weights,
+                anchors
+        )
+        return decoded_boxes
+
+
+    @memoized_method
+    def output_scores(self, name=None):
+        """ Returns: N x #class scores, summed to one for each box."""
+        return tf.nn.softmax(self.label_logits, name=name)
+
+    # ------ -------------------------------------------- --------
+
 
 
 class FastRCNNHead(object):
