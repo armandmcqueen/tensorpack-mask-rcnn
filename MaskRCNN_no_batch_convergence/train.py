@@ -33,7 +33,7 @@ if STATICA_HACK:
     from .model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets, \
         sample_fast_rcnn_targets_batch, fastrcnn_outputs_batch, FastRCNNHeadBatch
     from .model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
-    from .model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
+    from .model_rpn import generate_rpn_proposals, rpn_head, rpn_losses, rpn_head_withbatch
     from .viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
     from .performance import ThroughputTracker
 else:
@@ -51,13 +51,14 @@ else:
     from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets, \
         sample_fast_rcnn_targets_batch, fastrcnn_outputs_batch, FastRCNNHeadBatch
     from model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
-    from model_rpn import generate_rpn_proposals, rpn_head, rpn_losses
+    from model_rpn import generate_rpn_proposals, rpn_head, rpn_losses, rpn_head_withbatch
     from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
     from performance import ThroughputTracker
 
 BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global arg. In convergence codebase, this is a constant
 BATCH_DATA_PIPELINE = False
 BATCH_GENERATE_PROPOSALS = False
+BATCH_RPN_HEAD = False 
 BATCH_RPN_LOSS = False
 BATCH_ROI_ALIGN_BOX = False
 BATCH_SAMPLE_TARGETS = False
@@ -188,12 +189,32 @@ class ResNetFPNModel(DetectionModel):
 
 
         # Multi-Level RPN Proposals
-        rpn_outputs = [rpn_head('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS), fp16=self.fp16)
-                       for pi in features]
-        multilevel_label_logits = [k[0] for k in rpn_outputs]
-        multilevel_box_logits = [k[1] for k in rpn_outputs]
+        #########################################################################################################
+        if BATCH_RPN_HEAD:
+        #########################################################################################################
+            rpn_outputs = []
+            for pi in features:
+                label_logits, box_logits = rpn_head_withbatch('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS), fp16=self.fp16)
+
+                # Operation the same transpose as in the no batch code
+                label_logits = tf.squeeze(label_logits, 0)  # fHxfWxNA
+                shp = tf.shape(box_logits)  # 1x(NAx4)xfHxfW
+                box_logits = tf.transpose(box_logits, [0, 2, 3, 1])  # 1xfHxfWx(NAx4)
+                box_logits = tf.reshape(box_logits, tf.stack([shp[2], shp[3], -1, 4]))  # fHxfWxNAx4
+
+                rpn_outputs.append((label_logits, box_logits))
 
 
+            multilevel_label_logits = [k[0] for k in rpn_outputs]
+            multilevel_box_logits = [k[1] for k in rpn_outputs]
+            
+        else:
+            rpn_outputs = [rpn_head('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS), fp16=self.fp16)
+                           for pi in features]
+            multilevel_label_logits = [k[0] for k in rpn_outputs]
+            multilevel_box_logits = [k[1] for k in rpn_outputs]
+            
+        #########################################################################################################
 
 
 
