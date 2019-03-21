@@ -25,7 +25,7 @@ if STATICA_HACK:
     from .basemodel import image_preprocess, resnet_c4_backbone, resnet_conv5, resnet_fpn_backbone
     from .dataset import DetectionDataset
     from .config import finalize_configs, config as cfg
-    from .data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
+    from .data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow, get_batch_train_dataflow
     from .eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
     from .model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align, crop_and_resize_from_batch_codebase
     from .model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, \
@@ -43,7 +43,7 @@ else:
     from basemodel import image_preprocess, resnet_c4_backbone, resnet_conv5, resnet_fpn_backbone
     from dataset import DetectionDataset
     from config import finalize_configs, config as cfg
-    from data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow
+    from data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow, get_batch_train_dataflow
     from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
     from model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align, crop_and_resize_from_batch_codebase
     from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, \
@@ -56,7 +56,7 @@ else:
     from performance import ThroughputTracker
 
 BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global arg. In convergence codebase, this is a constant
-
+BATCH_DATA_PIPELINE = False
 BATCH_GENERATE_PROPOSALS = False
 BATCH_RPN_LOSS = False
 BATCH_ROI_ALIGN_BOX = False
@@ -661,7 +661,7 @@ if __name__ == '__main__':
             logger.info("Horovod Rank={}, Size={}".format(hvd.rank(), hvd.size()))
 
         if not is_horovod or hvd.rank() == 0:
-            logger.set_logger_dir(args.logdir, 'd')
+            logger.set_logger_dir(args.logdir, 'k')
 
         finalize_configs(is_training=True)
         stepnum = cfg.TRAIN.STEPS_PER_EPOCH
@@ -679,7 +679,15 @@ if __name__ == '__main__':
                 (steps * factor // stepnum, cfg.TRAIN.BASE_LR * mult))
         logger.info("Warm Up Schedule (steps, value): " + str(warmup_schedule))
         logger.info("LR Schedule (epochs, value): " + str(lr_schedule))
-        train_dataflow = get_train_dataflow()
+
+        #####################################################################
+        if BATCH_DATA_PIPELINE:
+        #####################################################################
+            train_dataflow = get_batch_train_dataflow(BATCH_SIZE_PLACEHOLDER)
+        else:
+            train_dataflow = get_train_dataflow()
+        #####################################################################
+
         # This is what's commonly referred to as "epochs"
         total_passes = cfg.TRAIN.LR_SCHEDULE[-1] * 8 / train_dataflow.size()
         logger.info("Total passes of the training set is: {:.5g}".format(total_passes))

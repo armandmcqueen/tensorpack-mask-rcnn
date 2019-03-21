@@ -8,7 +8,7 @@ from tabulate import tabulate
 from termcolor import colored
 
 from tensorpack.dataflow import (
-    DataFromList, MapDataComponent, MultiProcessMapDataZMQ, MultiThreadMapData, TestDataSpeed, imgaug)
+    DataFromList, MapDataComponent, MultiProcessMapDataZMQ, MultiThreadMapData, TestDataSpeed, imgaug, MapData)
 from tensorpack.utils import logger
 from tensorpack.utils.argtools import log_once, memoized
 
@@ -360,6 +360,292 @@ def get_train_dataflow():
         return ret
 
     if cfg.TRAINER == 'horovod':
+        ds = MultiThreadMapData(ds, 5, preprocess)
+        # MPI does not like fork()
+    else:
+        ds = MultiProcessMapDataZMQ(ds, 10, preprocess)
+    return ds
+
+
+def get_batch_train_dataflow(batch_size):
+    """
+    Return a training dataflow. Each datapoint consists of the following:
+
+    A batch of images: (BS, h, w, 3),
+
+    For each image
+
+    1 or more pairs of (anchor_labels, anchor_boxes) :
+    anchor_labels: (BS, h', w', maxNumAnchors)
+    anchor_boxes: (BS, h', w', maxNumAnchors, 4)
+
+    gt_boxes: (BS, maxNumAnchors, 4)
+    gt_labels: (BS, maxNumAnchors)
+
+    If MODE_MASK, gt_masks: (BS, maxNumAnchors, h, w)
+    """
+    print("In train dataflow")
+    roidbs = DetectionDataset().load_training_roidbs(cfg.DATA.TRAIN)
+    print("Done loading roidbs")
+
+    # print_class_histogram(roidbs)
+
+    # Valid training images should have at least one fg box.
+    # But this filter shall not be applied for testing.
+    num = len(roidbs)
+    roidbs = list(filter(lambda img: len(img['boxes'][img['is_crowd'] == 0]) > 0, roidbs))
+    logger.info("Filtered {} images which contain no non-crowd groudtruth boxes. Total #images for training: {}".format(
+        num - len(roidbs), len(roidbs)))
+
+    print("Batching roidbs")
+    '''
+    batched_roidbs = []
+    batch = []
+
+    for i, d in enumerate(roidbs):
+        if i % batch_size == 0:
+            if len(batch) == batch_size:
+                batched_roidbs.append(batch)
+            batch = []
+        batch.append(d)
+    '''
+
+    batched_roidbs = sort_by_aspect_ratio(roidbs, batch_size)
+    #batched_roidbs = group_by_aspect_ratio(roidbs, batch_size)
+    print("Done batching roidbs")
+
+
+    # Notes:
+    #   - discard any leftover images
+    #   - The batches will be shuffled, but the contents of each batch will always be the same
+    #   - TODO: Fix lack of batch contents shuffling
+
+
+
+
+
+    aug = imgaug.AugmentorList(
+         [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
+          imgaug.Flip(horiz=True)])
+
+    # aug = imgaug.AugmentorList([CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)])
+
+    def preprocess(roidb_batch):
+        datapoint_list = []
+        for roidb in roidb_batch:
+            fname, boxes, klass, is_crowd = roidb['file_name'], roidb['boxes'], roidb['class'], roidb['is_crowd']
+            # print(fname)
+            boxes = np.copy(boxes)
+            im = cv2.imread(fname, cv2.IMREAD_COLOR)
+            assert im is not None, fname
+            im = im.astype('float32')
+            # assume floatbox as input
+            assert boxes.dtype == np.float32, "Loader has to return floating point boxes!"
+
+            # augmentation:
+            im, params = aug.augment_return_params(im)
+            points = box_to_point8(boxes)
+            points = aug.augment_coords(points, params)
+            boxes = point8_to_box(points)
+            assert np.min(np_area(boxes)) > 0, "Some boxes have zero area!"
+
+            ret = {'image': im}
+            # rpn anchor:
+            try:
+                if cfg.MODE_FPN:
+                    multilevel_anchor_inputs = get_multilevel_rpn_anchor_input(im, boxes, is_crowd)
+                    for i, (anchor_labels, anchor_boxes) in enumerate(multilevel_anchor_inputs):
+                        ret['anchor_labels_lvl{}'.format(i + 2)] = anchor_labels
+                        ret['anchor_boxes_lvl{}'.format(i + 2)] = anchor_boxes
+                else:
+                    raise NotImplementedError("[armand] Batch mode only available for FPN")
+
+                boxes = boxes[is_crowd == 0]    # skip crowd boxes in training target
+                klass = klass[is_crowd == 0]
+                ret['gt_boxes'] = boxes
+                ret['gt_labels'] = klass
+                ret['filename'] = fname
+                if not len(boxes):
+                    raise MalformedData("No valid gt_boxes!")
+            except MalformedData as e:
+                log_once("Input {} is filtered for training: {}".format(fname, str(e)), 'warn')
+                return None
+
+            if cfg.MODE_MASK:
+                # augmentation will modify the polys in-place
+                segmentation = copy.deepcopy(roidb['segmentation'])
+                segmentation = [segmentation[k] for k in range(len(segmentation)) if not is_crowd[k]]
+                assert len(segmentation) == len(boxes)
+
+                # Apply augmentation on polygon coordinates.
+                # And produce one image-sized binary mask per box.
+                masks = []
+                for polys in segmentation:
+                    polys = [aug.augment_coords(p, params) for p in polys]
+                    masks.append(segmentation_to_mask(polys, im.shape[0], im.shape[1]))
+                masks = np.asarray(masks, dtype='uint8')    # values in {0, 1}
+                ret['gt_masks'] = masks
+
+            datapoint_list.append(ret)
+
+        #################################################################################################################
+        # Batchify the output
+        #################################################################################################################
+
+        # Now we need to batch the various fields
+
+        # Easily stackable:
+        # - anchor_labels_lvl2
+        # - anchor_boxes_lvl2
+        # - anchor_labels_lvl3
+        # - anchor_boxes_lvl3
+        # - anchor_labels_lvl4
+        # - anchor_boxes_lvl4
+        # - anchor_labels_lvl5
+        # - anchor_boxes_lvl5
+        # - anchor_labels_lvl6
+        # - anchor_boxes_lvl6
+
+        batched_datapoint = {}
+        for stackable_field in ["anchor_labels_lvl2",
+                                "anchor_boxes_lvl2",
+                                "anchor_labels_lvl3",
+                                "anchor_boxes_lvl3",
+                                "anchor_labels_lvl4",
+                                "anchor_boxes_lvl4",
+                                "anchor_labels_lvl5",
+                                "anchor_boxes_lvl5",
+                                "anchor_labels_lvl6",
+                                "anchor_boxes_lvl6"]:
+            batched_datapoint[stackable_field] = np.stack([d[stackable_field] for d in datapoint_list])
+
+
+
+        # Require padding and original dimension storage
+        # - image (HxWx3)
+        # - gt_boxes (?x4)
+        # - gt_labels (?)
+        # - gt_masks (?xHxW)
+
+        """
+        Find the minimum container size for images (maxW x maxH)
+        Find the maximum number of ground truth boxes
+        For each image, save original dimension and pad
+        """
+
+
+        image_dims = [d["image"].shape for d in datapoint_list]
+        heights = [dim[0] for dim in image_dims]
+        widths = [dim[1] for dim in image_dims]
+
+        max_height = max(heights)
+        max_width = max(widths)
+
+
+        # image
+        padded_images = []
+        original_image_dims = []
+        for datapoint in datapoint_list:
+            image = datapoint["image"]
+            original_image_dims.append(image.shape)
+
+            h_padding = max_height - image.shape[0]
+            w_padding = max_width - image.shape[1]
+
+            padded_image = np.pad(image,
+                                  [[0, h_padding],
+                                   [0, w_padding],
+                                   [0, 0]],
+                                  'constant')
+
+            padded_images.append(padded_image)
+
+        batched_datapoint["images"] = np.stack(padded_images)
+        #print(batched_datapoint["images"].shape)
+        batched_datapoint["orig_image_dims"] = np.stack(original_image_dims)
+
+
+        # gt_boxes and gt_labels
+        max_num_gts = max([d["gt_labels"].size for d in datapoint_list])
+
+        gt_counts = []
+        padded_gt_labels = []
+        padded_gt_boxes = []
+        padded_gt_masks = []
+        for datapoint in datapoint_list:
+            gt_count_for_image = datapoint["gt_labels"].size
+            gt_counts.append(gt_count_for_image)
+
+            gt_padding = max_num_gts - gt_count_for_image
+
+            padded_gt_labels_for_img = np.pad(datapoint["gt_labels"], [0, gt_padding], 'constant', constant_values=-1)
+            padded_gt_labels.append(padded_gt_labels_for_img)
+
+            padded_gt_boxes_for_img = np.pad(datapoint["gt_boxes"],
+                                             [[0, gt_padding],
+                                              [0,0]],
+                                             'constant')
+            padded_gt_boxes.append(padded_gt_boxes_for_img)
+
+
+
+
+            h_padding = max_height - datapoint["image"].shape[0]
+            w_padding = max_width - datapoint["image"].shape[1]
+
+
+
+            if cfg.MODE_MASK:
+                padded_gt_masks_for_img = np.pad(datapoint["gt_masks"],
+                                         [[0, gt_padding],
+                                          [0, h_padding],
+                                          [0, w_padding]],
+                                         'constant')
+                padded_gt_masks.append(padded_gt_masks_for_img)
+
+
+        batched_datapoint["orig_gt_counts"] = np.stack(gt_counts)
+        batched_datapoint["gt_labels"] = np.stack(padded_gt_labels)
+        batched_datapoint["gt_boxes"] = np.stack(padded_gt_boxes)
+        batched_datapoint["filenames"] = [d["filename"] for d in datapoint_list]
+
+        if cfg.MODE_MASK:
+            batched_datapoint["gt_masks"] = np.stack(padded_gt_masks)
+
+        #################################################################################################################
+        # print("BATCHED DATAPOINT")
+        # print(batched_datapoint)
+        # print("END BATCHED DATAPOINT")
+
+        return batched_datapoint
+
+
+    ds = DataFromList(batched_roidbs, shuffle=True)
+
+    #################################################################################################################
+    # Test preprocess on a given batch
+    #################################################################################################################
+    #
+    # test_batch = batched_roidbs[5]
+    #
+    # print("Running preprocess on test_batch")
+    # out = preprocess(test_batch)
+    # for k in ['images', 'orig_image_dims', 'anchor_labels_lvl2', 'anchor_boxes_lvl2', 'anchor_labels_lvl3', 'anchor_boxes_lvl3',
+    #           'anchor_labels_lvl4', 'anchor_boxes_lvl4', 'anchor_labels_lvl5', 'anchor_boxes_lvl5', 'anchor_labels_lvl6',
+    #           'anchor_boxes_lvl6', 'gt_boxes', 'gt_labels', 'gt_masks', 'orig_gt_counts']:
+    #     try:
+    #         print("\nInspecting k: "+k)
+    #         print(out[k].shape)
+    #     except Exception:
+    #         pass
+    #
+    # print("complete")
+
+
+    #################################################################################################################
+
+    if cfg.TRAINER == 'horovod':
+        # ds = MapData(ds, preprocess)
         ds = MultiThreadMapData(ds, 5, preprocess)
         # MPI does not like fork()
     else:
