@@ -335,7 +335,6 @@ def get_train_dataflow(batch_size):
         num - len(roidbs), len(roidbs)))
 
     print("Batching roidbs")
-    '''
     batched_roidbs = []
     batch = []
 
@@ -345,9 +344,8 @@ def get_train_dataflow(batch_size):
                 batched_roidbs.append(batch)
             batch = []
         batch.append(d)
-    '''
 
-    batched_roidbs = sort_by_aspect_ratio(roidbs, batch_size)
+    #batched_roidbs = sort_by_aspect_ratio(roidbs, batch_size)
     #batched_roidbs = group_by_aspect_ratio(roidbs, batch_size)
     print("Done batching roidbs")
 
@@ -557,7 +555,7 @@ def get_train_dataflow(batch_size):
         return batched_datapoint
 
 
-    ds = DataFromList(batched_roidbs, shuffle=False)
+    ds = DataFromList(batched_roidbs, shuffle=True)
 
     #################################################################################################################
     # Test preprocess on a given batch
