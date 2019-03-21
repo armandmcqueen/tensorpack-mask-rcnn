@@ -2,11 +2,70 @@
 
 Add pieces of the batch code to the nobatch code 1-by-1. Each piece must have a flag that enables or disables it (hardcoded around line 55 of train.py). Before committing to master, we must test that the new pieces leads to convergence at target accuracy. 
 
-## Pieces
+
+## Combined Pieces
+
+### All
+
+BATCH_GENERATE_PROPOSALS = True
+BATCH_RPN_LOSS = True
+BATCH_ROI_ALIGN_BOX = True
+BATCH_SAMPLE_TARGETS = True
+BATCH_ROI_ALIGN_MASK = True
+BATCH_CROP_AND_RESIZE_MASK = True
+BATCH_FAST_RCNN_OUTPUTS = True
+BATCH_FAST_RCNN_LOSSES = True
+BATCH_MASK_LOSS = True
+
+Need to run on Node 4 (shape error, return to this)
+
+
+
+### All minus sample targets
+
+I think sample targets is fixed, but unconfirmed. Using flags from above with BATCH_SAMPLE_TARGETS=False
+Need to run on Node 3 (shape error, return to this)
+
+
+### Set 1
+
+BATCH_GENERATE_PROPOSALS
+BATCH_RPN_LOSS
+
+Need to run on Node 5 (shape error, return to this)
+
+### Set 2
+
+BATCH_SAMPLE_TARGETS
+BATCH_ROI_ALIGN_BOX
+
+Running on Node 6
+
+### Set 3
+
+BATCH_FAST_RCNN_OUTPUTS
+BATCH_FAST_RCNN_LOSSES
+
+Running on Node 7
+
+### Set 4
+
+BATCH_ROI_ALIGN_MASK
+BATCH_CROP_AND_RESIZE_MASK
+BATCH_MASK_LOSS
+
+Running on Node 8
+
+
+
+
+
+## Individual Pieces
 
 ### All disabled
 
 Converges
+Running on Node 2 to check with 9 flags.
 
 
 ### GenerateProposals 
