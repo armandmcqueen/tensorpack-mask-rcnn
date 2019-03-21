@@ -361,11 +361,11 @@ def get_train_dataflow(batch_size):
 
 
 
-    # aug = imgaug.AugmentorList(
-    #     [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
-    #      imgaug.Flip(horiz=True)])
+    aug = imgaug.AugmentorList(
+         [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
+          imgaug.Flip(horiz=True)])
 
-    aug = imgaug.AugmentorList([CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)])
+    # aug = imgaug.AugmentorList([CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)])
 
     def preprocess(roidb_batch):
         datapoint_list = []
@@ -582,8 +582,8 @@ def get_train_dataflow(batch_size):
     #################################################################################################################
 
     if cfg.TRAINER == 'horovod':
-        ds = MapData(ds, preprocess)
-        # ds = MultiThreadMapData(ds, 5, preprocess)
+        # ds = MapData(ds, preprocess)
+        ds = MultiThreadMapData(ds, 5, preprocess)
         # MPI does not like fork()
     else:
         ds = MultiProcessMapDataZMQ(ds, 10, preprocess)

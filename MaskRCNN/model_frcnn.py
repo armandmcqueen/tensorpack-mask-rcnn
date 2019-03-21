@@ -184,14 +184,14 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
         num_fg = tf.minimum(int(
             cfg.FRCNN.BATCH_PER_IM * cfg.FRCNN.FG_RATIO),
             tf.size(fg_inds))
-        # fg_inds = tf.random_shuffle(fg_inds)[:num_fg]
+        fg_inds = tf.random_shuffle(fg_inds)[:num_fg]
         fg_inds = fg_inds[:num_fg]
 
         bg_inds = tf.reshape(tf.where(tf.logical_not(fg_mask)), [-1])
         num_bg = tf.minimum(
             cfg.FRCNN.BATCH_PER_IM - num_fg,
             tf.size(bg_inds))
-        # bg_inds = tf.random_shuffle(bg_inds)[:num_bg]
+        bg_inds = tf.random_shuffle(bg_inds)[:num_bg]
         bg_inds = bg_inds[:num_bg]
 
 
