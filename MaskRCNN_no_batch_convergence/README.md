@@ -65,7 +65,7 @@ Running on Node 8
 ### All disabled
 
 Converges
-Running on Node 2 to check with 9 flags.
+Running on Node 2 to check with 9 flags, all disabled.
 
 
 ### GenerateProposals 
@@ -112,10 +112,13 @@ Converges
 Converges
 
 
+### RPN Head Batch
+
+Needs to be tested. No p3s right now
+
+
 ### To Add
 
-* fastrcnn_head_func (the head_func codepaths were unchanged I believe so maybe we don't need to do them)
-* maskrcnn_head_func
 
 * *Eval codepath* (needs to be further broken up, but we don't need it yet)
 
