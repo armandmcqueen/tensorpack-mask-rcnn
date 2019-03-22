@@ -52,12 +52,31 @@ Needs to be tested. Can working on it
 
 
 
+## Speculative work
+
+### Bratin 20190322
+
+BATCH_GENERATE_PROPOSALS
+BATCH_SAMPLE_TARGETS
+BATCH_ROI_ALIGN_BOX
+BATCH_FAST_RCNN_OUTPUTS
+BATCH_FAST_RCNN_LOSSES
+BATCH_ROI_ALIGN_MASK
+
+Running for convergence on Node 10, for throughput on Node 2
+
+
+### Bratin 20190322 FP16
+
+Same as above but with FP16 
+
+Running for convergence on Node 11, for throughput on Node 3
 
 
 
 
 
-
+## Completed Work
 
 
 
@@ -74,6 +93,8 @@ BATCH_FAST_RCNN_LOSSES = True
 BATCH_ROI_ALIGN_MASK = True
 BATCH_CROP_AND_RESIZE_MASK = True
 BATCH_MASK_LOSS = True
+
+FP16
 
 Converges TTA on bbox but not segm
 
