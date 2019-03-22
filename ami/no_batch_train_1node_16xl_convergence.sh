@@ -16,6 +16,7 @@ VENV=${CONDA_DEFAULT_ENV}
 # Write current branch and commit hash to log directory
 git branch | grep \* | awk '{print $2}' > ${LOG_DIR}/git_info
 git log | head -1 >> ${LOG_DIR}/git_info
+git diff >> ${LOG_DIR}/git_info
 
 # Copy this script into logging directory
 cp `basename $0` ${LOG_DIR}
