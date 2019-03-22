@@ -56,6 +56,7 @@ else:
     from performance import ThroughputTracker
 
 BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global arg. In convergence codebase, this is a constant
+
 BATCH_DATA_PIPELINE = False
 BATCH_GENERATE_PROPOSALS = False
 BATCH_RPN_HEAD = False 

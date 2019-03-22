@@ -4,7 +4,57 @@ Add pieces of the batch code to the nobatch code 1-by-1. Each piece must have a 
 Before committing to master, we must test that the new pieces leads to convergence at target accuracy. 
 
 
-## Combined Pieces
+## Current Work
+
+
+### All disabled
+
+Currently have 11 flags in existence. 
+Running on Node 9
+
+
+### RPN loss
+
+No longer certain. 
+Running on Node 5. Seems to crash a lot.
+
+
+
+### RPN Head Batch
+
+Needs to be tested. Can working on it
+
+
+### Layer 3, Block 2
+
+BATCH_GENERATE_PROPOSALS
+BATCH_SAMPLE_TARGETS
+BATCH_ROI_ALIGN_BOX
+
+Need to run on Node 6.
+
+### Layer 3 Block 3
+
+BATCH_FAST_RCNN_OUTPUTS
+BATCH_FAST_RCNN_LOSSES
+BATCH_ROI_ALIGN_MASK
+
+Need to run on Node 7
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### Bratin data 20190321
 
@@ -28,15 +78,14 @@ Throughput was measured on p3dn, accuracy on p3.16xl
 
 
 
+
 ### Layer 2, Block 1
 
 BATCH_DATA_PIPELINE
-Include BATCH_GENERATE_PROPOSALS? Depends on when this is completed.
 
 
 ### Layer 2, Block 2
 
-BATCH_GENERATE_PROPOSALS
 BATCH_RPN_HEAD
 BATCH_RPN_LOSS
 
@@ -71,10 +120,7 @@ Did not converge on SEGME. Converged on BBOX
 
 ## Individual Pieces
 
-### All disabled
 
-Converges with 9 flags. 
-Need to repeat as more flags are added
 
 
 ### GenerateProposals 
@@ -96,10 +142,7 @@ Converges. Maybe 0.3% off on small objects. Probably deserves a repeat later
 Fixed issue where randomness was disabled. 
 Converges
 
-### RPN loss
 
-No longer certain. 
-Running on Node 5. Seems to crash a lot.
 
 
 
@@ -122,9 +165,6 @@ Converges
 Converges
 
 
-### RPN Head Batch
-
-Needs to be tested. Can working on it
 
 
 ### To Add
