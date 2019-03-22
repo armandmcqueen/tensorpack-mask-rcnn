@@ -20,12 +20,8 @@ Running on Node 5. Seems to crash a lot.
 
 
 
-### RPN Head Batch
 
-Needs to be tested. Can working on it
-
-
-### Layer 3, Block 2
+### Layer 3, Block 1
 
 BATCH_GENERATE_PROPOSALS
 BATCH_SAMPLE_TARGETS
@@ -33,7 +29,8 @@ BATCH_ROI_ALIGN_BOX
 
 Running on Node 6.
 
-### Layer 3 Block 3
+
+### Layer 3 Block 2
 
 BATCH_FAST_RCNN_OUTPUTS
 BATCH_FAST_RCNN_LOSSES
@@ -42,6 +39,15 @@ BATCH_ROI_ALIGN_MASK
 Running on Node 7
 
 
+### Batch crop and resize
+
+This converged before, but retrying given Layer 2, Block 5 issues
+Running on Node 4
+
+
+### RPN Head Batch
+
+Needs to be tested. Can working on it
 
 
 
