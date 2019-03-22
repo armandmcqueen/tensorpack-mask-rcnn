@@ -16,13 +16,13 @@ def float32_variable_storage_getter(getter, name, shape=None, dtype=None,
                       trainable=trainable,
                       *args, **kwargs)
 
-    print(name, "trainable={} dtype={} storage_dtype={} id={} reuse={}".format(trainable, dtype, storage_dtype, id(variable), kwargs['reuse']))
+    # print(name, "trainable={} dtype={} storage_dtype={} id={} reuse={}".format(trainable, dtype, storage_dtype, id(variable), kwargs['reuse']))
 
     if norm:
         return variable
 
     if trainable and dtype != tf.float32:
-        print(name, "fp16_cast")
+        # print(name, "fp16_cast")
         cast_name = name + '/fp16_cast'
         try:
             cast_variable = tf.get_default_graph().get_tensor_by_name(
