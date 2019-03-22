@@ -220,13 +220,8 @@ class ResNetFPNModel(DetectionModel):
 
 
         #########################################################################################################
-        if not BATCH_GENERATE_PROPOSALS:
+        if BATCH_GENERATE_PROPOSALS:
         #########################################################################################################
-            multilevel_pred_boxes = [anchor.decode_logits(logits)
-                                     for anchor, logits in zip(multilevel_anchors, multilevel_box_logits)]
-            proposal_boxes, proposal_scores = generate_fpn_proposals(
-                multilevel_pred_boxes, multilevel_label_logits, image_shape2d)
-        else:
             multilevel_label_logits = [tf.expand_dims(k[0], 0) for k in rpn_outputs]
 
             multilevel_box_logits = [tf.transpose(k[1], [2, 3, 0, 1]) for k in rpn_outputs]
@@ -234,7 +229,7 @@ class ResNetFPNModel(DetectionModel):
             multilevel_box_logits = [tf.expand_dims(k, 0) for k in multilevel_box_logits]
 
             image_shape2d = tf.expand_dims(image_shape2d, 0)
-            proposal_boxes, proposal_scores = generate_fpn_proposals_batch_tf_op([ a.boxes for a in multilevel_anchors ],
+            proposal_boxes, proposal_scores = generate_fpn_proposals_batch_tf_op([a.boxes for a in multilevel_anchors],
                                                                                  multilevel_box_logits,
                                                                                  multilevel_label_logits,
                                                                                  image_shape2d)
@@ -243,6 +238,13 @@ class ResNetFPNModel(DetectionModel):
             proposal_scores = tf.reshape(tf.reshape(proposal_scores, (-1, 5))[:, 1:], (-1,))
             multilevel_label_logits = [tf.squeeze(k, 0) for k in multilevel_label_logits]
             multilevel_box_logits = [k[1] for k in rpn_outputs]
+        else:
+            multilevel_pred_boxes = [anchor.decode_logits(logits)
+                                     for anchor, logits in zip(multilevel_anchors, multilevel_box_logits)]
+            proposal_boxes, proposal_scores = generate_fpn_proposals(
+                multilevel_pred_boxes, multilevel_label_logits, image_shape2d)
+
+
         #########################################################################################################
 
 
@@ -254,6 +256,7 @@ class ResNetFPNModel(DetectionModel):
             #########################################################################################################
             if BATCH_RPN_LOSS:
             #########################################################################################################
+
                 all_anchors_fpn = get_all_anchors_fpn()  # For a single image. List, with anchors for each level
                 batched_all_anchors_fpn = []
 
@@ -261,17 +264,31 @@ class ResNetFPNModel(DetectionModel):
                     batched_all_anchors_on_level = tf.stack([all_anchors_on_level for _ in range(BATCH_SIZE_PLACEHOLDER)])
                     batched_all_anchors_fpn.append(batched_all_anchors_on_level)
 
+
                 multilevel_anchors = [RPNAnchors(
                         batched_all_anchors_fpn[i],
-                        inputs['anchor_labels_lvl{}'.format(i + 2)],
-                        inputs['anchor_boxes_lvl{}'.format(i + 2)]) for i in range(len(all_anchors_fpn))]
+                        tf.expand_dims(inputs['anchor_labels_lvl{}'.format(i + 2)], axis=0),
+                        tf.expand_dims(inputs['anchor_boxes_lvl{}'.format(i + 2)], axis=0)) for i in range(len(all_anchors_fpn))]
 
                 # These 3 lines are the self.slice_feature_and_anchors_batch function from the batch code
                 for i, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
                     with tf.name_scope('FPN_batch_slice_lvl{}'.format(i)):
                         multilevel_anchors[i] = multilevel_anchors[i].narrow_to_batch(features[i])
 
-                losses = multilevel_rpn_losses_batch(multilevel_anchors, multilevel_label_logits, multilevel_box_logits)
+                multilevel_label_logits = [tf.expand_dims(k, axis=0) for k in multilevel_label_logits] # BSxHxWxA
+                multilevel_box_logits = [tf.expand_dims(k, axis=0) for k in multilevel_box_logits] # BSxHxWxAx4
+
+
+                transposed_multilevel_box_logits = []
+                for i, box_logits in enumerate(multilevel_box_logits):
+                    shp = tf.shape(box_logits)  # BSxHxWxA
+
+                    # Desired = BS x (A*4) x H x W
+                    transposed_multilevel_box_logits.append(tf.reshape(box_logits, [shp[0], -1, shp[1], shp[2]]))
+
+
+
+                losses = multilevel_rpn_losses_batch(multilevel_anchors, multilevel_label_logits, transposed_multilevel_box_logits)
             else:
                 losses = multilevel_rpn_losses(multilevel_anchors, multilevel_label_logits, multilevel_box_logits)
             #########################################################################################################
