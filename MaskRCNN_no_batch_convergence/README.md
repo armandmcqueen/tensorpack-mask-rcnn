@@ -10,7 +10,7 @@ Before committing to master, we must test that the new pieces leads to convergen
 ### All disabled
 
 Currently have 11 flags in existence. 
-Running on Node 9
+Running on Nodes 8 and 9
 
 
 ### RPN loss
@@ -31,7 +31,7 @@ BATCH_GENERATE_PROPOSALS
 BATCH_SAMPLE_TARGETS
 BATCH_ROI_ALIGN_BOX
 
-Need to run on Node 6.
+Running on Node 6.
 
 ### Layer 3 Block 3
 
@@ -39,7 +39,7 @@ BATCH_FAST_RCNN_OUTPUTS
 BATCH_FAST_RCNN_LOSSES
 BATCH_ROI_ALIGN_MASK
 
-Need to run on Node 7
+Running on Node 7
 
 
 
