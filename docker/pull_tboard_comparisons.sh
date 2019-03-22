@@ -31,6 +31,6 @@ aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/converge
 
 # sudo rm ~/logs/htimeline.json
 # aws s3 cp --recursive logs/ s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_XXXXXXX/
-aws s3 cp --recursive logs/ s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_crop_and_resize_mask_20190321/
+#aws s3 cp --recursive logs/ s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_crop_and_resize_mask_20190321/
 
 
