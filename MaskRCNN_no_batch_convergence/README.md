@@ -6,7 +6,7 @@ Before committing to master, we must test that the new pieces leads to convergen
 
 ## Combined Pieces
 
-### All that have been tested
+### Bratin data 20190321
 
 BATCH_GENERATE_PROPOSALS = True
 
@@ -20,44 +20,50 @@ BATCH_CROP_AND_RESIZE_MASK = True
 BATCH_MASK_LOSS = True
 
 Converges TTA on bbox but not segm
+
+Throughput was measured on p3dn, accuracy on p3.16xl
+
 66 img/s
 
 
 
 
+### Layer 2, Block 1
 
-### Set 1
+BATCH_DATA_PIPELINE
+Include BATCH_GENERATE_PROPOSALS? Depends on when this is completed.
+
+
+### Layer 2, Block 2
 
 BATCH_GENERATE_PROPOSALS
+BATCH_RPN_HEAD
 BATCH_RPN_LOSS
 
-Need to run this once BATCH_RPN_LOSS has been independently fixed. Maybe throw in rpn_head too
+Need to run this once BATCH_RPN_LOSS has been independently fixed. Maybe throw in BATCH_RPN_HEAD too
 
-### Set 2
+### Layer 2, Block 3
 
 BATCH_SAMPLE_TARGETS
 BATCH_ROI_ALIGN_BOX
 
-Ran on Node 6 (need to push tfevents)
 Converges
 
 
-### Set 3
+### Layer 2, Block 4
 
 BATCH_FAST_RCNN_OUTPUTS
 BATCH_FAST_RCNN_LOSSES
+Converges, maybe slightly (0.4-0.6%) low on small segmentation
 
-Ran on Node 7 (need to send tfevents)
-Converges
 
-### Set 4
+### Layer 2, Block 5
 
 BATCH_ROI_ALIGN_MASK
 BATCH_CROP_AND_RESIZE_MASK
 BATCH_MASK_LOSS
 
-Running on Node 8
-Converged on bbox but not segm
+Did not converge on SEGME. Converged on BBOX
 
 
 
@@ -67,8 +73,8 @@ Converged on bbox but not segm
 
 ### All disabled
 
-Converges
-Running on Node 2 to check with 9 flags, all disabled.
+Converges with 9 flags. 
+Need to repeat as more flags are added
 
 
 ### GenerateProposals 
@@ -88,13 +94,12 @@ Converges. Maybe 0.3% off on small objects. Probably deserves a repeat later
 ### Sample targets
 
 Fixed issue where randomness was disabled. 
-Ran on Node 1 (need to copy tfevents)
 Converges
 
 ### RPN loss
 
 No longer certain. 
-Running on Node 5
+Running on Node 5. Seems to crash a lot.
 
 
 
