@@ -29,7 +29,7 @@ def rpn_head(featuremap, channel, num_anchors, fp16=False):
     """
     Returns:
         label_logits: BS x fH x fW x NA
-        box_logits: BS x fH x fW x NA x 4
+        box_logits: BS x (NA*4) x fH x fW
     """
     # featuremap = print_runtime_shape("featuremap", featuremap, prefix="rpn_head")
     prefix = "rpn_head"
