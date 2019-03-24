@@ -6,6 +6,10 @@
 - data.py no horizontal flip augmentation
 - sample_fast_rcnn_targets_batch removed randomness
 
+## Tensorpack todo
+
+Port TensorSpec changes.
+
 ## Building Tensorflow
 
 Requires custom Tensorflow for GPU optimized ops. Build steps were run on the AWS DLAMI 21.2.
