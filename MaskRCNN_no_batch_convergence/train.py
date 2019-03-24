@@ -57,20 +57,39 @@ else:
 
 BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global arg. In convergence codebase, this is a constant
 
+
+# Unfinished module
 BATCH_DATA_PIPELINE = False
-BATCH_GENERATE_PROPOSALS = False
-BATCH_RPN_HEAD = False 
+
+
+# Untested module
+BATCH_RPN_HEAD = False
+
+
+# Modules that fail
 BATCH_RPN_LOSS = False
-BATCH_ROI_ALIGN_BOX = False
-BATCH_SAMPLE_TARGETS = False
 BATCH_ROI_ALIGN_MASK = False
-BATCH_CROP_AND_RESIZE_MASK = False
+
+
+# Modules that all work together (grouped by ability to be combined into a single supermodule)
+BATCH_GENERATE_PROPOSALS = False
+
+BATCH_SAMPLE_TARGETS = False
+BATCH_ROI_ALIGN_BOX = False
 BATCH_FAST_RCNN_OUTPUTS = False
-BATCH_FAST_RCNN_LOSSES = False # Enabling this means using FastRCNNHeadBatch. FastRCNNHead/FastRCNNHeadBatch is also
-                               # used in the self.training == false codepath so enabling it means potentially breaking
-                               # the eval code.
-                               # Be very careful with this flag because it is not well isolated
+BATCH_FAST_RCNN_LOSSES = False # See NOTE below
+
+BATCH_CROP_AND_RESIZE_MASK = False
 BATCH_MASK_LOSS = False
+
+
+# NOTE: Enabling BATCH_FAST_RCNN_LOSSES means using FastRCNNHeadBatch. FastRCNNHead/FastRCNNHeadBatch is also
+#       used in the self.training == false codepath so enabling it means potentially breaking
+#       the eval code.
+#       Be very careful with this flag because it is not well isolated
+
+
+
 
 
 try:
