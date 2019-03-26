@@ -9,78 +9,6 @@ Before committing to master, we must test that the new pieces leads to convergen
 
 
 
-### Layer 4, Block 1a
-
-Crop and resize might be problematic. Running a variant of L4-B1 that does not use crop and resize
-
-BATCH_GENERATE_PROPOSALS
-BATCH_SAMPLE_TARGETS
-BATCH_ROI_ALIGN_BOX
-BATCH_FAST_RCNN_OUTPUTS
-BATCH_FAST_RCNN_LOSSES
-BATCH_MASK_LOSS
-
-Running on Node 8
-
-### Layer 4, Block 1a FP16
-
-Same as above, with FP16
-
-Running for convergence on Node 9, throughput on Node 3
-
-
-
-### Layer 2, Block 5b
-
-Same as Layer 2, Block 5, but without ROIAlignMask that seems problematic
-
-BATCH_CROP_AND_RESIZE_MASK
-BATCH_MASK_LOSS
-
-Running on Node 4
-
-
-
-### Layer 3, Block 2b
-
-Since ROIAlignMask is problematic, replace L3-B2 (that uses ROIAlignMask) with L3-B2B which sits on top of L2-B5B (more flags, but none that we know are problematic)
-
-BATCH_FAST_RCNN_OUTPUTS
-BATCH_FAST_RCNN_LOSSES
-BATCH_CROP_AND_RESIZE_MASK
-BATCH_MASK_LOSS
-
-This sits on L2-B5B which is not currently confirmed to be solid (running in parallel)
-
-Running on Node 5
-
-
-
-### Layer 4, Block 1
-
-All flags that appear to be non-problematic. A bit speculative since it sits on L2 and L3 blocks that have not been confirmed to work, but good use of parallelization.
-
-BATCH_GENERATE_PROPOSALS
-BATCH_SAMPLE_TARGETS
-BATCH_ROI_ALIGN_BOX
-BATCH_FAST_RCNN_OUTPUTS
-BATCH_FAST_RCNN_LOSSES
-BATCH_CROP_AND_RESIZE_MASK
-BATCH_MASK_LOSS
-
-Running for convergence on Node 6 and throughput on Node 1
-
-
-### Layer 4, Block 1 FP16
-
-Same as above, but with FP16
-Need to run for convergence on Node 7 and throughput on Node 2
-
-
-
-
-
-
 ## Individual blocks that require further investigation 
 
 ### RPN loss
@@ -97,9 +25,6 @@ Definitely does not converge TTA. Fine on bbox, 3-8% off on segm
 
 
 
-### RPN Head Batch
-
-Needs to be tested. Can working on it
 
 
 
@@ -143,6 +68,38 @@ FP16 did not seem to have any accuracy impact, but need to compare tfevents side
 
 
 
+
+
+### Layer 4, Block 1
+
+All flags that appear to be non-problematic. A bit speculative since it sits on L2 and L3 blocks that have not been confirmed to work, but good use of parallelization.
+
+BATCH_GENERATE_PROPOSALS
+BATCH_SAMPLE_TARGETS
+BATCH_ROI_ALIGN_BOX
+BATCH_FAST_RCNN_OUTPUTS
+BATCH_FAST_RCNN_LOSSES
+BATCH_CROP_AND_RESIZE_MASK
+BATCH_MASK_LOSS
+
+Converges to target accuracy, 
+50 img/s on p3dn
+
+
+
+### Layer 4, Block 1 FP16
+
+Same as above, but with FP16
+
+Converges to target accuracy (maybe 0.2% low on small bbox and segm)
+
+64 img/s on p3dn
+59 img/s on p3.16xl
+
+
+
+
+
 ### Layer 3, Block 1
 
 BATCH_GENERATE_PROPOSALS
@@ -159,6 +116,24 @@ BATCH_FAST_RCNN_LOSSES
 BATCH_ROI_ALIGN_MASK
 
 Converges TTA on bbox but not segm. ROIAlignMask is very likely culprit
+
+
+
+
+### Layer 3, Block 2b
+
+Since ROIAlignMask is problematic, replace L3-B2 (that uses ROIAlignMask) with L3-B2B which sits on top of L2-B5B (more flags, but none that we know are problematic)
+
+BATCH_FAST_RCNN_OUTPUTS
+BATCH_FAST_RCNN_LOSSES
+BATCH_CROP_AND_RESIZE_MASK
+BATCH_MASK_LOSS
+
+This sits on L2-B5B which is not currently confirmed to be solid (running in parallel)
+
+Converges to target accuracy. Might be a touch low (0.2%)
+
+
 
 
 
@@ -214,6 +189,8 @@ BATCH_FAST_RCNN_LOSSES
 Converges, maybe slightly (0.4-0.6%) low on small segmentation
 
 
+
+
 ### Layer 2, Block 5
 
 BATCH_ROI_ALIGN_MASK
@@ -222,6 +199,16 @@ BATCH_MASK_LOSS
 
 Did not converge on SEGME. Converged on BBOX
 
+
+
+### Layer 2, Block 5b
+
+Same as Layer 2, Block 5, but without ROIAlignMask that seems problematic
+
+BATCH_CROP_AND_RESIZE_MASK
+BATCH_MASK_LOSS
+
+Converges. Small segm might be a touch low (0.2%), but probably not significant
 
 
 
@@ -271,6 +258,12 @@ Converges
 ### Mask Loss
 
 Converges
+
+
+### RPN Head Batch
+
+Converged TTA
+
 
 
 

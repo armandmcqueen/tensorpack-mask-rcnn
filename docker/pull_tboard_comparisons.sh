@@ -34,6 +34,13 @@ aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/converge
 aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_sampletargets_and_roialignbox_20190322 ~/old_logs/convergence_codebase_iso_sampletargets_and_roialignbox_20190322
 aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_fastrcnnoutputs_and_fastrcnnlosses_20190322 ~/old_logs/convergence_codebase_iso_fastrcnnoutputs_and_fastrcnnlosses_20190322
 aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_genprops_sampletargets_roialignbox_20190323 ~/old_logs/convergence_codebase_iso_genprops_sampletargets_roialignbox_20190323
+aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_cropandresizemask_maskloss_20190325 ~/old_logs/convergence_codebase_iso_cropandresizemask_maskloss_20190325
+aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_frcnnoutputs_frcnnlosses_cropandresizemask_maskloss_20190325 ~/old_logs/convergence_codebase_iso_frcnnoutputs_frcnnlosses_cropandresizemask_maskloss_20190325
+aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_layer4_block1_convergence_20190325 ~/old_logs/convergence_codebase_iso_layer4_block1_convergence_20190325
+aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_layer4_block1_throughput_20190325 ~/old_logs/convergence_codebase_iso_layer4_block1_throughput_20190325
+aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_layer4_block1_fp16_convergence_20190325 ~/old_logs/convergence_codebase_iso_layer4_block1_fp16_convergence_20190325
+aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_layer4_block1_fp16_throughput_p3dn_20190325 ~/old_logs/convergence_codebase_iso_layer4_block1_fp16_throughput_p3dn_20190325
+aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_layer4_block1_fp16_throughput_p316xl_20190325 ~/old_logs/convergence_codebase_iso_layer4_block1_fp16_throughput_p316xl_20190325
 
 
 
