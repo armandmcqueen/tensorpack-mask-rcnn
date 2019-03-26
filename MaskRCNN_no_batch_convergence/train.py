@@ -59,7 +59,7 @@ BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global
 
 
 # Unfinished module
-BATCH_DATA_PIPELINE = True
+BATCH_DATA_PIPELINE = False
 
 
 # Untested module
