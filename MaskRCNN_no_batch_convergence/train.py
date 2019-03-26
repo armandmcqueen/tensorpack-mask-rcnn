@@ -56,20 +56,39 @@ else:
     from performance import ThroughputTracker
 
 BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global arg. In convergence codebase, this is a constant
-BATCH_DATA_PIPELINE = False 
-BATCH_GENERATE_PROPOSALS = True
-BATCH_RPN_HEAD = False 
+
+# Unfinished module
+BATCH_DATA_PIPELINE = False
+
+
+# Untested module
+BATCH_RPN_HEAD = False
+
+
+# Modules that fail
 BATCH_RPN_LOSS = False
-BATCH_ROI_ALIGN_BOX = True
+BATCH_ROI_ALIGN_MASK = False
+
+
+# Modules that all work together (grouped by ability to be combined into a single supermodule)
+BATCH_GENERATE_PROPOSALS = False
+
 BATCH_SAMPLE_TARGETS = False
-BATCH_ROI_ALIGN_MASK = False 
-BATCH_CROP_AND_RESIZE_MASK = True
-BATCH_FAST_RCNN_OUTPUTS = True
-BATCH_FAST_RCNN_LOSSES = True # Enabling this means using FastRCNNHeadBatch. FastRCNNHead/FastRCNNHeadBatch is also
-                               # used in the self.training == false codepath so enabling it means potentially breaking
-                               # the eval code.
-                               # Be very careful with this flag because it is not well isolated
-BATCH_MASK_LOSS = True
+BATCH_ROI_ALIGN_BOX = False
+BATCH_FAST_RCNN_OUTPUTS = False
+BATCH_FAST_RCNN_LOSSES = False # See NOTE below
+
+BATCH_CROP_AND_RESIZE_MASK = False
+BATCH_MASK_LOSS = False
+
+
+# NOTE: Enabling BATCH_FAST_RCNN_LOSSES means using FastRCNNHeadBatch. FastRCNNHead/FastRCNNHeadBatch is also
+#       used in the self.training == false codepath so enabling it means potentially breaking
+#       the eval code.
+#       Be very careful with this flag because it is not well isolated
+
+
+
 
 
 try:
@@ -118,15 +137,14 @@ class DetectionModel(ModelDesc):
 
         if cfg.MODE_MASK:
             out.append('output/masks')
-        return ['image'], out
+        return ['images'], out
 
     def build_graph(self, *inputs):
         inputs = dict(zip(self.input_names, inputs))
 
-        image = self.preprocess(inputs['image'])     # 1CHW
+        image = self.preprocess(inputs['images'])     # 1CHW
 
         features = self.backbone(image)
-        print("features", features)
         anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
         proposals, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
 
@@ -149,15 +167,14 @@ class ResNetFPNModel(DetectionModel):
 
     # TODO: Batchify
     def inputs(self):
-        ret = [
-            tf.placeholder(tf.float32, (None, None, 3), 'image')]
+        ret = [ tf.placeholder(tf.float32, (None, None, 3), 'images') ]
         num_anchors = len(cfg.RPN.ANCHOR_RATIOS)
         for k in range(len(cfg.FPN.ANCHOR_STRIDES)):
             ret.extend([
-                tf.placeholder(tf.int32, (None, None, num_anchors),
-                               'anchor_labels_lvl{}'.format(k + 2)),
-                tf.placeholder(tf.float32, (None, None, num_anchors, 4),
-                               'anchor_boxes_lvl{}'.format(k + 2))])
+                    tf.placeholder(tf.int32, (None, None, num_anchors),
+                                'anchor_labels_lvl{}'.format(k + 2)),
+                    tf.placeholder(tf.float32, (None, None, num_anchors, 4),
+                                'anchor_boxes_lvl{}'.format(k + 2))])
         ret.extend([
             tf.placeholder(tf.float32, (None, 4), 'gt_boxes'),
             tf.placeholder(tf.int64, (None,), 'gt_labels')])  # all > 0
@@ -165,6 +182,7 @@ class ResNetFPNModel(DetectionModel):
             ret.append(
                 tf.placeholder(tf.uint8, (None, None, None), 'gt_masks')
             )   # NR_GT x height x width
+
         return ret
 
     def slice_feature_and_anchors(self, p23456, anchors):
@@ -225,13 +243,8 @@ class ResNetFPNModel(DetectionModel):
 
 
         #########################################################################################################
-        if not BATCH_GENERATE_PROPOSALS:
+        if BATCH_GENERATE_PROPOSALS:
         #########################################################################################################
-            multilevel_pred_boxes = [anchor.decode_logits(logits)
-                                     for anchor, logits in zip(multilevel_anchors, multilevel_box_logits)]
-            proposal_boxes, proposal_scores = generate_fpn_proposals(
-                multilevel_pred_boxes, multilevel_label_logits, image_shape2d)
-        else:
             multilevel_label_logits = [tf.expand_dims(k[0], 0) for k in rpn_outputs]
 
             multilevel_box_logits = [tf.transpose(k[1], [2, 3, 0, 1]) for k in rpn_outputs]
@@ -239,7 +252,7 @@ class ResNetFPNModel(DetectionModel):
             multilevel_box_logits = [tf.expand_dims(k, 0) for k in multilevel_box_logits]
 
             image_shape2d = tf.expand_dims(image_shape2d, 0)
-            proposal_boxes, proposal_scores = generate_fpn_proposals_batch_tf_op([ a.boxes for a in multilevel_anchors ],
+            proposal_boxes, proposal_scores = generate_fpn_proposals_batch_tf_op([a.boxes for a in multilevel_anchors],
                                                                                  multilevel_box_logits,
                                                                                  multilevel_label_logits,
                                                                                  image_shape2d)
@@ -248,6 +261,13 @@ class ResNetFPNModel(DetectionModel):
             proposal_scores = tf.reshape(tf.reshape(proposal_scores, (-1, 5))[:, 1:], (-1,))
             multilevel_label_logits = [tf.squeeze(k, 0) for k in multilevel_label_logits]
             multilevel_box_logits = [k[1] for k in rpn_outputs]
+        else:
+            multilevel_pred_boxes = [anchor.decode_logits(logits)
+                                     for anchor, logits in zip(multilevel_anchors, multilevel_box_logits)]
+            proposal_boxes, proposal_scores = generate_fpn_proposals(
+                multilevel_pred_boxes, multilevel_label_logits, image_shape2d)
+
+
         #########################################################################################################
 
 
@@ -259,6 +279,7 @@ class ResNetFPNModel(DetectionModel):
             #########################################################################################################
             if BATCH_RPN_LOSS:
             #########################################################################################################
+
                 all_anchors_fpn = get_all_anchors_fpn()  # For a single image. List, with anchors for each level
                 batched_all_anchors_fpn = []
 
@@ -266,17 +287,31 @@ class ResNetFPNModel(DetectionModel):
                     batched_all_anchors_on_level = tf.stack([all_anchors_on_level for _ in range(BATCH_SIZE_PLACEHOLDER)])
                     batched_all_anchors_fpn.append(batched_all_anchors_on_level)
 
+
                 multilevel_anchors = [RPNAnchors(
                         batched_all_anchors_fpn[i],
-                        inputs['anchor_labels_lvl{}'.format(i + 2)],
-                        inputs['anchor_boxes_lvl{}'.format(i + 2)]) for i in range(len(all_anchors_fpn))]
+                        tf.expand_dims(inputs['anchor_labels_lvl{}'.format(i + 2)], axis=0),
+                        tf.expand_dims(inputs['anchor_boxes_lvl{}'.format(i + 2)], axis=0)) for i in range(len(all_anchors_fpn))]
 
                 # These 3 lines are the self.slice_feature_and_anchors_batch function from the batch code
                 for i, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
                     with tf.name_scope('FPN_batch_slice_lvl{}'.format(i)):
                         multilevel_anchors[i] = multilevel_anchors[i].narrow_to_batch(features[i])
 
-                losses = multilevel_rpn_losses_batch(multilevel_anchors, multilevel_label_logits, multilevel_box_logits)
+                multilevel_label_logits = [tf.expand_dims(k, axis=0) for k in multilevel_label_logits] # BSxHxWxA
+                multilevel_box_logits = [tf.expand_dims(k, axis=0) for k in multilevel_box_logits] # BSxHxWxAx4
+
+
+                transposed_multilevel_box_logits = []
+                for i, box_logits in enumerate(multilevel_box_logits):
+                    shp = tf.shape(box_logits)  # BSxHxWxA
+
+                    # Desired = BS x (A*4) x H x W
+                    transposed_multilevel_box_logits.append(tf.reshape(box_logits, [shp[0], -1, shp[1], shp[2]]))
+
+
+
+                losses = multilevel_rpn_losses_batch(multilevel_anchors, multilevel_label_logits, transposed_multilevel_box_logits)
             else:
                 losses = multilevel_rpn_losses(multilevel_anchors, multilevel_label_logits, multilevel_box_logits)
             #########################################################################################################
@@ -553,7 +588,7 @@ def do_visualize(model, model_path, nr_visualize=100, output_dir='output'):
     pred = OfflinePredictor(PredictConfig(
         model=model,
         session_init=get_model_loader(model_path),
-        input_names=['image', 'gt_boxes', 'gt_labels'],
+        input_names=['images', 'gt_boxes', 'gt_labels'],
         output_names=[
             'generate_{}_proposals/boxes'.format('fpn' if cfg.MODE_FPN else 'rpn'),
             'generate_{}_proposals/scores'.format('fpn' if cfg.MODE_FPN else 'rpn'),
@@ -568,7 +603,7 @@ def do_visualize(model, model_path, nr_visualize=100, output_dir='output'):
     utils.fs.mkdir_p(output_dir)
     with tqdm.tqdm(total=nr_visualize) as pbar:
         for idx, dp in itertools.islice(enumerate(df), nr_visualize):
-            img, gt_boxes, gt_labels = dp['image'], dp['gt_boxes'], dp['gt_labels']
+            img, gt_boxes, gt_labels = dp['images'], dp['gt_boxes'], dp['gt_labels']
 
             rpn_boxes, rpn_scores, all_scores, \
                 final_boxes, final_scores, final_labels = pred(img, gt_boxes, gt_labels)
@@ -690,7 +725,7 @@ if __name__ == '__main__':
             logger.info("Horovod Rank={}, Size={}".format(hvd.rank(), hvd.size()))
 
         if not is_horovod or hvd.rank() == 0:
-            logger.set_logger_dir(args.logdir, 'k')
+            logger.set_logger_dir(args.logdir, 'd')
 
         finalize_configs(is_training=True)
         stepnum = cfg.TRAIN.STEPS_PER_EPOCH

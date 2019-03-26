@@ -303,17 +303,15 @@ class RPNAnchors(namedtuple('_RPNAnchors', ['boxes', 'gt_labels', 'gt_boxes'])):
         should return RPNAnchors in batch form and not worry about anything downstream breaking
         """
 
-        batch_gt_labels = tf.expand_dims(self.gt_labels, axis=0)
-        batch_gt_boxes = tf.expand_dims(self.gt_boxes, axis=0)
-        batch_boxes = tf.expand_dims(self.boxes, axis=0)
+
 
 
         shape2d = tf.shape(featuremap)[2:]  # h,w
         slice4d = tf.concat([[-1], shape2d, [-1]], axis=0)
         slice5d = tf.concat([[-1], shape2d, [-1, -1]], axis=0)
-        boxes = tf.slice(batch_boxes, [0, 0, 0, 0, 0], slice5d)
-        gt_labels = tf.slice(batch_gt_labels, [0, 0, 0, 0], slice4d)
-        gt_boxes = tf.slice(batch_gt_boxes, [0, 0, 0, 0, 0], slice5d)
+        boxes = tf.slice(self.boxes, [0, 0, 0, 0, 0], slice5d)
+        gt_labels = tf.slice(self.gt_labels, [0, 0, 0, 0], slice4d)
+        gt_boxes = tf.slice(self.gt_boxes, [0, 0, 0, 0, 0], slice5d)
         return RPNAnchors(boxes, gt_labels, gt_boxes)
 
 

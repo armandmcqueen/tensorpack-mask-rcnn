@@ -13,7 +13,7 @@ echo ""
 
 # --use_nobatch_pipeline
 
-
+TENSORPACK_FP16=1 \
 HOROVOD_TIMELINE=/logs/htimeline.json \
 HOROVOD_CYCLE_TIME=0.5 \
 HOROVOD_FUSION_THRESHOLD=67108864 \
@@ -30,6 +30,7 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 /usr/local/bin/python3 /tensorpack-mask-rcnn/MaskRCNN_no_batch_convergence/train.py \
 --logdir /logs/train_log \
 --perf \
+--fp16 \
 --summary_period $SUMMARY_PERIOD \
 --throughput_log_freq 2000 \
 --config MODE_MASK=True \

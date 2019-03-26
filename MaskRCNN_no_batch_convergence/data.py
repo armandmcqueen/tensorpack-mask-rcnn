@@ -339,7 +339,7 @@ def get_train_dataflow():
         boxes = point8_to_box(points)
         assert np.min(np_area(boxes)) > 0, "Some boxes have zero area!"
 
-        ret = {'image': im}
+        ret = {'images': im}
         # rpn anchor:
         try:
             if cfg.MODE_FPN:
@@ -381,6 +381,14 @@ def get_train_dataflow():
             # for mask in masks:
             #     viz = draw_mask(viz, mask)
             # tpviz.interactive_imshow(viz)
+
+        # for k, v in ret.items():
+        #    print("key", k)
+        #    if type(v) == np.ndarray:
+        #        print("val", v.shape)
+        #    else:
+        #        print("val", v)
+
         return ret
 
     if cfg.TRAINER == 'horovod':
@@ -422,7 +430,6 @@ def get_batch_train_dataflow(batch_size):
         num - len(roidbs), len(roidbs)))
 
     print("Batching roidbs")
-    '''
     batched_roidbs = []
     batch = []
 
@@ -432,9 +439,8 @@ def get_batch_train_dataflow(batch_size):
                 batched_roidbs.append(batch)
             batch = []
         batch.append(d)
-    '''
 
-    batched_roidbs = sort_by_aspect_ratio(roidbs, batch_size)
+    #batched_roidbs = sort_by_aspect_ratio(roidbs, batch_size)
     #batched_roidbs = group_by_aspect_ratio(roidbs, batch_size)
     print("Done batching roidbs")
 
@@ -473,7 +479,7 @@ def get_batch_train_dataflow(batch_size):
             boxes = point8_to_box(points)
             assert np.min(np_area(boxes)) > 0, "Some boxes have zero area!"
 
-            ret = {'image': im}
+            ret = {'images': im}
             # rpn anchor:
             try:
                 if cfg.MODE_FPN:
@@ -558,7 +564,7 @@ def get_batch_train_dataflow(batch_size):
         """
 
 
-        image_dims = [d["image"].shape for d in datapoint_list]
+        image_dims = [d["images"].shape for d in datapoint_list]
         heights = [dim[0] for dim in image_dims]
         widths = [dim[1] for dim in image_dims]
 
@@ -570,7 +576,7 @@ def get_batch_train_dataflow(batch_size):
         padded_images = []
         original_image_dims = []
         for datapoint in datapoint_list:
-            image = datapoint["image"]
+            image = datapoint["images"]
             original_image_dims.append(image.shape)
 
             h_padding = max_height - image.shape[0]
@@ -614,8 +620,8 @@ def get_batch_train_dataflow(batch_size):
 
 
 
-            h_padding = max_height - datapoint["image"].shape[0]
-            w_padding = max_width - datapoint["image"].shape[1]
+            h_padding = max_height - datapoint["images"].shape[0]
+            w_padding = max_width - datapoint["images"].shape[1]
 
 
 
@@ -641,8 +647,36 @@ def get_batch_train_dataflow(batch_size):
         # print(batched_datapoint)
         # print("END BATCHED DATAPOINT")
 
-        return batched_datapoint
+        batched_datapoint["anchor_labels_lvl2"] = np.squeeze(batched_datapoint["anchor_labels_lvl2"], axis=0)
+        batched_datapoint["anchor_boxes_lvl2"] = np.squeeze(batched_datapoint["anchor_boxes_lvl2"], axis=0)
+        batched_datapoint["anchor_labels_lvl3"] = np.squeeze(batched_datapoint["anchor_labels_lvl3"], axis=0)
+        batched_datapoint["anchor_boxes_lvl3"] = np.squeeze(batched_datapoint["anchor_boxes_lvl3"], axis=0)
+        batched_datapoint["anchor_labels_lvl4"] = np.squeeze(batched_datapoint["anchor_labels_lvl4"], axis=0)
+        batched_datapoint["anchor_boxes_lvl4"] = np.squeeze(batched_datapoint["anchor_boxes_lvl4"], axis=0)
+        batched_datapoint["anchor_labels_lvl5"] = np.squeeze(batched_datapoint["anchor_labels_lvl5"], axis=0)
+        batched_datapoint["anchor_boxes_lvl5"] = np.squeeze(batched_datapoint["anchor_boxes_lvl5"], axis=0)
+        batched_datapoint["anchor_labels_lvl6"] = np.squeeze(batched_datapoint["anchor_labels_lvl6"], axis=0)
+        batched_datapoint["anchor_boxes_lvl6"] = np.squeeze(batched_datapoint["anchor_boxes_lvl6"], axis=0)
+        batched_datapoint["images"] = np.squeeze(batched_datapoint["images"], axis=0)
+        batched_datapoint["orig_image_dims"] = np.squeeze(batched_datapoint["orig_image_dims"], axis=0)
+        batched_datapoint["orig_gt_counts"] = np.squeeze(batched_datapoint["orig_gt_counts"], axis=0)
+        batched_datapoint["gt_labels"] = np.squeeze(batched_datapoint["gt_labels"], axis=0)
+        batched_datapoint["gt_boxes"] = np.squeeze(batched_datapoint["gt_boxes"], axis=0)
+        batched_datapoint["gt_masks"] = np.squeeze(batched_datapoint["gt_masks"], axis=0)
 
+        # Delete keys from dictionary so that it matches placeholders precisely
+        batched_datapoint.pop('orig_image_dims')
+        batched_datapoint.pop('orig_gt_counts')
+        batched_datapoint.pop('filenames')
+
+        # for k, v in batched_datapoint.items():
+        #    print("key", k)
+        #    if type(v) == np.ndarray:
+        #        print("val", v.shape)
+        #    else:
+        #        print("val", v)
+
+        return batched_datapoint
 
     ds = DataFromList(batched_roidbs, shuffle=True)
 
