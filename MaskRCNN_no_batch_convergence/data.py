@@ -647,28 +647,6 @@ def get_batch_train_dataflow(batch_size):
         # print(batched_datapoint)
         # print("END BATCHED DATAPOINT")
 
-        batched_datapoint["anchor_labels_lvl2"] = np.squeeze(batched_datapoint["anchor_labels_lvl2"], axis=0)
-        batched_datapoint["anchor_boxes_lvl2"] = np.squeeze(batched_datapoint["anchor_boxes_lvl2"], axis=0)
-        batched_datapoint["anchor_labels_lvl3"] = np.squeeze(batched_datapoint["anchor_labels_lvl3"], axis=0)
-        batched_datapoint["anchor_boxes_lvl3"] = np.squeeze(batched_datapoint["anchor_boxes_lvl3"], axis=0)
-        batched_datapoint["anchor_labels_lvl4"] = np.squeeze(batched_datapoint["anchor_labels_lvl4"], axis=0)
-        batched_datapoint["anchor_boxes_lvl4"] = np.squeeze(batched_datapoint["anchor_boxes_lvl4"], axis=0)
-        batched_datapoint["anchor_labels_lvl5"] = np.squeeze(batched_datapoint["anchor_labels_lvl5"], axis=0)
-        batched_datapoint["anchor_boxes_lvl5"] = np.squeeze(batched_datapoint["anchor_boxes_lvl5"], axis=0)
-        batched_datapoint["anchor_labels_lvl6"] = np.squeeze(batched_datapoint["anchor_labels_lvl6"], axis=0)
-        batched_datapoint["anchor_boxes_lvl6"] = np.squeeze(batched_datapoint["anchor_boxes_lvl6"], axis=0)
-        batched_datapoint["images"] = np.squeeze(batched_datapoint["images"], axis=0)
-        batched_datapoint["orig_image_dims"] = np.squeeze(batched_datapoint["orig_image_dims"], axis=0)
-        batched_datapoint["orig_gt_counts"] = np.squeeze(batched_datapoint["orig_gt_counts"], axis=0)
-        batched_datapoint["gt_labels"] = np.squeeze(batched_datapoint["gt_labels"], axis=0)
-        batched_datapoint["gt_boxes"] = np.squeeze(batched_datapoint["gt_boxes"], axis=0)
-        batched_datapoint["gt_masks"] = np.squeeze(batched_datapoint["gt_masks"], axis=0)
-
-        # Delete keys from dictionary so that it matches placeholders precisely
-        batched_datapoint.pop('orig_image_dims')
-        batched_datapoint.pop('orig_gt_counts')
-        batched_datapoint.pop('filenames')
-
         # for k, v in batched_datapoint.items():
         #    print("key", k)
         #    if type(v) == np.ndarray:
