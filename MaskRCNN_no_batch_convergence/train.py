@@ -59,7 +59,7 @@ BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global
 
 
 # Unfinished module
-BATCH_DATA_PIPELINE = False
+BATCH_DATA_PIPELINE = True
 
 
 # Untested module
@@ -138,6 +138,27 @@ class DetectionModel(ModelDesc):
     def build_graph(self, *inputs):
         inputs = dict(zip(self.input_names, inputs))
 
+        #########################################################################################################
+        if BATCH_DATA_PIPELINE:
+        #########################################################################################################
+            inputs["anchor_labels_lvl2"] = tf.squeeze(inputs["anchor_labels_lvl2"], axis=0)
+            inputs["anchor_boxes_lvl2"] = tf.squeeze(inputs["anchor_boxes_lvl2"], axis=0)
+            inputs["anchor_labels_lvl3"] = tf.squeeze(inputs["anchor_labels_lvl3"], axis=0)
+            inputs["anchor_boxes_lvl3"] = tf.squeeze(inputs["anchor_boxes_lvl3"], axis=0)
+            inputs["anchor_labels_lvl4"] = tf.squeeze(inputs["anchor_labels_lvl4"], axis=0)
+            inputs["anchor_boxes_lvl4"] = tf.squeeze(inputs["anchor_boxes_lvl4"], axis=0)
+            inputs["anchor_labels_lvl5"] = tf.squeeze(inputs["anchor_labels_lvl5"], axis=0)
+            inputs["anchor_boxes_lvl5"] = tf.squeeze(inputs["anchor_boxes_lvl5"], axis=0)
+            inputs["anchor_labels_lvl6"] = tf.squeeze(inputs["anchor_labels_lvl6"], axis=0)
+            inputs["anchor_boxes_lvl6"] = tf.squeeze(inputs["anchor_boxes_lvl6"], axis=0)
+            inputs["images"] = tf.squeeze(inputs["images"], axis=0)
+            inputs["orig_image_dims"] = tf.squeeze(inputs["orig_image_dims"], axis=0)
+            inputs["orig_gt_counts"] = tf.squeeze(inputs["orig_gt_counts"], axis=0)
+            inputs["gt_labels"] = tf.squeeze(inputs["gt_labels"], axis=0)
+            inputs["gt_boxes"] = tf.squeeze(inputs["gt_boxes"], axis=0)
+            inputs["gt_masks"] = tf.squeeze(inputs["gt_masks"], axis=0)
+        #########################################################################################################
+
         image = self.preprocess(inputs['images'])     # 1CHW
 
         features = self.backbone(image)
@@ -163,21 +184,49 @@ class ResNetFPNModel(DetectionModel):
 
     # TODO: Batchify
     def inputs(self):
-        ret = [ tf.placeholder(tf.float32, (None, None, 3), 'images') ]
-        num_anchors = len(cfg.RPN.ANCHOR_RATIOS)
-        for k in range(len(cfg.FPN.ANCHOR_STRIDES)):
-            ret.extend([
-                    tf.placeholder(tf.int32, (None, None, num_anchors),
+
+        ######################################################################################################
+        if BATCH_DATA_PIPELINE:
+        ######################################################################################################
+            ret = [
+                tf.placeholder(tf.string, (None,), 'filenames'), # N length vector of filenames
+                tf.placeholder(tf.float32, (None, None, None, 3), 'images'),  # N x H x W x C
+                tf.placeholder(tf.int32, (None, 3), 'orig_image_dims')  # N x 3(image dims - hwc)
+            ]
+            num_anchors = len(cfg.RPN.ANCHOR_RATIOS)
+            for k in range(len(cfg.FPN.ANCHOR_STRIDES)):
+                ret.extend([
+                    tf.placeholder(tf.int32, (None, None, None, num_anchors),  # N x H x W x NumAnchors
                                 'anchor_labels_lvl{}'.format(k + 2)),
-                    tf.placeholder(tf.float32, (None, None, num_anchors, 4),
+                    tf.placeholder(tf.float32, (None, None, None, num_anchors, 4),  # N x H x W x NumAnchors x 4
                                 'anchor_boxes_lvl{}'.format(k + 2))])
-        ret.extend([
-            tf.placeholder(tf.float32, (None, 4), 'gt_boxes'),
-            tf.placeholder(tf.int64, (None,), 'gt_labels')])  # all > 0
-        if cfg.MODE_MASK:
-            ret.append(
-                tf.placeholder(tf.uint8, (None, None, None), 'gt_masks')
-            )   # NR_GT x height x width
+            ret.extend([
+                tf.placeholder(tf.float32, (None, None, 4), 'gt_boxes'),  # N x MaxNumGTs x 4
+                tf.placeholder(tf.int64, (None, None), 'gt_labels'),  # all > 0        # N x MaxNumGTs
+                tf.placeholder(tf.int32, (None,), 'orig_gt_counts')  # N
+            ])
+
+            if cfg.MODE_MASK:
+                ret.append(
+                        tf.placeholder(tf.uint8, (None, None, None, None), 'gt_masks')  # N x MaxNumGTs x H x W
+                )
+        else:
+            ret = [ tf.placeholder(tf.float32, (None, None, 3), 'images') ]
+            num_anchors = len(cfg.RPN.ANCHOR_RATIOS)
+            for k in range(len(cfg.FPN.ANCHOR_STRIDES)):
+                ret.extend([
+                        tf.placeholder(tf.int32, (None, None, num_anchors),
+                                    'anchor_labels_lvl{}'.format(k + 2)),
+                        tf.placeholder(tf.float32, (None, None, num_anchors, 4),
+                                    'anchor_boxes_lvl{}'.format(k + 2))])
+            ret.extend([
+                tf.placeholder(tf.float32, (None, 4), 'gt_boxes'),
+                tf.placeholder(tf.int64, (None,), 'gt_labels')])  # all > 0
+            if cfg.MODE_MASK:
+                ret.append(
+                    tf.placeholder(tf.uint8, (None, None, None), 'gt_masks')
+                )   # NR_GT x height x width
+        #######################################################################################################
 
         return ret
 
