@@ -56,20 +56,20 @@ else:
     from performance import ThroughputTracker
 
 BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global arg. In convergence codebase, this is a constant
-BATCH_DATA_PIPELINE = False
-BATCH_GENERATE_PROPOSALS = False
+BATCH_DATA_PIPELINE = False 
+BATCH_GENERATE_PROPOSALS = True
 BATCH_RPN_HEAD = False 
 BATCH_RPN_LOSS = False
-BATCH_ROI_ALIGN_BOX = False
+BATCH_ROI_ALIGN_BOX = True
 BATCH_SAMPLE_TARGETS = False
-BATCH_ROI_ALIGN_MASK = False
-BATCH_CROP_AND_RESIZE_MASK = False
-BATCH_FAST_RCNN_OUTPUTS = False
-BATCH_FAST_RCNN_LOSSES = False # Enabling this means using FastRCNNHeadBatch. FastRCNNHead/FastRCNNHeadBatch is also
+BATCH_ROI_ALIGN_MASK = False 
+BATCH_CROP_AND_RESIZE_MASK = True
+BATCH_FAST_RCNN_OUTPUTS = True
+BATCH_FAST_RCNN_LOSSES = True # Enabling this means using FastRCNNHeadBatch. FastRCNNHead/FastRCNNHeadBatch is also
                                # used in the self.training == false codepath so enabling it means potentially breaking
                                # the eval code.
                                # Be very careful with this flag because it is not well isolated
-BATCH_MASK_LOSS = False
+BATCH_MASK_LOSS = True
 
 
 try:
@@ -110,7 +110,12 @@ class DetectionModel(ModelDesc):
             [str]: input names
             [str]: output names
         """
-        out = ['output/boxes', 'output/scores', 'output/labels']
+
+        if BATCH_EVAL:
+            out = ['output/batch_indices', 'output/boxes', 'output/scores', 'output/labels']
+        else:
+            out = ['output/boxes', 'output/scores', 'output/labels']
+
         if cfg.MODE_MASK:
             out.append('output/masks')
         return ['image'], out
@@ -532,6 +537,9 @@ class ResNetFPNModel(DetectionModel):
                 indices = tf.stack([tf.range(tf.size(final_labels)), tf.cast(final_labels, tf.int32) - 1], axis=1)
                 final_mask_logits = tf.gather_nd(mask_logits, indices)   # #resultx28x28
                 tf.sigmoid(final_mask_logits, name='output/masks')
+  
+                if BATCH_EVAL:
+                    tf.identity(proposals.boxes[0,:], name='output/batch_indices')
             return []
 
 
@@ -725,7 +733,7 @@ if __name__ == '__main__':
             EstimatedTimeLeft(median=True),
             SessionRunTimeout(60000).set_chief_only(True),   # 1 minute timeout
         ] + [
-            EvalCallback(dataset, *MODEL.get_inference_tensor_names(), args.logdir)
+            EvalCallback(dataset, *MODEL.get_inference_tensor_names(), args.logdir, BATCH_EVAL)
             for dataset in cfg.DATA.VAL
         ]
         if not is_horovod:
