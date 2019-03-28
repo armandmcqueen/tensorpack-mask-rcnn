@@ -78,7 +78,7 @@ BATCH_GENERATE_PROPOSALS = False
 # BATCH_ROI_ALIGN_BOX = False
 # BATCH_FAST_RCNN_OUTPUTS = False
 # BATCH_FAST_RCNN_LOSSES = False # See NOTE below
-BATCH_ROI_HEADS_NO_MASK = False
+BATCH_FRCNN_HEAD = False
 
 BATCH_CROP_AND_RESIZE_MASK = False
 BATCH_MASK_LOSS = False
@@ -372,7 +372,7 @@ class ResNetFPNModel(DetectionModel):
         gt_boxes, gt_labels, *_ = targets
 
         #############################################################################################################
-        if BATCH_ROI_HEADS_NO_MASK:
+        if BATCH_FRCNN_HEAD:
         #############################################################################################################
             prepadding_gt_counts = tf.expand_dims(tf.shape(gt_labels)[0], axis=0)  # 1 x NumGT
 
@@ -441,7 +441,7 @@ class ResNetFPNModel(DetectionModel):
 
                 all_losses = fastrcnn_head.losses(BATCH_SIZE_PLACEHOLDER)
 
-        else: # BATCH_ROI_HEADS_NO_MASK = False
+        else: # BATCH_FRCNN_HEAD = False
 
             proposals = BoxProposals(proposal_boxes)
 
