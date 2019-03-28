@@ -68,7 +68,7 @@ BATCH_RPN_HEAD = False
 
 # Modules that fail
 BATCH_RPN_LOSS = False
-BATCH_ROI_ALIGN_MASK = False
+BATCH_ROI_ALIGN_MASK = True 
 
 
 # Modules that all work together (grouped by ability to be combined into a single supermodule)
