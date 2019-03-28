@@ -58,35 +58,33 @@ else:
 BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global arg. In convergence codebase, this is a constant
 
 
-# Unfinished module
-BATCH_DATA_PIPELINE = False
 
 
-# Untested module
-BATCH_RPN_HEAD = False
-
-
-# Modules that fail
+# Modules that fail - [armand WIP]
 BATCH_RPN_LOSS = False
+
 BATCH_ROI_ALIGN_MASK = True 
 
 
+
+# Modules that work individually, combination tests are running
+BATCH_DATA_PIPELINE = False
+BATCH_RPN_HEAD = False
+
+
 # Modules that all work together (grouped by ability to be combined into a single supermodule)
+#########################################################################################################
+# Ajay, these are the flags you want to set as True
+#########################################################################################################
 BATCH_GENERATE_PROPOSALS = False
 
-BATCH_SAMPLE_TARGETS = False
-BATCH_ROI_ALIGN_BOX = False
-BATCH_FAST_RCNN_OUTPUTS = False
-BATCH_FAST_RCNN_LOSSES = False # See NOTE below
+BATCH_BOX_CLASS_HEAD = False
 
 BATCH_CROP_AND_RESIZE_MASK = False
 BATCH_MASK_LOSS = False
+#########################################################################################################
 
 
-# NOTE: Enabling BATCH_FAST_RCNN_LOSSES means using FastRCNNHeadBatch. FastRCNNHead/FastRCNNHeadBatch is also
-#       used in the self.training == false codepath so enabling it means potentially breaking
-#       the eval code.
-#       Be very careful with this flag because it is not well isolated
 
 
 
@@ -163,10 +161,10 @@ class DetectionModel(ModelDesc):
 
         features = self.backbone(image)
         anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
-        proposals, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
+        proposal_boxes, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
 
         targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
-        head_losses = self.roi_heads(image, features, proposals, targets)
+        head_losses = self.roi_heads(image, features, proposal_boxes, targets)
 
         if self.training:
             wd_cost = regularize_cost(
@@ -363,26 +361,23 @@ class ResNetFPNModel(DetectionModel):
         else:
             losses = []
 
-        return BoxProposals(proposal_boxes), losses
+        return proposal_boxes, losses
 
-    def roi_heads(self, image, features, proposals, targets):
+    def roi_heads(self, image, features, proposal_boxes, targets):
         image_shape2d = tf.shape(image)[2:]     # h,w
         assert len(features) == 5, "Features have to be P23456!"
         gt_boxes, gt_labels, *_ = targets
 
-        if self.training:
+        #############################################################################################################
+        if BATCH_BOX_CLASS_HEAD:
+        #############################################################################################################
+            prepadding_gt_counts = tf.expand_dims(tf.shape(gt_labels)[0], axis=0)  # 1 x NumGT
 
-
-
-
-            #########################################################################################################
-            if BATCH_SAMPLE_TARGETS:
-            #########################################################################################################
-                prepadding_gt_count = tf.shape(gt_boxes)[0]
-                prepadding_gt_counts = tf.expand_dims(prepadding_gt_count, 0)
-                input_gt_boxes = tf.expand_dims(gt_boxes, 0)
-                input_gt_labels = tf.expand_dims(gt_labels, 0)
-                input_proposal_boxes = tf.pad(proposals.boxes, [[0,0], [1,0]], constant_values=0)
+            if self.training:
+                # BATCH_SAMPLE_TARGETS
+                input_gt_boxes = tf.expand_dims(gt_boxes, axis=0)
+                input_gt_labels = tf.expand_dims(gt_labels, axis=0)
+                input_proposal_boxes = tf.pad(proposal_boxes, [[0,0], [1,0]], constant_values=0)
 
                 proposal_boxes, proposal_labels, proposal_gt_id_for_each_fg = sample_fast_rcnn_targets_batch(
                         input_proposal_boxes,
@@ -391,56 +386,29 @@ class ResNetFPNModel(DetectionModel):
                         prepadding_gt_counts,
                         batch_size=BATCH_SIZE_PLACEHOLDER)
 
-                proposals = BoxProposals(proposal_boxes[:, 1:], proposal_labels, proposal_gt_id_for_each_fg[0])
-            else:
-                proposals = sample_fast_rcnn_targets(proposals.boxes, gt_boxes, gt_labels)
-            ##########################################################################################################
+                proposal_boxes = proposal_boxes[:, 1:]
+
+                # TODO: Remove this after mask blocks have been modified to work with no BoxProposals
+                # It's needed for mask block functionality but is not used within this code block and
+                # should be able to be safely deleted once the mask blocks have been converted.
+                proposals = BoxProposals(proposal_boxes, proposal_labels, proposal_gt_id_for_each_fg[0])
 
 
+            # BATCH_ROI_ALIGN_BOX
+            roi_feature_fastrcnn = multilevel_roi_align_tf_op(features[:4], proposal_boxes, 7)
 
+            # COMMON CODE
+            fastrcnn_head_func = getattr(model_frcnn, cfg.FPN.FRCNN_HEAD_FUNC)
+            head_feature = fastrcnn_head_func('fastrcnn', roi_feature_fastrcnn, fp16=self.fp16)
 
-
-
-
-        ##########################################################################################################
-        if BATCH_ROI_ALIGN_BOX:
-        ##########################################################################################################
-            roi_feature_fastrcnn = multilevel_roi_align_tf_op(features[:4], proposals.boxes, 7)
-        else:
-            roi_feature_fastrcnn = multilevel_roi_align(features[:4], proposals.boxes, 7)
-        ##########################################################################################################
-
-
-
-
-
-
-        fastrcnn_head_func = getattr(model_frcnn, cfg.FPN.FRCNN_HEAD_FUNC)
-        head_feature = fastrcnn_head_func('fastrcnn', roi_feature_fastrcnn, fp16=self.fp16)
-
-
-
-
-        ##########################################################################################################
-        if BATCH_FAST_RCNN_OUTPUTS:
-        ##########################################################################################################
+            # BATCH_FAST_RCNN_OUTPUTS
             fastrcnn_label_logits, fastrcnn_box_logits = fastrcnn_outputs_batch('fastrcnn/outputs', head_feature, cfg.DATA.NUM_CLASS)
-        else:
-            fastrcnn_label_logits, fastrcnn_box_logits = fastrcnn_outputs('fastrcnn/outputs', head_feature, cfg.DATA.NUM_CLASS)
-        ##########################################################################################################
 
-
-
-
-
-        ##########################################################################################################
-        if BATCH_FAST_RCNN_LOSSES:
-        ##########################################################################################################
+            # BATCH_FAST_RCNN_LOSSES
             # Convert nobatch tensors to batch tensors
             regression_weights = tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32)
-            batch_indices_for_rois = tf.zeros(tf.shape(proposals.boxes)[0])
-            prepadding_gt_counts = tf.expand_dims(tf.shape(gt_labels)[0], axis=0)  # 1 x NumGT
-            proposal_boxes = tf.pad(proposals.boxes, [[0,0],[1,0]])
+            batch_indices_for_rois = tf.zeros(tf.shape(proposal_boxes)[0])
+            proposal_boxes = tf.pad(proposal_boxes, [[0,0],[1,0]])
             # END Convert nobatch tensors to batch tensors
 
 
@@ -452,43 +420,52 @@ class ResNetFPNModel(DetectionModel):
                                               proposal_boxes)
             if self.training:
                 # Convert nobatch tensors to batch tensors
-                proposal_labels = proposals.labels
-                proposal_gt_id_for_each_fg = [proposals.fg_inds_wrt_gt]
-                batch_gt_boxes = tf.expand_dims(gt_boxes, axis=0)
+                # proposal_labels = proposals.labels
+                # proposal_gt_id_for_each_fg = [proposals.fg_inds_wrt_gt]
                 proposal_fg_inds = tf.reshape(tf.where(proposal_labels > 0), [-1])
                 proposal_fg_boxes = tf.gather(proposal_boxes, proposal_fg_inds)
                 proposal_fg_labels = tf.gather(proposal_labels, proposal_fg_inds)
                 # END Convert nobatch tensors to batch tensors
 
-                fastrcnn_head.add_training_info(batch_gt_boxes,
+                fastrcnn_head.add_training_info(input_gt_boxes,
                                                 proposal_labels,
                                                 proposal_fg_inds,
                                                 proposal_fg_boxes,
                                                 proposal_fg_labels,
                                                 proposal_gt_id_for_each_fg)
+
                 all_losses = fastrcnn_head.losses(BATCH_SIZE_PLACEHOLDER)
 
-        else:
+        else: # BATCH_BOX_CLASS_HEAD = False
 
+            proposals = BoxProposals(proposal_boxes)
+
+            if self.training:
+                # NO BATCH_SAMPLE_TARGETS
+                proposals = sample_fast_rcnn_targets(proposal_boxes, gt_boxes, gt_labels)
+
+            # NO BATCH_ROI_ALIGN_BOX
+            roi_feature_fastrcnn = multilevel_roi_align(features[:4], proposals.boxes, 7)
+
+            # COMMON CODE
+            fastrcnn_head_func = getattr(model_frcnn, cfg.FPN.FRCNN_HEAD_FUNC)
+            head_feature = fastrcnn_head_func('fastrcnn', roi_feature_fastrcnn, fp16=self.fp16)
+
+            # NO BATCH_FAST_RCNN_OUTPUTS
+            fastrcnn_label_logits, fastrcnn_box_logits = fastrcnn_outputs('fastrcnn/outputs', head_feature, cfg.DATA.NUM_CLASS)
+
+            # NO BATCH_FAST_RCNN_LOSSES
             fastrcnn_head = FastRCNNHead(proposals, fastrcnn_box_logits, fastrcnn_label_logits,
-                                     gt_boxes, tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32))
+                                    gt_boxes, tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32))
             if self.training:
                 all_losses = fastrcnn_head.losses()
-        ##########################################################################################################
-
-
-
-
-
-
+        ##############################################################################################################
 
 
         if self.training:
             if cfg.MODE_MASK:
                 gt_masks = targets[2]
                 # maskrcnn loss
-
-
 
 
                 ##########################################################################################################
