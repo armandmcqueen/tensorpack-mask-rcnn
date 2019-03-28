@@ -396,8 +396,6 @@ class ResNetFPNModel(DetectionModel):
                 # should be able to be safely deleted once the mask blocks have been converted.
                 proposals = BoxProposals(proposal_boxes, proposal_labels, proposal_gt_id_for_each_fg[0])
 
-                # proposal_fg_inds_wrt_gt = [ proposal_gt_id_for_each_fg[0] ]
-
 
             # BATCH_ROI_ALIGN_BOX
             roi_feature_fastrcnn = multilevel_roi_align_tf_op(features[:4], proposal_boxes, 7)
