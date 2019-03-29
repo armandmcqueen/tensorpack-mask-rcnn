@@ -9,7 +9,6 @@ from tensorpack.tfutils.scope_utils import under_name_scope
 
 from config import config
 
-
 @under_name_scope()
 def clip_boxes(boxes, window, name=None):
     """
