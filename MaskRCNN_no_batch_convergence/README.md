@@ -164,7 +164,7 @@ Throughput was measured on p3dn, accuracy on p3.16xl
 
 ### Layer 2, Block 1
 
-BATCH_DATA_PIPELINE
+BATCH_DATA_PIPELINE_EVAL
 
 
 ### Layer 2, Block 2

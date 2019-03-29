@@ -123,24 +123,27 @@ def predict_image_batch(img_batch, model_func, orig_sizes):
     resized_imgs = []
     scales = []
     for i in range(img_batch.shape[0]):
-        resized_imgs.append(resizer.augment(img_batch[i]))
-        scales.append(np.sqrt(resized_img.shape[0] * 1.0 / orig_sizes[i,0] * resized_img.shape[1] / orig_sizes[i,1]))
+        resized_img = resizer.augment(img_batch[i])
+        resized_imgs.append(resized_img)
+        scales.append(np.sqrt(resized_img.shape[0] * 1.0 / orig_sizes[i][0] * resized_img.shape[1] / orig_sizes[i][1]))
 
     resized_imgs_batch = np.stack(resized_imgs)
 
     indices, boxes, probs, labels, *masks = model_func(resized_imgs_batch)
 
     results = []
-    for i in range(scales): 
-        ind = np.where(indices == i)
-        boxes[ind, :] = boxes[ind, :]/scales[i]
+    for i in range(len(scales)): 
+        ind = np.where(indices.astype(np.int32) == i)[0] 
 
-        # boxes are already clipped inside the graph, but after the floating point scaling, this may not be true any more.
-        boxes[ind, :] = clip_boxes(boxes[ind, :], orig_sizes[i])
+        if len(ind) > 0:
+            boxes[ind, :] = boxes[ind, :]/scales[i]
 
-        if masks:
+            # boxes are already clipped inside the graph, but after the floating point scaling, this may not be true any more.
+            boxes[ind, :] = clip_boxes(boxes[ind, :], orig_sizes[i])
+
+        if masks and len(ind) > 0:
            # has mask
-           full_masks = [_paste_mask(box, mask, orig_shape)
+           full_masks = [_paste_mask(box, mask, orig_sizes[i])
                       for box, mask in zip(boxes[ind,:], masks[0][ind,:])]
            masks = full_masks
         else:
@@ -178,12 +181,12 @@ def predict_dataflow(df, model_func, tqdm_bar=None):
                 bbox = list([float(b) for b in r.box])
                 score = round(float(r.score), 4)
 
-                print("A result")
-                print(f'image_id [{type(img_id)}] {img_id}')
-                print(f'class_id [{type(class_id)}] {class_id}')
-                print(f'bbox [{type(bbox)}] {bbox}')
-                print(f'bbox[0] [{type(bbox[0])}] {bbox[0]}')
-                print(f'score [{type(score)}] {score}')
+#                 print("A result")
+#                 print(f'image_id [{type(img_id)}] {img_id}')
+#                 print(f'class_id [{type(class_id)}] {class_id}')
+#                 print(f'bbox [{type(bbox)}] {bbox}')
+#                 print(f'bbox[0] [{type(bbox[0])}] {bbox[0]}')
+#                 print(f'score [{type(score)}] {score}')
 
                 res = {
                     'image_id': img_id,
@@ -234,12 +237,12 @@ def predict_dataflow_batch(df, model_func, tqdm_bar=None):
                     bbox = list([float(b) for b in r.box])
                     score = round(float(r.score), 4)
 
-                    print("A result")
-                    print(f'image_id [{type(img_id)}] {img_id}')
-                    print(f'class_id [{type(class_id)}] {class_id}')
-                    print(f'bbox [{type(bbox)}] {bbox}')
-                    print(f'bbox[0] [{type(bbox[0])}] {bbox[0]}')
-                    print(f'score [{type(score)}] {score}')
+#                     print("A result")
+#                     print(f'image_id [{type(img_id)}] {img_id}')
+#                     print(f'class_id [{type(class_id)}] {class_id}')
+#                     print(f'bbox [{type(bbox)}] {bbox}')
+#                     print(f'bbox[0] [{type(bbox[0])}] {bbox[0]}')
+#                     print(f'score [{type(score)}] {score}')
 
                     res = {
                         'image_id': img_id,
@@ -294,10 +297,12 @@ class EvalCallback(Callback):
 
     _chief_only = False
 
-    def __init__(self, eval_dataset, in_names, out_names, output_dir, batched):
+    def __init__(self, eval_dataset, in_names, out_names, output_dir, batch_size):
         self._eval_dataset = eval_dataset
         self._in_names, self._out_names = in_names, out_names
         self._output_dir = output_dir
+        self.batched = batch_size > 0 
+        self.batch_size = batch_size
 
     def _setup_graph(self):
         num_gpu = cfg.TRAIN.NUM_GPUS
@@ -318,9 +323,9 @@ class EvalCallback(Callback):
             if self._horovod_run_eval:
                 self.predictor = self._build_predictor(0)
 
-                if batched:
+                if self.batched:
                     self.dataflow = get_batched_eval_dataflow(self._eval_dataset,
-                                                  shard=hvd.local_rank(), num_shards=hvd.local_size())
+                                                  shard=hvd.local_rank(), num_shards=hvd.local_size(), batch_size=self.batch_size)
                 else:
                     self.dataflow = get_eval_dataflow(self._eval_dataset,
                                                   shard=hvd.local_rank(), num_shards=hvd.local_size())
@@ -350,7 +355,7 @@ class EvalCallback(Callback):
             ) for rank in range(hvd.local_size())]
 
             if self._horovod_run_eval:
-                if batched:
+                if self.batched:
                     local_results = predict_dataflow_batch(self.dataflow, self.predictor)
                 else:
                     local_results = predict_dataflow(self.dataflow, self.predictor)
