@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # File: data.py
 
+from tensorpack.dataflow import RNGDataFlow
 import copy
 import numpy as np
 import cv2
@@ -20,7 +21,32 @@ from dataset import DetectionDataset
 from utils.generate_anchors import generate_anchors
 from utils.np_box_ops import area as np_area, ioa as np_ioa
 
+import math
+
 # import tensorpack.utils.viz as tpviz
+
+
+class DataFromListOfDictBatched(RNGDataFlow):
+    def __init__(self, lst, keys, batchsize, shuffle=False):
+        self._lst = lst
+        self._keys = keys
+        self._shuffle = shuffle
+        self._size = len(lst)
+        self._bs = batchsize
+
+    def __len__(self):
+        return int(math.ceil(len(self._lst)/self._bs)) #self._size
+
+    def __iter__(self):
+        if self._shuffle:
+            self.rng.shuffle(self._lst)
+        num_batches = int(math.ceil(len(self._lst)/self._bs))
+        for batch in range(num_batches):
+            # print(batch)
+            last = min(len(self._lst), self._bs*(batch+1))
+            dp = [[dic[k] for k in self._keys] for dic in self._lst[batch*self._bs:last]]
+            yield dp
+
 
 
 class MalformedData(BaseException):
@@ -689,13 +715,42 @@ def get_eval_dataflow(name, shard=0, num_shards=1):
     return ds
 
 
+def get_batched_eval_dataflow(name, shard=0, num_shards=1, batch_size=1):
+    """
+    Args:
+        name (str): name of the dataset to evaluate
+        shard, num_shards: to get subset of evaluation data
+    """
+    roidbs = DetectionDataset().load_inference_roidbs(name)
+
+    num_imgs = len(roidbs)
+    img_per_shard = num_imgs // num_shards
+    img_range = (shard * img_per_shard, (shard + 1) * img_per_shard if shard + 1 < num_shards else num_imgs)
+
+    # no filter for training
+    ds = DataFromListOfDictBatched(roidbs[img_range[0]: img_range[1]], ['file_name', 'id'], batch_size)
+
+    def decode_images(inputs):
+        return [[cv2.imread(inp[0], cv2.IMREAD_COLOR), inp[1]] for inp in inputs]
+
+    def pad_and_batch(inputs):
+        heights, widths, _ = zip(*[inp[0].shape for inp in inputs])
+        max_h, max_w = max(heights), max(widths)
+        padded_images = np.stack([np.pad(inp[0], [[0, max_h-inp[0].shape[0]], [0, max_w-inp[0].shape[1]], [0,0]], 'constant') for inp in inputs])
+        return [padded_images, [inp[1] for inp in inputs], list(zip(heights, widths))] 
+
+    ds = MapData(ds, decode_images)
+    ds = MapData(ds, pad_and_batch)
+    return ds
+
+
 if __name__ == '__main__':
     import os
     from tensorpack.dataflow import PrintData
-    cfg.DATA.BASEDIR = os.path.expanduser('~/data/coco')
-    ds = get_train_dataflow()
-    ds = PrintData(ds, 100)
-    TestDataSpeed(ds, 50000).start()
+    cfg.DATA.BASEDIR = os.path.expanduser('~/data')
+    ds = get_batched_eval_dataflow('train_reduced')
     ds.reset_state()
+    cnt = 0
     for k in ds:
-        pass
+        print(k) 
+        cnt += 1

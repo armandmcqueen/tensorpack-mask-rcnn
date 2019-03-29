@@ -30,7 +30,7 @@ if STATICA_HACK:
     from .model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align, crop_and_resize_from_batch_codebase
     from .model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, \
         generate_fpn_proposals_batch_tf_op, multilevel_roi_align_tf_op, multilevel_rpn_losses_batch
-    from .model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets, \
+    from .model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions_batch, fastrcnn_predictions, sample_fast_rcnn_targets, \
         sample_fast_rcnn_targets_batch, fastrcnn_outputs_batch, FastRCNNHeadBatch
     from .model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
     from .model_rpn import generate_rpn_proposals, rpn_head, rpn_losses, rpn_head_withbatch
@@ -48,7 +48,7 @@ else:
     from model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align, crop_and_resize_from_batch_codebase
     from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, \
         generate_fpn_proposals_batch_tf_op, multilevel_roi_align_tf_op, multilevel_rpn_losses_batch
-    from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions, sample_fast_rcnn_targets, \
+    from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions_batch, fastrcnn_predictions, sample_fast_rcnn_targets, \
         sample_fast_rcnn_targets_batch, fastrcnn_outputs_batch, FastRCNNHeadBatch
     from model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
     from model_rpn import generate_rpn_proposals, rpn_head, rpn_losses, rpn_head_withbatch
@@ -56,8 +56,6 @@ else:
     from performance import ThroughputTracker
 
 BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global arg. In convergence codebase, this is a constant
-
-
 
 
 # Modules that fail - [armand WIP]
@@ -68,7 +66,7 @@ BATCH_ROI_ALIGN_MASK = False
 
 
 # Modules that work individually, combination tests are running
-BATCH_DATA_PIPELINE = False
+BATCH_DATA_PIPELINE_EVAL = False 
 BATCH_RPN_HEAD = False
 
 
@@ -88,12 +86,49 @@ BATCH_MASK_LOSS = False
 
 
 
-
-
 try:
     import horovod.tensorflow as hvd
 except ImportError:
     pass
+
+def runtime_print(message, trigger_tensor):
+    print_op = tf.print(message)
+    with tf.control_dependencies([print_op]):
+        return tf.identity(trigger_tensor)
+
+def print_runtime_tensor_loose_branch(name, tensor, prefix=None, summarize=-1, trigger_tensor=None):
+    assert trigger_tensor is not None
+
+    s = "[runtime_tensor_freehanging_branch] "
+    if prefix is not None:
+        s += f'[{prefix}] '
+    s += name
+
+    print_op = tf.print(s, tensor, summarize=summarize)
+    with tf.control_dependencies([print_op]):
+        return tf.identity(trigger_tensor)
+
+
+
+def print_runtime_shape(name, tensor, prefix=None):
+    s = "[runtime_shape] "
+    if prefix is not None:
+        s += f'[{prefix}] '
+    s += f'{name}: '
+    return runtime_print([s, tf.shape(tensor)], tensor)
+
+
+
+def print_runtime_tensor(name, tensor, prefix=None, summarize=-1):
+    s = "[runtime_tensor] "
+    if prefix is not None:
+        s += f'[{prefix}] '
+    s += name
+
+    print_op = tf.print(s, tensor, summarize=summarize)
+    with tf.control_dependencies([print_op]):
+        return tf.identity(tensor)
+
 
 
 class DetectionModel(ModelDesc):
@@ -128,7 +163,12 @@ class DetectionModel(ModelDesc):
             [str]: input names
             [str]: output names
         """
-        out = ['output/boxes', 'output/scores', 'output/labels']
+
+        if BATCH_DATA_PIPELINE_EVAL:
+            out = ['output/batch_indices', 'output/boxes', 'output/scores', 'output/labels']
+        else:
+            out = ['output/boxes', 'output/scores', 'output/labels']
+
         if cfg.MODE_MASK:
             out.append('output/masks')
         return ['images'], out
@@ -137,7 +177,7 @@ class DetectionModel(ModelDesc):
         inputs = dict(zip(self.input_names, inputs))
 
         #########################################################################################################
-        if BATCH_DATA_PIPELINE:
+        if BATCH_DATA_PIPELINE_EVAL:
         #########################################################################################################
             inputs["anchor_labels_lvl2"] = tf.squeeze(inputs["anchor_labels_lvl2"], axis=0)
             inputs["anchor_boxes_lvl2"] = tf.squeeze(inputs["anchor_boxes_lvl2"], axis=0)
@@ -184,8 +224,9 @@ class ResNetFPNModel(DetectionModel):
     def inputs(self):
 
         ######################################################################################################
-        if BATCH_DATA_PIPELINE:
+        if BATCH_DATA_PIPELINE_EVAL:
         ######################################################################################################
+
             ret = [
                 tf.placeholder(tf.string, (None,), 'filenames'), # N length vector of filenames
                 tf.placeholder(tf.float32, (None, None, None, 3), 'images'),  # N x H x W x C
@@ -580,11 +621,20 @@ class ResNetFPNModel(DetectionModel):
                 all_losses.append(mask_loss)
             return all_losses
         else:
-            decoded_boxes = fastrcnn_head.decoded_output_boxes()
+            if BATCH_DATA_PIPELINE_EVAL:
+                # NEED TO TAKE IN PROPER ORIG_IMAGE_DIMS FOR image_shape2d WHEN COMPLETELY BATCHIFIED !!!!
+                decoded_boxes = fastrcnn_head.decoded_output_boxes_batch()
+            else:
+                decoded_boxes = fastrcnn_head.decoded_output_boxes()
+
             decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes')
             label_scores = fastrcnn_head.output_scores(name='fastrcnn_all_scores')
-            final_boxes, final_scores, final_labels = fastrcnn_predictions(
-                decoded_boxes, label_scores, name_scope='output')
+
+            if BATCH_DATA_PIPELINE_EVAL:
+                final_boxes, final_scores, final_labels, box_ids = fastrcnn_predictions_batch(decoded_boxes, label_scores, name_scope='output')
+            else: 
+                final_boxes, final_scores, final_labels = fastrcnn_predictions(decoded_boxes, label_scores, name_scope='output')
+            
             if cfg.MODE_MASK:
                 # Cascade inference needs roi transform with refined boxes.
                 roi_feature_maskrcnn = multilevel_roi_align(features[:4], final_boxes, 14)
@@ -594,6 +644,10 @@ class ResNetFPNModel(DetectionModel):
                 indices = tf.stack([tf.range(tf.size(final_labels)), tf.cast(final_labels, tf.int32) - 1], axis=1)
                 final_mask_logits = tf.gather_nd(mask_logits, indices)   # #resultx28x28
                 tf.sigmoid(final_mask_logits, name='output/masks')
+  
+                if BATCH_DATA_PIPELINE_EVAL:
+                    proposal_boxes = tf.concat((tf.zeros([tf.shape(proposals.boxes)[0], 1], dtype=tf.float32), proposals.boxes), axis=1)      # REMOVE WHEN COMPLETELY BATCHIFIED
+                    tf.gather(proposal_boxes[:,0], box_ids, name='output/batch_indices')
             return []
 
 
@@ -764,7 +818,7 @@ if __name__ == '__main__':
         logger.info("LR Schedule (epochs, value): " + str(lr_schedule))
 
         #####################################################################
-        if BATCH_DATA_PIPELINE:
+        if BATCH_DATA_PIPELINE_EVAL:
         #####################################################################
             train_dataflow = get_batch_train_dataflow(BATCH_SIZE_PLACEHOLDER)
         else:
@@ -774,6 +828,8 @@ if __name__ == '__main__':
         # This is what's commonly referred to as "epochs"
         total_passes = cfg.TRAIN.LR_SCHEDULE[-1] * 8 / train_dataflow.size()
         logger.info("Total passes of the training set is: {:.5g}".format(total_passes))
+
+        bsize = BATCH_SIZE_PLACEHOLDER if BATCH_DATA_PIPELINE_EVAL else 0
 
         callbacks = [
             PeriodicCallback(
@@ -787,7 +843,7 @@ if __name__ == '__main__':
             EstimatedTimeLeft(median=True),
             SessionRunTimeout(60000).set_chief_only(True),   # 1 minute timeout
         ] + [
-            EvalCallback(dataset, *MODEL.get_inference_tensor_names(), args.logdir)
+            EvalCallback(dataset, *MODEL.get_inference_tensor_names(), args.logdir, bsize)
             for dataset in cfg.DATA.VAL
         ]
         if not is_horovod:
