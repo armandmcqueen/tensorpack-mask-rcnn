@@ -25,27 +25,6 @@ import math
 
 # import tensorpack.utils.viz as tpviz
 
-class DataFromListOfDictBatched(RNGDataFlow):
-    def __init__(self, lst, keys, batchsize, shuffle=False):
-        self._lst = lst
-        self._keys = keys
-        self._shuffle = shuffle
-        self._size = len(lst)
-        self._bs = batchsize
-
-    def __len__(self):
-        return self._size
-
-    def __iter__(self):
-        if self._shuffle:
-            self.rng.shuffle(self._lst)
-        num_batches = int(math.ceil(len(self._lst)/self._bs))
-        for batch in range(num_batches):
-            last = min(len(self._lst), self._bs*(batch+1))
-            dp = [[dic[k] for k in self._keys] for dic in self._lst[batch*self._bs:last]]
-            yield dp
-
-
 
 class DataFromListOfDictBatched(RNGDataFlow):
     def __init__(self, lst, keys, batchsize, shuffle=False):
@@ -755,7 +734,6 @@ def get_batched_eval_dataflow(name, shard=0, num_shards=1, batch_size=1):
         return [[cv2.imread(inp[0], cv2.IMREAD_COLOR), inp[1]] for inp in inputs]
 
     def pad_and_batch(inputs):
-
         heights, widths, _ = zip(*[inp[0].shape for inp in inputs])
         max_h, max_w = max(heights), max(widths)
         padded_images = np.stack([np.pad(inp[0], [[0, max_h-inp[0].shape[0]], [0, max_w-inp[0].shape[1]], [0,0]], 'constant') for inp in inputs])
