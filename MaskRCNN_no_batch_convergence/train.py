@@ -57,17 +57,16 @@ else:
 
 BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global arg. In convergence codebase, this is a constant
 
-
 # Modules that fail - [armand WIP]
 BATCH_RPN_LOSS = False
 
-# Module that seems to be fixed, tests running
-BATCH_ROI_ALIGN_MASK = False
+
 
 
 # Modules that work individually, combination tests are running
 BATCH_DATA_PIPELINE_EVAL = False 
 BATCH_RPN_HEAD = False
+BATCH_ROI_ALIGN_MASK = False 
 
 
 # Modules that all work together (grouped by ability to be combined into a single supermodule)
