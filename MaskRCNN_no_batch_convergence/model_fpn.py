@@ -168,8 +168,8 @@ def multilevel_roi_align_tf_op(features, rcnn_boxes, resolution):
             #boxes_on_featuremap = boxes * (1.0 / cfg.FPN.ANCHOR_STRIDES[i])
             #all_rois.append(roi_align(featuremap, boxes_on_featuremap, resolution))
 
-            assert(boxes.shape.dims[1].value == 4)                                                       # REMOVE WHEN COMPLETELY BATCHIFIED
-            boxes = tf.concat((tf.zeros([tf.shape(boxes)[0], 1], dtype=tf.float32), boxes), axis=1)      # REMOVE WHEN COMPLETELY BATCHIFIED
+            if boxes.shape.dims[1].value == 4:                                                               # REMOVE WHEN COMPLETELY BATCHIFIED
+                boxes = tf.concat((tf.zeros([tf.shape(boxes)[0], 1], dtype=tf.float32), boxes), axis=1)      # REMOVE WHEN COMPLETELY BATCHIFIED
 
             # coordinate system fix for boxes
             boxes = tf.concat((boxes[:,:1], boxes[:,1:] - 0.5*cfg.FPN.ANCHOR_STRIDES[i]), axis=1) 
