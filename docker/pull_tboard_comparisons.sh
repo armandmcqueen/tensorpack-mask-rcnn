@@ -41,6 +41,8 @@ aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/converge
 aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_layer4_block1_fp16_convergence_20190325 ~/old_logs/convergence_codebase_iso_layer4_block1_fp16_convergence_20190325
 aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_layer4_block1_fp16_throughput_p3dn_20190325 ~/old_logs/convergence_codebase_iso_layer4_block1_fp16_throughput_p3dn_20190325
 aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_layer4_block1_fp16_throughput_p316xl_20190325 ~/old_logs/convergence_codebase_iso_layer4_block1_fp16_throughput_p316xl_20190325
+aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_all_but_rpnloss_p3dn_throughput_20190403 ~/old_logs/convergence_codebase_iso_all_but_rpnloss_p3dn_20190403 # For throughput
+aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_all_but_rpnloss_16xl_throughput_20190403 ~/old_logs/convergence_codebase_iso_all_but_rpnloss_16xl_20190403 # For throughput
 
 
 
@@ -81,7 +83,6 @@ aws s3 cp --recursive s3://aws-tensorflow-benchmarking/maskrcnn/results/converge
 
 # sudo rm ~/logs/htimeline.json
 # aws s3 cp --recursive logs/ s3://aws-tensorflow-benchmarking/maskrcnn/results/convergence_codebase_iso_rpnloss_20190323/
-
 
 
 
