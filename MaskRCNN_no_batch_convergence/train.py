@@ -620,7 +620,7 @@ class ResNetFPNModel(DetectionModel):
         else:
             if BATCH_DATA_PIPELINE_EVAL:
                 # NEED TO TAKE IN PROPER ORIG_IMAGE_DIMS FOR image_shape2d WHEN COMPLETELY BATCHIFIED !!!!
-                decoded_boxes = fastrcnn_head.decoded_output_boxes_batch()
+                decoded_boxes = fastrcnn_head.decoded_output_boxes_batch(batch_box_class_head=BATCH_BOX_CLASS_HEAD)
             else:
                 decoded_boxes = fastrcnn_head.decoded_output_boxes()
 
@@ -643,7 +643,8 @@ class ResNetFPNModel(DetectionModel):
                 tf.sigmoid(final_mask_logits, name='output/masks')
   
                 if BATCH_DATA_PIPELINE_EVAL:
-                    proposal_boxes = tf.concat((tf.zeros([tf.shape(proposals.boxes)[0], 1], dtype=tf.float32), proposals.boxes), axis=1)      # REMOVE WHEN COMPLETELY BATCHIFIED
+                    if not BATCH_BOX_CLASS_HEAD:
+                        proposal_boxes = tf.concat((tf.zeros([tf.shape(proposals.boxes)[0], 1], dtype=tf.float32), proposals.boxes), axis=1)      # REMOVE WHEN COMPLETELY BATCHIFIED
                     tf.gather(proposal_boxes[:,0], box_ids, name='output/batch_indices')
             return []
 
