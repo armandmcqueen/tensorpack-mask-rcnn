@@ -332,12 +332,10 @@ def generate_fpn_proposals(
 
 
 @under_name_scope()
-def generate_fpn_proposals_batch_tf_op(
-        multilevel_anchor_boxes, multilevel_box_logits, multilevel_label_logits, orig_image_dims):
+def generate_fpn_proposals_batch_tf_op(multilevel_box_logits, multilevel_label_logits, orig_image_dims):
     """
     Args:
         multilevel_box_logits:      #lvl [ BS x (NAx4) x H x W ] boxes
-        multilevel_anchors_sliced:  #lvl [ A x 4 ]
         multilevel_label_logits:    #lvl [ BS x H x W x A ] tensors
         orig_image_dimensions: Original (prepadding) image dimensions (h,w,c)   BS x 3
 
@@ -376,12 +374,7 @@ def generate_fpn_proposals_batch_tf_op(
                 # bbox_deltas = print_runtime_shape(f'bbox_deltas (pre-reshape), lvl {lvl}', bbox_deltas, prefix=bug_prefix)
 
 
-                single_level_anchor_boxes = multilevel_anchor_boxes[lvl]
-                shp = tf.shape(single_level_anchor_boxes)
-                single_level_anchor_boxes = tf.reshape(single_level_anchor_boxes, (-1, 4))
-                #print("single_level_anchor_boxes", single_level_anchor_boxes)
 
-                '''
                 area = cfg.RPN.ANCHOR_SIZES[lvl] ** 2
                 anchor_list = []
                 for ratio in cfg.RPN.ANCHOR_RATIOS:
@@ -407,87 +400,22 @@ def generate_fpn_proposals_batch_tf_op(
                     anchor_list.append(anchor)
                 # print(anchor_list)
                 anchors = tf.stack(anchor_list)
-                '''
 
 
 
                 # https://caffe2.ai/docs/operators-catalogue.html#generateproposals
 
-                #print_buildtime_shape(f'scores, lvl {lvl}', scores, prefix=prefix)
-                #print_buildtime_shape(f'bbox_deltas (reshaped), lvl {lvl}', bbox_deltas, prefix=prefix)
-                #print_buildtime_shape(f'im_info, lvl {lvl}', im_info, prefix=prefix)
-                #print_buildtime_shape(f'anchors, lvl {lvl}', anchors, prefix=prefix)
-
-                # scores = print_runtime_shape(f'scores, lvl {lvl}', scores, prefix=bug_prefix)
-                # bbox_deltas = print_runtime_shape(f'bbox_deltas, lvl {lvl}', bbox_deltas, prefix=bug_prefix)
-                # im_info = print_runtime_shape(f'im_info, lvl {lvl}', im_info, prefix=bug_prefix)
-                # anchors = print_runtime_shape(f'anchors, lvl {lvl}', anchors, prefix=bug_prefix)
-
-
-                # scores = print_runtime_tensor("scores", scores, prefix=prefix)
-                # bbox_deltas = print_runtime_tensor("bbox_deltas", bbox_deltas, prefix=prefix)
-                # im_info = print_runtime_tensor(f'im_info, lvl {lvl}', im_info, prefix=bug_prefix)
-                # anchors = print_runtime_tensor("anchors", anchors, prefix=prefix)
-
-                ################################################################################
-                # BUG #1 LOCATION (DEPTH=1)
-                ################################################################################
-                # Shortcut around tf.generate_bounding_box_proposals.
-                # N = 100
-                # rois_col1 = -1 * tf.random_uniform([N, 2])
-                # rois_col2 = -1 * rois_col1
-                # rois = tf.concat([rois_col1, rois_col2], axis=1)
-                # rois = tf.pad(rois, [[0, 0], [1, 0]])
-                # rois_probs = tf.random_uniform([N])
-                #
-                # hookin_reduced =  tf.cast(tf.reduce_mean(scores), dtype=tf.float32)
-                # hookin_reduced += tf.cast(tf.reduce_mean(bbox_deltas), dtype=tf.float32)
-                # hookin_reduced += tf.cast(tf.reduce_mean(im_info), dtype=tf.float32)
-                # hookin_reduced += tf.cast(tf.reduce_mean(anchors), dtype=tf.float32)
-                # hookin_reduced = tf.expand_dims(hookin_reduced, axis=0)
-                #
-                # # As long as we guarantee rois with logical (x1, y1, x2, y2) vals, no crash.
-                # hookin_reduced = tf.minimum(hookin_reduced, 200)
-                # hookin_reduced = tf.maximum(hookin_reduced, 0)
-                #
-                #
-                # # print_buildtime_shape(f'hookin_reduced (0), lvl {lvl}', hookin_reduced, prefix=bug_prefix)
-                #
-                # hookin = tf.concat([-1 * hookin_reduced, -1 * hookin_reduced, hookin_reduced, hookin_reduced], axis=0)
-                # print_buildtime_shape(f'hookin (pre-pad), lvl {lvl}', hookin, prefix=bug_prefix)
-                # hookin = tf.expand_dims(tf.pad(hookin, [[1, 0]]), axis=0) # 1x5
-                # print_buildtime_shape(f'hookin (post-pad), lvl {lvl}', hookin, prefix=bug_prefix)
-                #
-                # rois_probs = tf.concat([rois_probs, hookin_reduced], axis=0)
-                # rois = tf.concat([rois, hookin], axis=0)
-
-                ################################################################################
-                # Actual generate proposal. Causes crashes
 
                 rois, rois_probs = tf.generate_bounding_box_proposals(scores,
                                                                    bbox_deltas,
                                                                    im_info,
-                                                                   #anchors,
-                                                                   single_level_anchor_boxes,
+                                                                   anchors,
                                                                    spatial_scale=1.0 / cfg.FPN.ANCHOR_STRIDES[lvl],
                                                                    pre_nms_topn=fpn_nms_topk,
                                                                    post_nms_topn=fpn_nms_topk,
                                                                    nms_threshold=cfg.RPN.PROPOSAL_NMS_THRESH,
                                                                    min_size=cfg.RPN.MIN_SIZE)
 
-                # rois, rois_probs = tf.generate_bounding_box_proposals(scores,
-                #                                                       bbox_deltas,
-                #                                                       im_info,
-                #                                                       anchors,
-                #                                                       pre_nms_topn=fpn_nms_topk,
-                #                                                       post_nms_topn=fpn_nms_topk,
-                #                                                       nms_threshold=cfg.RPN.PROPOSAL_NMS_THRESH,
-                #                                                       min_size=cfg.RPN.MIN_SIZE)
-                ################################################################################
-
-
-                # rois = print_runtime_shape(f'rois, lvl {lvl}', rois, prefix=bug_prefix)
-                # rois = print_runtime_tensor(f'rois, lvl {lvl}', rois, prefix=bug_prefix)
                 # rois_probs = print_runtime_shape(f'rois_probs, lvl {lvl}', rois_probs, prefix=bug_prefix)
                 all_boxes.append(rois)
                 all_scores.append(rois_probs)

@@ -333,8 +333,7 @@ class ResNetFPNModel(DetectionModel):
             multilevel_box_logits = [tf.expand_dims(k, 0) for k in multilevel_box_logits]
 
             image_shape2d = tf.expand_dims(image_shape2d, 0)
-            proposal_boxes, proposal_scores = generate_fpn_proposals_batch_tf_op([a.boxes for a in multilevel_anchors],
-                                                                                 multilevel_box_logits,
+            proposal_boxes, proposal_scores = generate_fpn_proposals_batch_tf_op(multilevel_box_logits,
                                                                                  multilevel_label_logits,
                                                                                  image_shape2d)
 
