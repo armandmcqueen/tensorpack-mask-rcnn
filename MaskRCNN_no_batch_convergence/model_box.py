@@ -10,12 +10,37 @@ from tensorpack.tfutils.scope_utils import under_name_scope
 from config import config
 
 @under_name_scope()
+def clip_boxes_batch(boxes, window, batch_ids, name=None):
+    """
+    Args:
+        boxes: nx(#class)x4, xyxy
+        window: BSx2 
+        batch_ids: 1-D Tensor of size n
+    """
+    boxes = tf.maximum(boxes, 0.0)
+
+    wh = tf.reverse(tf.gather(window, batch_ids), axis=[1]) 
+    whwh = tf.concat((wh, wh), axis=1)
+
+    multiples = tf.stack([tf.constant(1), tf.shape(boxes)[1], tf.constant(1)])
+
+    whwh_tiled = tf.tile(tf.expand_dims(whwh, 1), multiples)    # asd = [1, #class, 1]
+
+#    m = tf.tile(tf.reverse(window, [0]), [2])    # (4,)
+    boxes = tf.minimum(boxes, tf.cast(whwh_tiled, tf.float32), name=name)
+    return boxes
+
+
+
+@under_name_scope()
 def clip_boxes(boxes, window, name=None):
     """
     Args:
         boxes: nx4, xyxy
         window: [h, w]
     """
+    window = tf.squeeze(window, axis=0)
+
     boxes = tf.maximum(boxes, 0.0)
     m = tf.tile(tf.reverse(window, [0]), [2])    # (4,)
     boxes = tf.minimum(boxes, tf.cast(m, tf.float32), name=name)
@@ -180,10 +205,12 @@ def crop_and_resize_from_batch_codebase(image, boxes, box_ind, crop_size, orig_i
     boxes = tf.stop_gradient(boxes)
 
 
+    org_img_size = tf.concat((tf.constant([-1, -1], dtype=tf.int32), orig_image_dims), axis=0)
+    image = tf.slice(image, begin=tf.zeros(4, dtype=tf.int32), size=org_img_size)
 
-    h = orig_image_dims[0]
-    w = orig_image_dims[1]
-    image = image[:, :, :h, :w]
+#    h = orig_image_dims[0]
+#    w = orig_image_dims[1]
+#    image = image[:, :, :h, :w]
 
     # TF's crop_and_resize produces zeros on border
     if pad_border:
@@ -292,25 +319,21 @@ class RPNAnchors(namedtuple('_RPNAnchors', ['boxes', 'gt_labels', 'gt_boxes'])):
         gt_boxes = tf.slice(self.gt_boxes, [0, 0, 0, 0], slice4d)
         return RPNAnchors(boxes, gt_labels, gt_boxes)
 
+
     @under_name_scope()
-    def narrow_to_batch(self, featuremap):
+    def narrow_to_featuremap_dims(self, featuremap_dims):
         """
-        Slice anchors to the spatial size of this featuremap.
-
-        In the convergence codebase, RPNAnchors is created with nobatch inputs of boxes, gt_labels and gt_boxes.
-        We need to expand dims to make it work without. This is the last time RPN anchors is used by train.py so we
-        should return RPNAnchors in batch form and not worry about anything downstream breaking
+        Take in h and w of featuremap that we need to narrow to.
+        Separate batch implementation because we need to handle padding.
+        # Boxes don't have a batch_dim when this function is called - and neither should
         """
 
+        slice3d = tf.concat([featuremap_dims, [-1]], axis=0)
+        slice4d = tf.concat([featuremap_dims, [-1, -1]], axis=0)
 
-
-
-        shape2d = tf.shape(featuremap)[2:]  # h,w
-        slice4d = tf.concat([[-1], shape2d, [-1]], axis=0)
-        slice5d = tf.concat([[-1], shape2d, [-1, -1]], axis=0)
-        boxes = tf.slice(self.boxes, [0, 0, 0, 0, 0], slice5d)
-        gt_labels = tf.slice(self.gt_labels, [0, 0, 0, 0], slice4d)
-        gt_boxes = tf.slice(self.gt_boxes, [0, 0, 0, 0, 0], slice5d)
+        boxes = tf.slice(self.boxes, [0, 0, 0, 0], slice4d)
+        gt_labels = tf.slice(self.gt_labels, [0, 0, 0], slice3d)
+        gt_boxes = tf.slice(self.gt_boxes, [0, 0, 0, 0], slice4d)
         return RPNAnchors(boxes, gt_labels, gt_boxes)
 
 

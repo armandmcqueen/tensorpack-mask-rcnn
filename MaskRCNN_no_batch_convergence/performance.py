@@ -1,8 +1,115 @@
 import tensorpack
 import time
+import tensorflow as tf
 
 def humanize_float(num):
     return "{0:,.2f}".format(num)
+
+
+
+def summarize_tensor(tensor_name, tensor_to_summarize, trigger_tensor, additional_print_val=None):
+    t_shape = tf.shape(tensor_to_summarize)
+    t_size = tf.size(tensor_to_summarize)
+
+    t_sizerange = tf.range(t_size)
+    t_sizerange_float = tf.cast(t_sizerange, dtype=tensor_to_summarize.dtype)
+    t_reshaped = tf.reshape(t_sizerange_float, shape=t_shape)
+    t_mult = tf.multiply(t_reshaped, tensor_to_summarize)
+    summary = tf.reduce_sum(t_mult)
+    if additional_print_val is None:
+        print_op = tf.print(tensor_name, summary, summarize=-1)
+    else:
+        print_op = tf.print(tensor_name, summary, additional_print_val, summarize=-1)
+    with tf.control_dependencies([print_op]):
+        return tf.identity(trigger_tensor)
+
+
+
+
+
+
+
+
+
+
+# Checks at graph_build time
+def print_buildtime_shape(name, tensor, prefix=None):
+    if prefix is not None:
+        prefix = f' [{prefix}]'
+    else:
+        prefix = ""
+
+    print(f'[buildtime_shape]{prefix} {name}: {tensor.shape}')
+
+
+
+
+def print_runtime_shape(name, tensor, prefix=None):
+    s = "[runtime_shape] "
+    if prefix is not None:
+        s += f'[{prefix}] '
+    s += f'{name}: '
+    return runtime_print([s, tf.shape(tensor)], tensor)
+
+
+
+
+
+# A method if you want tf.print to behave like tf.Print (i.e. the 'print' exists as an op in the computation graph)
+"""
+some_tensor = tf.op(some_other_tensor)
+some_tensor = runtime_print("String to print", some_tensor)
+"""
+def runtime_print(message, trigger_tensor):
+    print_op = tf.print(message)
+    with tf.control_dependencies([print_op]):
+        return tf.identity(trigger_tensor)
+
+
+def runtime_print_str(message_str, trigger_tensor, prefix=None):
+    if prefix is not None:
+        message_str = f'[{prefix}] {message_str}'
+
+    return runtime_print(message_str, trigger_tensor)
+
+
+
+"""
+some_tensor = print_runtime_tensor("some_tensor", some_tensor, prefix="example_fn")
+"""
+def print_runtime_tensor(name, tensor, prefix=None, summarize=-1):
+    s = "[runtime_tensor] "
+    if prefix is not None:
+        s += f'[{prefix}] '
+    s += name
+
+    print_op = tf.print(s, tensor, summarize=summarize)
+    with tf.control_dependencies([print_op]):
+        return tf.identity(tensor)
+
+
+
+
+
+"""
+trigger_tensor = print_runtime_tensor_loose_branch("tensor_to_examine", tensor_to_examine, prefix="example_fn", trigger_tensor=trigger_tensor)
+Print a tensor, even if the tensor is not used by the graph. Useful when you want to transform and print a tensor to 
+examine it, but the transformed tensor is not used in the actual graph so the transform+print is not executed.
+"""
+def print_runtime_tensor_loose_branch(name, tensor, prefix=None, summarize=-1, trigger_tensor=None):
+    assert trigger_tensor is not None
+
+    s = "[runtime_tensor_freehanging_branch] "
+    if prefix is not None:
+        s += f'[{prefix}] '
+    s += name
+
+    print_op = tf.print(s, tensor, summarize=summarize)
+    with tf.control_dependencies([print_op]):
+        return tf.identity(trigger_tensor)
+
+
+
 
 class ThroughputTracker(tensorpack.Callback):
     """

@@ -122,14 +122,18 @@ def predict_image_batch(img_batch, model_func, orig_sizes):
 
     resized_imgs = []
     scales = []
+    img_sizes = []
     for i in range(img_batch.shape[0]):
         resized_img = resizer.augment(img_batch[i])
         resized_imgs.append(resized_img)
+        img_sizes.append(resized_img.shape)
         scales.append(np.sqrt(resized_img.shape[0] * 1.0 / orig_sizes[i][0] * resized_img.shape[1] / orig_sizes[i][1]))
 
     resized_imgs_batch = np.stack(resized_imgs)
 
-    indices, boxes, probs, labels, *masks = model_func(resized_imgs_batch)
+    orig_sizes_in = np.stack(img_sizes)
+
+    indices, boxes, probs, labels, *masks = model_func(resized_imgs_batch, orig_sizes_in)
 
     results = []
     for i in range(len(scales)): 

@@ -72,6 +72,39 @@ def fpn_model(features, fp16=False):
 
         return p2345 + [p6]
 
+@under_name_scope()
+def fpn_map_rois_to_levels_batch(boxes):
+    """
+    Assign boxes to level 2~5.
+
+    Args:
+        boxes (nx4):
+
+    Returns:
+        [tf.Tensor]: 4 tensors for level 2-5. Each tensor is a vector of indices of boxes in its level.
+        [tf.Tensor]: 4 tensors, the gathered boxes in each level.
+
+    Be careful that the returned tensor could be empty.
+    """
+    sqrtarea = tf.sqrt(tf_area(boxes[:,1:]))
+    level = tf.cast(tf.floor(
+        4 + tf.log(sqrtarea * (1. / 224) + 1e-6) * (1.0 / np.log(2))), tf.int32)
+
+    # RoI levels range from 2~5 (not 6)
+    level_ids = [
+        tf.where(level <= 2),
+        tf.where(tf.equal(level, 3)),   # == is not supported
+        tf.where(tf.equal(level, 4)),
+        tf.where(level >= 5)]
+    level_ids = [tf.reshape(x, [-1], name='roi_level{}_id'.format(i + 2))
+                 for i, x in enumerate(level_ids)]
+    num_in_levels = [tf.size(x, name='num_roi_level{}'.format(i + 2))
+                     for i, x in enumerate(level_ids)]
+    add_moving_summary(*num_in_levels)
+
+    level_boxes = [tf.gather(boxes, ids) for ids in level_ids]
+    return level_ids, level_boxes
+
 
 @under_name_scope()
 def fpn_map_rois_to_levels(boxes):
@@ -159,7 +192,7 @@ def multilevel_roi_align_tf_op(features, rcnn_boxes, resolution):
     """
     assert len(features) == 4, features
     # Reassign rcnn_boxes to levels
-    level_ids, level_boxes = fpn_map_rois_to_levels(rcnn_boxes)
+    level_ids, level_boxes = fpn_map_rois_to_levels_batch(rcnn_boxes)
     all_rois = []
 
     # Crop patches from corresponding levels
@@ -168,8 +201,8 @@ def multilevel_roi_align_tf_op(features, rcnn_boxes, resolution):
             #boxes_on_featuremap = boxes * (1.0 / cfg.FPN.ANCHOR_STRIDES[i])
             #all_rois.append(roi_align(featuremap, boxes_on_featuremap, resolution))
 
-            if boxes.shape.dims[1].value == 4:                                                               # REMOVE WHEN COMPLETELY BATCHIFIED
-                boxes = tf.concat((tf.zeros([tf.shape(boxes)[0], 1], dtype=tf.float32), boxes), axis=1)      # REMOVE WHEN COMPLETELY BATCHIFIED
+#            if boxes.shape.dims[1].value == 4:                                                               # REMOVE WHEN COMPLETELY BATCHIFIED
+#                boxes = tf.concat((tf.zeros([tf.shape(boxes)[0], 1], dtype=tf.float32), boxes), axis=1)      # REMOVE WHEN COMPLETELY BATCHIFIED
 
             # coordinate system fix for boxes
             boxes = tf.concat((boxes[:,:1], boxes[:,1:] - 0.5*cfg.FPN.ANCHOR_STRIDES[i]), axis=1) 
@@ -189,6 +222,37 @@ def multilevel_roi_align_tf_op(features, rcnn_boxes, resolution):
     level_id_invert_perm = tf.invert_permutation(level_id_perm)
     all_rois = tf.gather(all_rois, level_id_invert_perm)
     return all_rois
+
+
+def multilevel_rpn_losses_batch_fixed_single_image(
+        multilevel_anchors, multilevel_label_logits, multilevel_box_logits):
+    """
+    Args:
+        multilevel_anchors: #lvl RPNAnchors
+        multilevel_label_logits: #lvl tensors of shape HxWxA
+        multilevel_box_logits: #lvl tensors of shape HxWxAx4
+    Returns:
+        label_loss, box_loss
+    """
+    num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
+    assert len(multilevel_anchors) == num_lvl
+    assert len(multilevel_label_logits) == num_lvl
+    assert len(multilevel_box_logits) == num_lvl
+
+    losses = []
+    with tf.name_scope('single_image_rpn_losses'):
+        for lvl in range(num_lvl):
+            anchors = multilevel_anchors[lvl]
+            label_loss, box_loss = rpn_losses(
+                anchors.gt_labels, anchors.encoded_gt_boxes(),
+                multilevel_label_logits[lvl], multilevel_box_logits[lvl],
+                name_scope='level{}'.format(lvl + 2))
+            losses.extend([label_loss, box_loss])
+
+        total_label_loss = tf.add_n(losses[::2])
+        total_box_loss = tf.add_n(losses[1::2])
+    return [total_label_loss, total_box_loss]
+
 
 def multilevel_rpn_losses(
         multilevel_anchors, multilevel_label_logits, multilevel_box_logits):
@@ -332,7 +396,8 @@ def generate_fpn_proposals(
 
 
 @under_name_scope()
-def generate_fpn_proposals_batch_tf_op(multilevel_box_logits, multilevel_label_logits, orig_image_dims):
+def generate_fpn_proposals_batch_tf_op(multilevel_anchor_boxes,
+        multilevel_box_logits, multilevel_label_logits, orig_image_dims):
     """
     Args:
         multilevel_box_logits:      #lvl [ BS x (NAx4) x H x W ] boxes
@@ -375,6 +440,12 @@ def generate_fpn_proposals_batch_tf_op(multilevel_box_logits, multilevel_label_l
 
 
 
+                single_level_anchor_boxes = multilevel_anchor_boxes[lvl]
+                shp = tf.shape(single_level_anchor_boxes)
+                single_level_anchor_boxes = tf.reshape(single_level_anchor_boxes, (-1, 4))
+                #print("single_level_anchor_boxes", single_level_anchor_boxes)
+                """
+
                 area = cfg.RPN.ANCHOR_SIZES[lvl] ** 2
                 anchor_list = []
                 for ratio in cfg.RPN.ANCHOR_RATIOS:
@@ -401,6 +472,7 @@ def generate_fpn_proposals_batch_tf_op(multilevel_box_logits, multilevel_label_l
                 # print(anchor_list)
                 anchors = tf.stack(anchor_list)
 
+                """
 
 
                 # https://caffe2.ai/docs/operators-catalogue.html#generateproposals
@@ -409,7 +481,7 @@ def generate_fpn_proposals_batch_tf_op(multilevel_box_logits, multilevel_label_l
                 rois, rois_probs = tf.generate_bounding_box_proposals(scores,
                                                                    bbox_deltas,
                                                                    im_info,
-                                                                   anchors,
+                                                                   single_level_anchor_boxes,
                                                                    spatial_scale=1.0 / cfg.FPN.ANCHOR_STRIDES[lvl],
                                                                    pre_nms_topn=fpn_nms_topk,
                                                                    post_nms_topn=fpn_nms_topk,

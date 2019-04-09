@@ -27,15 +27,15 @@ if STATICA_HACK:
     from .config import finalize_configs, config as cfg
     from .data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow, get_batch_train_dataflow
     from .eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
-    from .model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align, crop_and_resize_from_batch_codebase
+    from .model_box import RPNAnchors, clip_boxes, clip_boxes_batch, crop_and_resize, roi_align, crop_and_resize_from_batch_codebase
     from .model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, \
-        generate_fpn_proposals_batch_tf_op, multilevel_roi_align_tf_op, multilevel_rpn_losses_batch
+        generate_fpn_proposals_batch_tf_op, multilevel_roi_align_tf_op, multilevel_rpn_losses_batch, multilevel_rpn_losses_batch_fixed_single_image
     from .model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions_batch, fastrcnn_predictions, sample_fast_rcnn_targets, \
         sample_fast_rcnn_targets_batch, fastrcnn_outputs_batch, FastRCNNHeadBatch
     from .model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
     from .model_rpn import generate_rpn_proposals, rpn_head, rpn_losses, rpn_head_withbatch
     from .viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
-    from .performance import ThroughputTracker
+    from .performance import ThroughputTracker, print_runtime_shape, print_runtime_tensor, print_runtime_tensor_loose_branch, summarize_tensor
 else:
 
     import model_frcnn
@@ -45,42 +45,20 @@ else:
     from config import finalize_configs, config as cfg
     from data import get_all_anchors, get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow, get_batch_train_dataflow
     from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
-    from model_box import RPNAnchors, clip_boxes, crop_and_resize, roi_align, crop_and_resize_from_batch_codebase
+    from model_box import RPNAnchors, clip_boxes, clip_boxes_batch, crop_and_resize, roi_align, crop_and_resize_from_batch_codebase
     from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses, \
-        generate_fpn_proposals_batch_tf_op, multilevel_roi_align_tf_op, multilevel_rpn_losses_batch
+        generate_fpn_proposals_batch_tf_op, multilevel_roi_align_tf_op, multilevel_rpn_losses_batch, multilevel_rpn_losses_batch_fixed_single_image
     from model_frcnn import BoxProposals, FastRCNNHead, fastrcnn_outputs, fastrcnn_predictions_batch, fastrcnn_predictions, sample_fast_rcnn_targets, \
         sample_fast_rcnn_targets_batch, fastrcnn_outputs_batch, FastRCNNHeadBatch
     from model_mrcnn import maskrcnn_loss, maskrcnn_upXconv_head
     from model_rpn import generate_rpn_proposals, rpn_head, rpn_losses, rpn_head_withbatch
     from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
-    from performance import ThroughputTracker
+    from performance import ThroughputTracker, print_runtime_shape, print_runtime_tensor, print_runtime_tensor_loose_branch, summarize_tensor
 
 BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global arg. In convergence codebase, this is a constant
 
 
-
-# Modules that fail - [armand WIP]
-BATCH_RPN_LOSS = False
-
-
-
-#########################################################################################################
-# Modules that all work together (grouped by ability to be combined into a single supermodule)
-#########################################################################################################
-BATCH_DATA_PIPELINE_EVAL = False
-
-BATCH_RPN_HEAD = False
-BATCH_GENERATE_PROPOSALS = False
-
-BATCH_BOX_CLASS_HEAD = False
-
-BATCH_ROI_ALIGN_MASK = False
-BATCH_CROP_AND_RESIZE_MASK = False
-BATCH_MASK_LOSS = False
-#########################################################################################################
-
-
-
+BATCH_ENABLE = True 
 
 
 try:
@@ -133,7 +111,7 @@ class DetectionModel(ModelDesc):
         self.fp16 = fp16
 
     def preprocess(self, image):
-        image = tf.expand_dims(image, 0)
+    #    image = tf.expand_dims(image, 0)
         image = image_preprocess(image, bgr=True)
         return tf.transpose(image, [0, 3, 1, 2])
 
@@ -161,47 +139,47 @@ class DetectionModel(ModelDesc):
             [str]: output names
         """
 
-        if BATCH_DATA_PIPELINE_EVAL:
+        if BATCH_ENABLE:
             out = ['output/batch_indices', 'output/boxes', 'output/scores', 'output/labels']
         else:
             out = ['output/boxes', 'output/scores', 'output/labels']
 
         if cfg.MODE_MASK:
             out.append('output/masks')
-        return ['images'], out
+        return ['images', 'orig_image_dims'], out
 
     def build_graph(self, *inputs):
         inputs = dict(zip(self.input_names, inputs))
 
         #########################################################################################################
-        if BATCH_DATA_PIPELINE_EVAL:
+        #if BATCH_DATA_PIPELINE_EVAL:
         #########################################################################################################
-            inputs["anchor_labels_lvl2"] = tf.squeeze(inputs["anchor_labels_lvl2"], axis=0)
-            inputs["anchor_boxes_lvl2"] = tf.squeeze(inputs["anchor_boxes_lvl2"], axis=0)
-            inputs["anchor_labels_lvl3"] = tf.squeeze(inputs["anchor_labels_lvl3"], axis=0)
-            inputs["anchor_boxes_lvl3"] = tf.squeeze(inputs["anchor_boxes_lvl3"], axis=0)
-            inputs["anchor_labels_lvl4"] = tf.squeeze(inputs["anchor_labels_lvl4"], axis=0)
-            inputs["anchor_boxes_lvl4"] = tf.squeeze(inputs["anchor_boxes_lvl4"], axis=0)
-            inputs["anchor_labels_lvl5"] = tf.squeeze(inputs["anchor_labels_lvl5"], axis=0)
-            inputs["anchor_boxes_lvl5"] = tf.squeeze(inputs["anchor_boxes_lvl5"], axis=0)
-            inputs["anchor_labels_lvl6"] = tf.squeeze(inputs["anchor_labels_lvl6"], axis=0)
-            inputs["anchor_boxes_lvl6"] = tf.squeeze(inputs["anchor_boxes_lvl6"], axis=0)
-            inputs["images"] = tf.squeeze(inputs["images"], axis=0)
-            inputs["orig_image_dims"] = tf.squeeze(inputs["orig_image_dims"], axis=0)
-            inputs["orig_gt_counts"] = tf.squeeze(inputs["orig_gt_counts"], axis=0)
-            inputs["gt_labels"] = tf.squeeze(inputs["gt_labels"], axis=0)
-            inputs["gt_boxes"] = tf.squeeze(inputs["gt_boxes"], axis=0)
-            inputs["gt_masks"] = tf.squeeze(inputs["gt_masks"], axis=0)
+            #inputs["anchor_labels_lvl2"] = tf.squeeze(inputs["anchor_labels_lvl2"], axis=0)
+            #inputs["anchor_boxes_lvl2"] = tf.squeeze(inputs["anchor_boxes_lvl2"], axis=0)
+            #inputs["anchor_labels_lvl3"] = tf.squeeze(inputs["anchor_labels_lvl3"], axis=0)
+            #inputs["anchor_boxes_lvl3"] = tf.squeeze(inputs["anchor_boxes_lvl3"], axis=0)
+            #inputs["anchor_labels_lvl4"] = tf.squeeze(inputs["anchor_labels_lvl4"], axis=0)
+            #inputs["anchor_boxes_lvl4"] = tf.squeeze(inputs["anchor_boxes_lvl4"], axis=0)
+            #inputs["anchor_labels_lvl5"] = tf.squeeze(inputs["anchor_labels_lvl5"], axis=0)
+            #inputs["anchor_boxes_lvl5"] = tf.squeeze(inputs["anchor_boxes_lvl5"], axis=0)
+            #inputs["anchor_labels_lvl6"] = tf.squeeze(inputs["anchor_labels_lvl6"], axis=0)
+            #inputs["anchor_boxes_lvl6"] = tf.squeeze(inputs["anchor_boxes_lvl6"], axis=0)
+            #inputs["images"] = tf.squeeze(inputs["images"], axis=0)
+            #inputs["orig_image_dims"] = tf.squeeze(inputs["orig_image_dims"], axis=0)
+            #inputs["orig_gt_counts"] = tf.squeeze(inputs["orig_gt_counts"], axis=0)
+            #inputs["gt_labels"] = tf.squeeze(inputs["gt_labels"], axis=0)
+            #inputs["gt_boxes"] = tf.squeeze(inputs["gt_boxes"], axis=0)
+            #inputs["gt_masks"] = tf.squeeze(inputs["gt_masks"], axis=0)
         #########################################################################################################
 
         image = self.preprocess(inputs['images'])     # 1CHW
 
         features = self.backbone(image)
         anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
-        proposal_boxes, rpn_losses = self.rpn(image, features, anchor_inputs)  # inputs?
+        proposal_boxes, rpn_losses = self.rpn(image, features, anchor_inputs, inputs['orig_image_dims'])  # inputs?
 
         targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
-        head_losses = self.roi_heads(image, features, proposal_boxes, targets)
+        head_losses = self.roi_heads(image, features, proposal_boxes, targets, inputs)
 
         if self.training:
             wd_cost = regularize_cost(
@@ -221,7 +199,7 @@ class ResNetFPNModel(DetectionModel):
     def inputs(self):
 
         ######################################################################################################
-        if BATCH_DATA_PIPELINE_EVAL:
+        if BATCH_ENABLE:
         ######################################################################################################
 
             ret = [
@@ -278,143 +256,176 @@ class ResNetFPNModel(DetectionModel):
         return p23456
 
 
-    def rpn(self, image, features, inputs):
+    def rpn(self, image, features, inputs, orig_image_dims):
         assert len(cfg.RPN.ANCHOR_SIZES) == len(cfg.FPN.ANCHOR_STRIDES)
 
-        image_shape2d = tf.shape(image)[2:]     # h,w
+        if BATCH_ENABLE:
+            image_shape2d = orig_image_dims[:,:2]
+            #image_shape2d = print_runtime_tensor('image_shape2d', image_shape2d)
+        else:
+            image_shape2d = tf.shape(image)[2:] 
+    #    image_shape2d = tf.expand_dims(tf.shape(image)[2:], 0)     # h,w
+
         all_anchors_fpn = get_all_anchors_fpn()
 
-        multilevel_anchors = [RPNAnchors(
-            all_anchors_fpn[i],
-            inputs['anchor_labels_lvl{}'.format(i + 2)],
-            inputs['anchor_boxes_lvl{}'.format(i + 2)]) for i in range(len(all_anchors_fpn))]
-
-        self.slice_feature_and_anchors(features, multilevel_anchors)
+        #multilevel_anchors = [RPNAnchors(
+        #    all_anchors_fpn[i],
+        #    tf.squeeze(inputs['anchor_labels_lvl{}'.format(i + 2)], axis=0),
+        #    tf.squeeze(inputs['anchor_boxes_lvl{}'.format(i + 2)], axis=0)) for i in range(len(all_anchors_fpn))]
+        #
+        #self.slice_feature_and_anchors(features, multilevel_anchors)
 
 
         # Multi-Level RPN Proposals
         #########################################################################################################
-        if BATCH_RPN_HEAD:
+        if BATCH_ENABLE:
         #########################################################################################################
             rpn_outputs = []
             for pi in features:
                 label_logits, box_logits = rpn_head_withbatch('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS), fp16=self.fp16)
 
                 # Operation the same transpose as in the no batch code
-                label_logits = tf.squeeze(label_logits, 0)  # fHxfWxNA
-                shp = tf.shape(box_logits)  # 1x(NAx4)xfHxfW
-                box_logits = tf.transpose(box_logits, [0, 2, 3, 1])  # 1xfHxfWx(NAx4)
-                box_logits = tf.reshape(box_logits, tf.stack([shp[2], shp[3], -1, 4]))  # fHxfWxNAx4
+                #label_logits = tf.squeeze(label_logits, 0)  # fHxfWxNA
+                #shp = tf.shape(box_logits)  # 1x(NAx4)xfHxfW
+                #box_logits = tf.transpose(box_logits, [0, 2, 3, 1])  # 1xfHxfWx(NAx4)
+                #box_logits = tf.reshape(box_logits, tf.stack([shp[2], shp[3], -1, 4]))  # fHxfWxNAx4
 
                 rpn_outputs.append((label_logits, box_logits))
 
-
             multilevel_label_logits = [k[0] for k in rpn_outputs]
             multilevel_box_logits = [k[1] for k in rpn_outputs]
-            
+
+#            image_shape2d = tf.expand_dims(image_shape2d, 0)
+            proposal_boxes, proposal_scores = generate_fpn_proposals_batch_tf_op(all_anchors_fpn, multilevel_box_logits,
+                                                                                 multilevel_label_logits,
+                                                                                 image_shape2d)
+
+            ############# UNBATCHING FOR RPN LOSS ##########################
+            #multilevel_label_logits_unbatched = [tf.squeeze(k, 0) for k in multilevel_label_logits]
+
+            #multilevel_box_logits_out = []
+            #for box_logits in multilevel_box_logits:
+            #    shp = tf.shape(box_logits)  # 1x(NAx4)xfHxfW
+            #    box_logits_out = tf.transpose(box_logits, [0, 2, 3, 1])  # 1xfHxfWx(NAx4)
+            #    box_logits_out = tf.reshape(box_logits_out, tf.stack([shp[2], shp[3], -1, 4]))  # fHxfWxNAx4
+            #    multilevel_box_logits_out.append(box_logits_out)
+            #multilevel_box_logits_unbatched  = multilevel_box_logits_out     
+            ############################################################### 
+ 
         else:
             rpn_outputs = [rpn_head('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS), fp16=self.fp16)
                            for pi in features]
             multilevel_label_logits = [k[0] for k in rpn_outputs]
             multilevel_box_logits = [k[1] for k in rpn_outputs]
-            
-        #########################################################################################################
 
-
-
-
-        #########################################################################################################
-        if BATCH_GENERATE_PROPOSALS:
-        #########################################################################################################
-            multilevel_label_logits = [tf.expand_dims(k[0], 0) for k in rpn_outputs]
-
-            multilevel_box_logits = [tf.transpose(k[1], [2, 3, 0, 1]) for k in rpn_outputs]
-            multilevel_box_logits = [tf.reshape(k, (-1, tf.shape(k)[2], tf.shape(k)[3])) for k in multilevel_box_logits]
-            multilevel_box_logits = [tf.expand_dims(k, 0) for k in multilevel_box_logits]
-
-            image_shape2d = tf.expand_dims(image_shape2d, 0)
-            proposal_boxes, proposal_scores = generate_fpn_proposals_batch_tf_op(multilevel_box_logits,
-                                                                                 multilevel_label_logits,
-                                                                                 image_shape2d)
-
-            proposal_boxes = proposal_boxes[:, 1:]
-            proposal_scores = tf.reshape(tf.reshape(proposal_scores, (-1, 5))[:, 1:], (-1,))
-            multilevel_label_logits = [tf.squeeze(k, 0) for k in multilevel_label_logits]
-            multilevel_box_logits = [k[1] for k in rpn_outputs]
-        else:
             multilevel_pred_boxes = [anchor.decode_logits(logits)
                                      for anchor, logits in zip(multilevel_anchors, multilevel_box_logits)]
             proposal_boxes, proposal_scores = generate_fpn_proposals(
                 multilevel_pred_boxes, multilevel_label_logits, image_shape2d)
 
-
+           
         #########################################################################################################
-
-
 
 
 
 
         if self.training:
             #########################################################################################################
-            if BATCH_RPN_LOSS:
+            if BATCH_ENABLE:
             #########################################################################################################
 
-                all_anchors_fpn = get_all_anchors_fpn()  # For a single image. List, with anchors for each level
-                batched_all_anchors_fpn = []
+                # TODO: Remove this when merging batch blocks, begin
+                #batch_input_multilevel_anchor_labels = [tf.expand_dims(inputs['anchor_labels_lvl{}'.format(i + 2)], axis=0) for i in range(len(all_anchors_fpn))]
+                #batch_input_multilevel_anchor_boxes = [tf.expand_dims(inputs['anchor_boxes_lvl{}'.format(i + 2)], axis=0) for i in range(len(all_anchors_fpn))]
+                #batch_input_multilevel_label_logits = [tf.expand_dims(m, axis=0) for m in multilevel_label_logits]
+                #batch_input_multilevel_box_logits = [tf.expand_dims(m, axis=0) for m in multilevel_box_logits]
+                # TODO: Remove this when merging batch blocks, end
 
-                for i, all_anchors_on_level in enumerate(all_anchors_fpn):
-                    batched_all_anchors_on_level = tf.stack([all_anchors_on_level for _ in range(BATCH_SIZE_PLACEHOLDER)])
-                    batched_all_anchors_fpn.append(batched_all_anchors_on_level)
+                batch_input_multilevel_anchor_labels = [inputs['anchor_labels_lvl{}'.format(i + 2)] for i in range(len(all_anchors_fpn))]
+                batch_input_multilevel_anchor_boxes = [inputs['anchor_boxes_lvl{}'.format(i + 2)] for i in range(len(all_anchors_fpn))]
+                batch_input_multilevel_label_logits = multilevel_label_logits 
 
+                batch_input_multilevel_box_logits = []
+                for box_logits in multilevel_box_logits:
+                    shp = tf.shape(box_logits)  # Nx(NAx4)xfHxfW
+                    box_logits_t = tf.transpose(box_logits, [0, 2, 3, 1])  # NxfHxfWx(NAx4)
+                    box_logits_t = tf.reshape(box_logits_t, tf.stack([shp[0], shp[2], shp[3], -1, 4]))  # NxfHxfWxNAx4
+                    batch_input_multilevel_box_logits.append(box_logits_t)
 
-                multilevel_anchors = [RPNAnchors(
-                        batched_all_anchors_fpn[i],
-                        tf.expand_dims(inputs['anchor_labels_lvl{}'.format(i + 2)], axis=0),
-                        tf.expand_dims(inputs['anchor_boxes_lvl{}'.format(i + 2)], axis=0)) for i in range(len(all_anchors_fpn))]
+                rpn_losses = []
+                for i in range(BATCH_SIZE_PLACEHOLDER):
+                    orig_image_hw = orig_image_dims[i, :2]
+                    si_all_anchors_fpn = get_all_anchors_fpn()
+                    si_multilevel_box_logits = [box_logits[i, :, :, :, :] for box_logits in batch_input_multilevel_box_logits]
+                    si_multilevel_label_logits = [label_logits[i, :, :, :] for label_logits in batch_input_multilevel_label_logits]
+                    si_multilevel_anchor_labels = [anchor_labels[i, :, :, :] for anchor_labels in batch_input_multilevel_anchor_labels]
+                    si_multilevel_anchors_boxes = [anchor_boxes[i, :, :, :, :] for anchor_boxes in batch_input_multilevel_anchor_boxes]
 
-                # These 3 lines are the self.slice_feature_and_anchors_batch function from the batch code
-                for i, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
-                    with tf.name_scope('FPN_batch_slice_lvl{}'.format(i)):
-                        multilevel_anchors[i] = multilevel_anchors[i].narrow_to_batch(features[i])
+                    si_multilevel_anchors = [RPNAnchors(si_all_anchors_fpn[j],
+                                                        si_multilevel_anchor_labels[j],
+                                                        si_multilevel_anchors_boxes[j])
+                                                        for j in range(len(features))]
 
-                multilevel_label_logits = [tf.expand_dims(k, axis=0) for k in multilevel_label_logits] # BSxHxWxA
-                multilevel_box_logits = [tf.expand_dims(k, axis=0) for k in multilevel_box_logits] # BSxHxWxAx4
+                    # Given the original image dims, find what size each layer of the FPN feature map would be (follow FPN padding logic)
+                    mult = float(cfg.FPN.RESOLUTION_REQUIREMENT)  # the image is padded so that it is a multiple of this (32 with default config).
+                    orig_image_hw_after_fpn_padding = tf.ceil(tf.cast(orig_image_hw, tf.float32) / mult) * mult
+                    si_multilevel_anchors_narrowed = []
+                    for lvl, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
+                        featuremap_dims_float = orig_image_hw_after_fpn_padding / float(stride)
+                        featuremap_dims = tf.cast(tf.math.floor(featuremap_dims_float + 0.5), tf.int32)  # Fix bankers rounding
 
+                        narrowed_anchors_for_lvl = si_multilevel_anchors[lvl].narrow_to_featuremap_dims(featuremap_dims)
+                        si_multilevel_anchors_narrowed.append(narrowed_anchors_for_lvl)
 
-                transposed_multilevel_box_logits = []
-                for i, box_logits in enumerate(multilevel_box_logits):
-                    shp = tf.shape(box_logits)  # BSxHxWxA
+                    si_losses = multilevel_rpn_losses_batch_fixed_single_image(si_multilevel_anchors_narrowed,
+                                                                               si_multilevel_label_logits,
+                                                                               si_multilevel_box_logits)
+                    rpn_losses.extend(si_losses)
 
-                    # Desired = BS x (A*4) x H x W
-                    transposed_multilevel_box_logits.append(tf.reshape(box_logits, [shp[0], -1, shp[1], shp[2]]))
+                with tf.name_scope('rpn_losses'):
+                    total_label_loss = tf.add_n(rpn_losses[::2], name='label_loss')
+                    total_box_loss = tf.add_n(rpn_losses[1::2], name='box_loss')
+                    add_moving_summary(total_label_loss, total_box_loss)
+                    losses = [total_label_loss, total_box_loss]
 
-
-
-                losses = multilevel_rpn_losses_batch(multilevel_anchors, multilevel_label_logits, transposed_multilevel_box_logits)
+                # losses[0] = print_runtime_tensor("batch_total_label_loss", losses[0])
+                # losses[1] = print_runtime_tensor("batch_total_box_loss", losses[1])
             else:
-                losses = multilevel_rpn_losses(multilevel_anchors, multilevel_label_logits, multilevel_box_logits)
+                no_batch_losses = multilevel_rpn_losses(multilevel_anchors, multilevel_label_logits, multilevel_box_logits)
+                losses = no_batch_losses
+
             #########################################################################################################
         else:
             losses = []
 
         return proposal_boxes, losses
 
-    def roi_heads(self, image, features, proposal_boxes, targets):
-        image_shape2d = tf.shape(image)[2:]     # h,w
+    def roi_heads(self, image, features, proposal_boxes, targets, inputs):
+
+        if BATCH_ENABLE:
+            image_shape2d = inputs['orig_image_dims'][:,:2]      # BSx2 (h&w)
+            #image_shape2d = print_runtime_tensor('image_shape2d', image_shape2d)
+        else:
+            image_shape2d = tf.shape(image)[2:]     # h,w
+    #    image_shape2d = tf.expand_dims(tf.shape(image)[2:], 0)     # h,w   
+
         assert len(features) == 5, "Features have to be P23456!"
         gt_boxes, gt_labels, *_ = targets
 
         #############################################################################################################
-        if BATCH_BOX_CLASS_HEAD:
+        if BATCH_ENABLE:
         #############################################################################################################
-            prepadding_gt_counts = tf.expand_dims(tf.shape(gt_labels)[0], axis=0)  # 1 x NumGT
+#            prepadding_gt_counts = tf.expand_dims(tf.shape(gt_labels)[0], axis=0)  # 1 x NumGT
+            prepadding_gt_counts = inputs['orig_gt_counts'] 
 
             if self.training:
                 # BATCH_SAMPLE_TARGETS
-                input_gt_boxes = tf.expand_dims(gt_boxes, axis=0)
-                input_gt_labels = tf.expand_dims(gt_labels, axis=0)
-                input_proposal_boxes = tf.pad(proposal_boxes, [[0,0], [1,0]], constant_values=0)
+                #input_gt_boxes = tf.expand_dims(gt_boxes, axis=0)
+                #input_gt_labels = tf.expand_dims(gt_labels, axis=0)
+                #input_proposal_boxes = tf.pad(proposal_boxes, [[0,0], [1,0]], constant_values=0)
+                input_proposal_boxes = proposal_boxes
+                input_gt_boxes = gt_boxes
+                input_gt_labels = gt_labels
 
                 proposal_boxes, proposal_labels, proposal_gt_id_for_each_fg = sample_fast_rcnn_targets_batch(
                         input_proposal_boxes,
@@ -423,12 +434,13 @@ class ResNetFPNModel(DetectionModel):
                         prepadding_gt_counts,
                         batch_size=BATCH_SIZE_PLACEHOLDER)
 
-                proposal_boxes = proposal_boxes[:, 1:]
+                #proposal_boxes = proposal_boxes[:, 1:]
 
                 # TODO: Remove this after mask blocks have been modified to work with no BoxProposals
                 # It's needed for mask block functionality but is not used within this code block and
                 # should be able to be safely deleted once the mask blocks have been converted.
-                proposals = BoxProposals(proposal_boxes, proposal_labels, proposal_gt_id_for_each_fg[0])
+#                proposals = BoxProposals(proposal_boxes, proposal_labels, proposal_gt_id_for_each_fg[0])
+                proposals = BoxProposals(proposal_boxes, proposal_labels, proposal_gt_id_for_each_fg)
 
 
             # BATCH_ROI_ALIGN_BOX
@@ -444,9 +456,10 @@ class ResNetFPNModel(DetectionModel):
             # BATCH_FAST_RCNN_LOSSES
             # Convert nobatch tensors to batch tensors
             regression_weights = tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32)
-            batch_indices_for_rois = tf.zeros(tf.shape(proposal_boxes)[0])
-            proposal_boxes = tf.pad(proposal_boxes, [[0,0],[1,0]])
+#            batch_indices_for_rois = tf.zeros(tf.shape(proposal_boxes)[0])
+#            proposal_boxes = tf.pad(proposal_boxes, [[0,0],[1,0]])
             # END Convert nobatch tensors to batch tensors
+            batch_indices_for_rois = proposal_boxes[:,0]
 
 
             fastrcnn_head = FastRCNNHeadBatch(fastrcnn_box_logits,
@@ -504,50 +517,33 @@ class ResNetFPNModel(DetectionModel):
                 gt_masks = targets[2]
                 # maskrcnn loss
 
+                maskrcnn_head_func = getattr(model_mrcnn, cfg.FPN.MRCNN_HEAD_FUNC)
+
 
                 ##########################################################################################################
-                if BATCH_ROI_ALIGN_MASK:
+                if BATCH_ENABLE:
                 ##########################################################################################################
+
                     roi_feature_maskrcnn = multilevel_roi_align_tf_op(
                         features[:4], proposals.fg_boxes(), 14,
                         name_scope='multilevel_roi_align_mask')
-                else:
-                    roi_feature_maskrcnn = multilevel_roi_align(
-                            features[:4], proposals.fg_boxes(), 14,
-                            name_scope='multilevel_roi_align_mask')
-                ##########################################################################################################
 
+                    mask_logits = maskrcnn_head_func(
+                            'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY, fp16=self.fp16)   # #fg x #cat x 28 x 28
 
-
-
-
-                maskrcnn_head_func = getattr(model_mrcnn, cfg.FPN.MRCNN_HEAD_FUNC)
-                mask_logits = maskrcnn_head_func(
-                    'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY, fp16=self.fp16)   # #fg x #cat x 28 x 28
-
-
-
-
-
-                ##########################################################################################################
-                if BATCH_CROP_AND_RESIZE_MASK:
-                ##########################################################################################################
-
-                    prepadding_gt_counts = tf.expand_dims(tf.shape(gt_labels)[0], axis=0) # 1 x NumGT
-                    proposal_fg_boxes = tf.pad(proposals.fg_boxes(), [[0, 0], [1,0]], constant_values=0) # NumFG x 5
+#                    prepadding_gt_counts = tf.expand_dims(tf.shape(gt_labels)[0], axis=0) # 1 x NumGT
+#                    proposal_fg_boxes = tf.pad(proposals.fg_boxes(), [[0, 0], [1,0]], constant_values=0) # NumFG x 5
                     proposal_fg_labels = proposals.fg_labels() # vector of length NumFG
-                    proposal_gt_id_for_each_fg = [proposals.fg_inds_wrt_gt] # list [ vectors length NumFG ]
-                    orig_image_dims = [image_shape2d]       # list [ 2 ]
-                    gt_masks = tf.expand_dims(gt_masks, axis=0) # 1 x NumGT x H x W
+#                    proposal_gt_id_for_each_fg = [proposals.fg_inds_wrt_gt] # list [ vectors length NumFG ]
+#                    orig_image_dims = [image_shape2d]       # list [ 2 ]
+#                    gt_masks = tf.expand_dims(gt_masks, axis=0) # 1 x NumGT x H x W
 
-                    print("-----------")
-                    print(prepadding_gt_counts)
-                    print(proposal_fg_boxes)
-                    print(proposal_fg_labels)
-                    print(proposal_gt_id_for_each_fg)
-                    print(orig_image_dims)
-                    print(gt_masks)
 
+                    prepadding_gt_counts = inputs['orig_gt_counts']
+                    orig_image_dims = image_shape2d #inputs['orig_image_dims'][:,:2]      # BSx2 tensor
+
+                    proposal_fg_boxes = proposals.fg_boxes()
+                    proposal_gt_id_for_each_fg = proposals.fg_inds_wrt_gt
 
                     per_image_target_masks_for_fg = []
                     per_image_fg_labels = []
@@ -579,6 +575,14 @@ class ResNetFPNModel(DetectionModel):
 
                     proposal_fg_labels = tf.concat(per_image_fg_labels, axis=0)
                 else:
+
+                    roi_feature_maskrcnn = multilevel_roi_align(
+                            features[:4], proposals.fg_boxes(), 14,
+                            name_scope='multilevel_roi_align_mask')
+
+                    mask_logits = maskrcnn_head_func(
+                            'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY, fp16=self.fp16)   # #fg x #cat x 28 x 28
+
                     target_masks_for_fg = crop_and_resize(
                         tf.expand_dims(gt_masks, 1),
                         proposals.fg_boxes(),
@@ -589,44 +593,27 @@ class ResNetFPNModel(DetectionModel):
                                                                # without worrying about whether BATCH_CROP_AND_RESIZE_MASK is True
                 ##########################################################################################################
 
-
-
-
-
-
                 target_masks_for_fg = tf.squeeze(target_masks_for_fg, 1, 'sampled_fg_mask_targets')
 
-
-
-
-
-                #######################################################################################################
-                if BATCH_MASK_LOSS:
-                #######################################################################################################
-                    mask_loss = maskrcnn_loss(mask_logits, proposal_fg_labels, target_masks_for_fg)
-                else:
-                    mask_loss = maskrcnn_loss(mask_logits, proposal_fg_labels, target_masks_for_fg)
-                #######################################################################################################
-
-
-
-
-
-
+                mask_loss = maskrcnn_loss(mask_logits, proposal_fg_labels, target_masks_for_fg)
 
                 all_losses.append(mask_loss)
             return all_losses
         else:
-            if BATCH_DATA_PIPELINE_EVAL:
-                # NEED TO TAKE IN PROPER ORIG_IMAGE_DIMS FOR image_shape2d WHEN COMPLETELY BATCHIFIED !!!!
-                decoded_boxes = fastrcnn_head.decoded_output_boxes_batch(batch_box_class_head=BATCH_BOX_CLASS_HEAD)
+
+            if BATCH_ENABLE:
+                decoded_boxes, batch_ids = fastrcnn_head.decoded_output_boxes_batch()
             else:
                 decoded_boxes = fastrcnn_head.decoded_output_boxes()
 
-            decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes')
+            if BATCH_ENABLE:
+                decoded_boxes = clip_boxes_batch(decoded_boxes, image_shape2d, tf.cast(batch_ids, dtype=tf.int32), name='fastrcnn_all_boxes')
+            else:
+                decoded_boxes = clip_boxes(decoded_boxes, image_shape2d, name='fastrcnn_all_boxes')
+
             label_scores = fastrcnn_head.output_scores(name='fastrcnn_all_scores')
 
-            if BATCH_DATA_PIPELINE_EVAL:
+            if BATCH_ENABLE:
                 final_boxes, final_scores, final_labels, box_ids = fastrcnn_predictions_batch(decoded_boxes, label_scores, name_scope='output')
             else: 
                 final_boxes, final_scores, final_labels = fastrcnn_predictions(decoded_boxes, label_scores, name_scope='output')
@@ -641,9 +628,9 @@ class ResNetFPNModel(DetectionModel):
                 final_mask_logits = tf.gather_nd(mask_logits, indices)   # #resultx28x28
                 tf.sigmoid(final_mask_logits, name='output/masks')
   
-                if BATCH_DATA_PIPELINE_EVAL:
-                    if not BATCH_BOX_CLASS_HEAD:
-                        proposal_boxes = tf.concat((tf.zeros([tf.shape(proposals.boxes)[0], 1], dtype=tf.float32), proposals.boxes), axis=1)      # REMOVE WHEN COMPLETELY BATCHIFIED
+
+                if BATCH_ENABLE:
+                    #proposal_boxes = tf.concat((tf.zeros([tf.shape(proposals.boxes)[0], 1], dtype=tf.float32), proposals.boxes), axis=1)      # REMOVE WHEN COMPLETELY BATCHIFIED
                     tf.gather(proposal_boxes[:,0], box_ids, name='output/batch_indices')
             return []
 
@@ -815,7 +802,7 @@ if __name__ == '__main__':
         logger.info("LR Schedule (epochs, value): " + str(lr_schedule))
 
         #####################################################################
-        if BATCH_DATA_PIPELINE_EVAL:
+        if BATCH_ENABLE:
         #####################################################################
             train_dataflow = get_batch_train_dataflow(BATCH_SIZE_PLACEHOLDER)
         else:
@@ -826,7 +813,7 @@ if __name__ == '__main__':
         total_passes = cfg.TRAIN.LR_SCHEDULE[-1] * 8 / train_dataflow.size()
         logger.info("Total passes of the training set is: {:.5g}".format(total_passes))
 
-        bsize = BATCH_SIZE_PLACEHOLDER if BATCH_DATA_PIPELINE_EVAL else 0
+        bsize = BATCH_SIZE_PLACEHOLDER if BATCH_ENABLE else 0
 
         callbacks = [
             PeriodicCallback(
@@ -847,7 +834,7 @@ if __name__ == '__main__':
             callbacks.append(GPUUtilizationTracker())
 
         if args.perf:
-            callbacks.append(ThroughputTracker(args.images_per_step,
+            callbacks.append(ThroughputTracker(BATCH_SIZE_PLACEHOLDER*cfg.TRAIN.NUM_GPUS,
                                                args.num_total_images,
                                                trigger_every_n_steps=args.throughput_log_freq,
                                                log_fn=logger.info))

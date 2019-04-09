@@ -791,8 +791,7 @@ class FastRCNNHeadBatch(object):
     @memoized_method
     def decoded_output_boxes_batch(self, batch_box_class_head):
         """ Returns: N x #class x 4 """
-        if not batch_box_class_head:
-            self.proposal_boxes = tf.concat((tf.zeros([tf.shape(self.proposal_boxes)[0], 1], dtype=tf.float32), self.proposal_boxes), axis=1)      # REMOVE WHEN COMPLETELY BATCHIFIED
+#        self.proposal_boxes = tf.concat((tf.zeros([tf.shape(self.proposal_boxes)[0], 1], dtype=tf.float32), self.proposal_boxes), axis=1)      # REMOVE WHEN COMPLETELY BATCHIFIED
   
         batch_ids, nobatch_proposal_boxes = tf.split(self.proposal_boxes, [1, 4], 1)
         anchors = tf.tile(tf.expand_dims(nobatch_proposal_boxes, 1),
@@ -801,7 +800,7 @@ class FastRCNNHeadBatch(object):
                 self.box_logits / self.bbox_regression_weights,
                 anchors
         )
-        return decoded_boxes 
+        return decoded_boxes, tf.reshape(batch_ids, [-1]) 
 
 
     @memoized_method
