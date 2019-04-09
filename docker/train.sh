@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 NUM_GPU=${1:-1}
-IMAGES_PER_GPU=${2:-1}
-SUMMARY_PERIOD=${3:-0}
+THROUGHPUT_LOG_FREQ=${2:-2000}
 
+let STEPS_PER_EPOCH=120000/${NUM_GPU}
 
 echo ""
 echo "NUM_GPU: ${NUM_GPU}"
-echo "IMAGES_PER_GPU: ${IMAGES_PER_GPU}"
+echo "STEPS_PER_EPOCH: ${STEPS_PER_EPOCH}"
+echo "THROUGHPUT_LOG_FREQ: ${THROUGHPUT_LOG_FREQ}"
 echo ""
 
 
-# --use_nobatch_pipeline
 
-
+TENSORPACK_FP16=1 \
 HOROVOD_TIMELINE=/logs/htimeline.json \
 HOROVOD_CYCLE_TIME=0.5 \
 HOROVOD_FUSION_THRESHOLD=67108864 \
@@ -26,18 +26,20 @@ HOROVOD_FUSION_THRESHOLD=67108864 \
 -x LD_LIBRARY_PATH -x PATH \
 -x HOROVOD_CYCLE_TIME -x HOROVOD_FUSION_THRESHOLD \
 --output-filename /logs/mpirun_logs \
-/usr/local/bin/python3 /tensorpack-mask-rcnn/MaskRCNN/train.py \
+/usr/local/bin/python3 /tensorpack-mask-rcnn/MaskRCNN_no_batch_convergence/train.py \
 --logdir /logs/train_log \
 --perf \
---summary_period $SUMMARY_PERIOD \
---throughput_log_freq 1 \
+--fp16 \
+--summary_period 250 \
+--throughput_log_freq ${THROUGHPUT_LOG_FREQ} \
 --config MODE_MASK=True \
 MODE_FPN=True \
 DATA.BASEDIR=/data \
 DATA.TRAIN='["train2017"]' \
 DATA.VAL='("val2017",)' \
+TRAIN.STEPS_PER_EPOCH=${STEPS_PER_EPOCH} \
 TRAIN.LR_SCHEDULE='[120000, 160000, 180000]' \
+TRAIN.EVAL_PERIOD=12 \
 BACKBONE.WEIGHTS=/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
 BACKBONE.NORM=FreezeBN \
-TRAINER=horovod \
-TRAIN.BATCH_SIZE_PER_GPU=${IMAGES_PER_GPU}
+TRAINER=horovod

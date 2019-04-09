@@ -13,7 +13,7 @@ from tensorpack.tfutils.tower import get_current_tower_context
 from basemodel import GroupNorm
 from config import config as cfg
 from model_box import roi_align
-from model_rpn import generate_rpn_proposals, rpn_losses, rpn_losses_batch_iterative
+from model_rpn import rpn_losses
 from utils.box_ops import area as tf_area
 from utils.mixed_precision import mixed_precision_scope
 
@@ -254,145 +254,11 @@ def multilevel_rpn_losses_batch_fixed_single_image(
     return [total_label_loss, total_box_loss]
 
 
-def multilevel_rpn_losses(
-        multilevel_anchors, multilevel_label_logits, multilevel_box_logits):
-    """
-    Args:
-        multilevel_anchors: #lvl RPNAnchors
-        multilevel_label_logits: #lvl tensors of shape HxWxA
-        multilevel_box_logits: #lvl tensors of shape HxWxAx4
-
-    Returns:
-        label_loss, box_loss
-    """
-    num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
-    assert len(multilevel_anchors) == num_lvl
-    assert len(multilevel_label_logits) == num_lvl
-    assert len(multilevel_box_logits) == num_lvl
-
-    losses = []
-    with tf.name_scope('rpn_losses'):
-        for lvl in range(num_lvl):
-            anchors = multilevel_anchors[lvl]
-            label_loss, box_loss = rpn_losses(
-                anchors.gt_labels, anchors.encoded_gt_boxes(),
-                multilevel_label_logits[lvl], multilevel_box_logits[lvl],
-                name_scope='level{}'.format(lvl + 2))
-            losses.extend([label_loss, box_loss])
-
-        total_label_loss = tf.add_n(losses[::2], name='label_loss')
-        total_box_loss = tf.add_n(losses[1::2], name='box_loss')
-        add_moving_summary(total_label_loss, total_box_loss)
-    return [total_label_loss, total_box_loss]
 
 
 
 
 
-def multilevel_rpn_losses_batch(
-        multilevel_anchors, multilevel_label_logits, multilevel_box_logits):
-    """
-    Args:
-        multilevel_anchors: #lvl RPNAnchors (batch formulation)
-        multilevel_label_logits: #lvl tensors of shape BS x H x W x A
-        multilevel_box_logits: #lvl tensors of shape BS x (A*4) x H x W
-
-    Returns:
-        label_loss, box_loss
-    """
-    num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
-    assert len(multilevel_anchors) == num_lvl
-    assert len(multilevel_label_logits) == num_lvl
-    assert len(multilevel_box_logits) == num_lvl
-
-    losses = []
-    with tf.name_scope('rpn_losses'):
-        for lvl in range(num_lvl):
-            anchors = multilevel_anchors[lvl]
-
-            label_loss, box_loss = rpn_losses_batch_iterative(
-                    anchors.gt_labels,
-                    anchors.encoded_gt_boxes(),
-                    multilevel_label_logits[lvl],
-                    multilevel_box_logits[lvl],
-                    name_scope='level{}'.format(lvl + 2),
-                    print_anchor_tensors=lvl == 0)
-            #
-            # label_loss, box_loss = rpn_losses_batch(
-            #     anchors.gt_labels,
-            #     anchors.encoded_gt_boxes(),
-            #     multilevel_label_logits[lvl],
-            #     multilevel_box_logits[lvl],
-            #     name_scope='level{}'.format(lvl + 2),
-            #     print_anchor_tensors=lvl==0)
-            #
-
-            losses.extend([label_loss, box_loss])
-
-        total_label_loss = tf.add_n(losses[::2], name='label_loss')
-        total_box_loss = tf.add_n(losses[1::2], name='box_loss')
-        add_moving_summary(total_label_loss, total_box_loss)
-    return [total_label_loss, total_box_loss]
-
-
-
-
-
-@under_name_scope()
-def generate_fpn_proposals(
-        multilevel_pred_boxes, multilevel_label_logits, image_shape2d):
-    """
-    Args:
-        multilevel_pred_boxes: #lvl HxWxAx4 boxes
-        multilevel_label_logits: #lvl tensors of shape HxWxA
-
-    Returns:
-        boxes: kx4 float
-        scores: k logits
-    """
-    num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
-    assert len(multilevel_pred_boxes) == num_lvl
-    assert len(multilevel_label_logits) == num_lvl
-
-    training = get_current_tower_context().is_training
-    all_boxes = []
-    all_scores = []
-    if cfg.FPN.PROPOSAL_MODE == 'Level':
-        fpn_nms_topk = cfg.RPN.TRAIN_PER_LEVEL_NMS_TOPK if training else cfg.RPN.TEST_PER_LEVEL_NMS_TOPK
-        for lvl in range(num_lvl):
-            with tf.name_scope('Lvl{}'.format(lvl + 2)):
-                pred_boxes_decoded = multilevel_pred_boxes[lvl]
-
-                proposal_boxes, proposal_scores = generate_rpn_proposals(
-                    tf.reshape(pred_boxes_decoded, [-1, 4]),
-                    tf.reshape(multilevel_label_logits[lvl], [-1]),
-                    image_shape2d, fpn_nms_topk)
-                all_boxes.append(proposal_boxes)
-                all_scores.append(proposal_scores)
-
-        proposal_boxes = tf.concat(all_boxes, axis=0)  # nx4
-        proposal_scores = tf.concat(all_scores, axis=0)  # n
-        # Here we are different from Detectron.
-        # Detectron picks top-k within the batch, rather than within an image. However we do not have a batch.
-        proposal_topk = tf.minimum(tf.size(proposal_scores), fpn_nms_topk)
-        proposal_scores, topk_indices = tf.nn.top_k(proposal_scores, k=proposal_topk, sorted=False)
-        proposal_boxes = tf.gather(proposal_boxes, topk_indices)
-    else:
-        for lvl in range(num_lvl):
-            with tf.name_scope('Lvl{}'.format(lvl + 2)):
-                pred_boxes_decoded = multilevel_pred_boxes[lvl]
-                all_boxes.append(tf.reshape(pred_boxes_decoded, [-1, 4]))
-                all_scores.append(tf.reshape(multilevel_label_logits[lvl], [-1]))
-        all_boxes = tf.concat(all_boxes, axis=0)
-        all_scores = tf.concat(all_scores, axis=0)
-        proposal_boxes, proposal_scores = generate_rpn_proposals(
-            all_boxes, all_scores, image_shape2d,
-            cfg.RPN.TRAIN_PRE_NMS_TOPK if training else cfg.RPN.TEST_PRE_NMS_TOPK,
-            cfg.RPN.TRAIN_POST_NMS_TOPK if training else cfg.RPN.TEST_POST_NMS_TOPK)
-
-    tf.sigmoid(proposal_scores, name='probs')  # for visualization
-    return tf.stop_gradient(proposal_boxes, name='boxes'), \
-        tf.stop_gradient(proposal_scores, name='scores')
 
 
 @under_name_scope()
