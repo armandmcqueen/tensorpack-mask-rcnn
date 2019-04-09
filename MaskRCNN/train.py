@@ -12,6 +12,8 @@ import six
 assert six.PY3, "FasterRCNN requires Python 3!"
 import tensorflow as tf
 import tqdm
+import time
+import subprocess
 
 import tensorpack.utils.viz as tpviz
 from tensorpack import *
@@ -19,43 +21,24 @@ from tensorpack.tfutils import optimizer
 from tensorpack.tfutils.common import get_tf_version_tuple
 from tensorpack.tfutils.summary import add_moving_summary
 
-STATICA_HACK = True
-globals()['kcah_acitats'[::-1].upper()] = False
-if STATICA_HACK:
-    from .basemodel import image_preprocess, resnet_fpn_backbone
-    from .dataset import DetectionDataset
-    from .config import finalize_configs, config as cfg
-    from .data import get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow, get_batch_train_dataflow
-    from .eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
-    from .model_box import RPNAnchors, clip_boxes_batch, crop_and_resize_from_batch_codebase
-    from .model_fpn import fpn_model, multilevel_roi_align, generate_fpn_proposals_batch_tf_op, \
-        multilevel_roi_align_tf_op, multilevel_rpn_losses_batch_fixed_single_image
-    from .model_frcnn import BoxProposals, fastrcnn_predictions_batch, sample_fast_rcnn_targets_batch, \
-        fastrcnn_outputs_batch, FastRCNNHeadBatch
-    from .model_mrcnn import maskrcnn_loss
-    from .model_rpn import rpn_head_withbatch
-    from .viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
-    from .performance import ThroughputTracker, print_runtime_shape, print_runtime_tensor, \
-        print_runtime_tensor_loose_branch, summarize_tensor
-else:
 
-    import model_frcnn
-    import model_mrcnn
-    from basemodel import image_preprocess, resnet_fpn_backbone
-    from dataset import DetectionDataset
-    from config import finalize_configs, config as cfg
-    from data import get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow, get_batch_train_dataflow
-    from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
-    from model_box import RPNAnchors, clip_boxes_batch, crop_and_resize_from_batch_codebase
-    from model_fpn import fpn_model, multilevel_roi_align, generate_fpn_proposals_batch_tf_op, \
-        multilevel_roi_align_tf_op, multilevel_rpn_losses_batch_fixed_single_image
-    from model_frcnn import BoxProposals, fastrcnn_predictions_batch, sample_fast_rcnn_targets_batch, \
-        fastrcnn_outputs_batch, FastRCNNHeadBatch
-    from model_mrcnn import maskrcnn_loss
-    from model_rpn import rpn_head_withbatch
-    from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
-    from performance import ThroughputTracker, print_runtime_shape, print_runtime_tensor, \
-        print_runtime_tensor_loose_branch, summarize_tensor
+import model_frcnn
+import model_mrcnn
+from basemodel import image_preprocess, resnet_fpn_backbone
+from dataset import DetectionDataset
+from config import finalize_configs, config as cfg
+from data import get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow, get_batch_train_dataflow
+from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
+from model_box import RPNAnchors, clip_boxes_batch, crop_and_resize_from_batch_codebase
+from model_fpn import fpn_model, multilevel_roi_align, generate_fpn_proposals_batch_tf_op, \
+    multilevel_roi_align_tf_op, multilevel_rpn_losses_batch_fixed_single_image
+from model_frcnn import BoxProposals, fastrcnn_predictions_batch, sample_fast_rcnn_targets_batch, \
+    fastrcnn_outputs_batch, FastRCNNHeadBatch
+from model_mrcnn import maskrcnn_loss
+from model_rpn import rpn_head_withbatch
+from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
+from performance import ThroughputTracker, print_runtime_shape, print_runtime_tensor, \
+    print_runtime_tensor_loose_branch, summarize_tensor, humanize_float
 
 
 # TODO: Change placeholder to CLI arg
@@ -476,7 +459,26 @@ def do_predict(pred_func, input_file):
     tpviz.interactive_imshow(viz)
 
 
+
+
+
+def log_launch_config(log_full_git_diff):
+    def check_and_log(cmd):
+        logger.info(cmd)
+        logger.info(subprocess.check_output(cmd, shell=True).decode("utf-8"))
+
+    check_and_log('git status') # branch and changes
+    check_and_log('git rev-parse HEAD') # commit
+    if log_full_git_diff:
+        check_and_log('git diff')
+
+    check_and_log('env')
+    check_and_log('ps -elf | grep mpirun')
+
+
+
 if __name__ == '__main__':
+    start_time = time.time()
     parser = argparse.ArgumentParser()
     parser.add_argument('--load', help='load a model for evaluation or training. Can overwrite BACKBONE.WEIGHTS')
     parser.add_argument('--logdir', help='log directory', default='train_log/maskrcnn')
@@ -491,16 +493,15 @@ if __name__ == '__main__':
 
     #################################################################################################################
     # Performance investigation arguments
-    parser.add_argument('--perf', help="Enable performance investigation mode", action="store_true")
     parser.add_argument('--throughput_log_freq', help="In perf investigation mode, code will print throughput after every throughput_log_freq steps as well as after every epoch", type=int, default=100)
-    parser.add_argument('--images_per_step', help="Number of images in a minibatch (total, not per GPU)", type=int, default=8)
     parser.add_argument('--num_total_images', help="Number of images in an epoch. = images_per_steps * steps_per_epoch (differs slightly from the total number of images).", type=int, default=120000)
 
     parser.add_argument('--tfprof', help="Enable tf profiler", action="store_true")
     parser.add_argument('--tfprof_start_step', help="Step to enable tf profiling", type=int, default=15005)
     parser.add_argument('--tfprof_end_step', help="Step after which tf profiling will be disabled", type=int, default=15010)
 
-    parser.add_argument('--summary_period', help="Write summary events periodically at this interval. Setting it to 0 writes at at the end of an epoch.", type=int, default=0)
+    parser.add_argument('--log_full_git_diff', help="Log the full git diff", action="store_false")
+
 
     #################################################################################################################
 
@@ -517,6 +518,8 @@ if __name__ == '__main__':
 
     MODEL = ResNetFPNModel(args.fp16)
     DetectionDataset()  # initialize the config with information from our dataset
+
+
 
     if args.visualize or args.evaluate or args.predict:
         assert tf.test.is_gpu_available()
@@ -539,6 +542,9 @@ if __name__ == '__main__':
             elif args.evaluate:
                 assert args.evaluate.endswith('.json'), args.evaluate
                 do_evaluate(predcfg, args.evaluate)
+
+
+
     else:
         is_horovod = cfg.TRAINER == 'horovod'
         if is_horovod:
@@ -547,6 +553,7 @@ if __name__ == '__main__':
 
         if not is_horovod or hvd.rank() == 0:
             logger.set_logger_dir(args.logdir, 'd')
+            log_launch_config(args.log_full_git_diff)
 
         finalize_configs(is_training=True)
         stepnum = cfg.TRAIN.STEPS_PER_EPOCH
@@ -593,18 +600,17 @@ if __name__ == '__main__':
         if not is_horovod:
             callbacks.append(GPUUtilizationTracker())
 
-        if args.perf:
-            callbacks.append(ThroughputTracker(BATCH_SIZE_PLACEHOLDER*cfg.TRAIN.NUM_GPUS,
-                                               args.num_total_images,
-                                               trigger_every_n_steps=args.throughput_log_freq,
-                                               log_fn=logger.info))
+        callbacks.append(ThroughputTracker(BATCH_SIZE_PLACEHOLDER*cfg.TRAIN.NUM_GPUS,
+                                           args.num_total_images,
+                                           trigger_every_n_steps=args.throughput_log_freq,
+                                           log_fn=logger.info))
 
-            if args.tfprof:
-                # We only get tf profiling chrome trace on rank==0
-                if hvd.rank() == 0:
-                    callbacks.append(EnableCallbackIf(
-                        GraphProfiler(dump_tracing=True, dump_event=True),
-                        lambda self: self.trainer.global_step >= args.tfprof_start_step and self.trainer.global_step <= args.tfprof_end_step))
+        if args.tfprof:
+            # We only get tf profiling chrome trace on rank==0
+            if hvd.rank() == 0:
+                callbacks.append(EnableCallbackIf(
+                    GraphProfiler(dump_tracing=True, dump_event=True),
+                    lambda self: self.trainer.global_step >= args.tfprof_start_step and self.trainer.global_step <= args.tfprof_end_step))
 
         if is_horovod and hvd.rank() > 0:
             session_init = None
@@ -614,15 +620,6 @@ if __name__ == '__main__':
             else:
                 session_init = get_model_loader(cfg.BACKBONE.WEIGHTS) if cfg.BACKBONE.WEIGHTS else None
 
-        #session_config = tf.ConfigProto(device_count={'GPU': 1})
-        #session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
-        #callbacks.append(DumpTensors([
-        #    'group0/block2/output:0',
-        #    'group1/block3/output:0',
-        #    'group2/block5/output:0',
-        #    'group3/block2/output:0'
-        #]))
-
         traincfg = TrainConfig(
             model=MODEL,
             data=QueueInput(train_dataflow),
@@ -630,7 +627,7 @@ if __name__ == '__main__':
             extra_callbacks=[
                MovingAverageSummary(),
                ProgressBar(),
-               MergeAllSummaries(period=args.summary_period),
+               MergeAllSummaries(period=250),
                RunUpdateOps()
             ],
             steps_per_epoch=stepnum,
@@ -647,3 +644,6 @@ if __name__ == '__main__':
             # nccl mode appears faster than cpu mode
             trainer = SyncMultiGPUTrainerReplicated(cfg.TRAIN.NUM_GPUS, average=False, mode='nccl')
         launch_train_with_config(traincfg, trainer)
+
+    training_duration_secs = time.time() - start_time
+    logger.info(f'Total duration: {humanize_float(training_duration_secs)}')

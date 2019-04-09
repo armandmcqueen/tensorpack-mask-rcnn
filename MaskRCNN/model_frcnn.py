@@ -91,18 +91,14 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
 
         single_image_gt_boxes = gt_boxes[i, :gt_count, :]
 
-        single_image_gt_boxes = tf.identity(single_image_gt_boxes, name=f'dump_single_image_gt_boxes-{i}')
-
         single_image_gt_boxes = tf.pad(single_image_gt_boxes, [[0,0], [1,0]], mode="CONSTANT", constant_values=i)
         boxes = tf.concat([boxes, single_image_gt_boxes], axis=0)
 
         iou = tf.concat([image_ious, tf.eye(gt_count)], axis=0)  # (N+M) x M
-        iou = tf.identity(iou, name=f'dump_iou-{i}')
 
         best_iou_ind = tf.argmax(iou, axis=1)   # A vector with the index of the GT with the highest IOU,
                                                 # (length #proposals (N+M), values all in 0~m-1)
 
-        best_iou_ind = tf.identity(best_iou_ind, name=f'dump_best_iou_ind-{i}')
         ious.append(iou)
         best_iou_inds.append(best_iou_ind)
 
@@ -150,9 +146,6 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
         # ious[i] = print_runtime_tensor("ious[i]", ious[i], prefix=prefix)
         num_fg, num_bg, fg_inds, bg_inds = sample_fg_bg(ious[i])
 
-        num_fg = tf.identity(num_fg, name=f'dump_num_fg-{i}')
-        num_bg = tf.identity(num_bg, name=f'dump_num_bg-{i}')
-
         num_fgs.append(num_fg)
         num_bgs.append(num_bg)
 
@@ -161,10 +154,7 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
 
         fg_inds_wrt_gt = tf.gather(best_iou_ind, fg_inds)  # num_fg
 
-        fg_inds_wrt_gt = tf.identity(fg_inds_wrt_gt, name=f'dump_fg_inds_wrt_gt-{i}')
         all_indices = tf.concat([fg_inds, bg_inds], axis=0)  # indices w.r.t all n+m proposal boxes
-
-        all_indices = tf.identity(all_indices, name=f'dump_all_indices-{i}')
 
         box_mask_for_image = tf.equal(boxes[:, 0], i) # Extract boxes for a single image so we can apply all_indices as mask
 

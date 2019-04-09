@@ -12,25 +12,23 @@ echo ""
 
 
 
-TENSORPACK_FP16=1 \
-HOROVOD_TIMELINE=/logs/htimeline.json \
-HOROVOD_CYCLE_TIME=0.5 \
-HOROVOD_FUSION_THRESHOLD=67108864 \
 /usr/local/bin/mpirun -np ${NUM_GPU} \
 --H localhost:${NUM_GPU} \
 --mca plm_rsh_no_tree_spawn 1 -bind-to none -map-by slot -mca pml ob1 -mca btl ^openib \
 -mca btl_tcp_if_exclude lo,docker0 \
 -mca btl_vader_single_copy_mechanism none \
+-x LD_LIBRARY_PATH \
+-x PATH \
 -x NCCL_SOCKET_IFNAME=^docker0,lo \
--x NCCL_MIN_NRINGS=8 -x NCCL_DEBUG=INFO \
--x LD_LIBRARY_PATH -x PATH \
--x HOROVOD_CYCLE_TIME -x HOROVOD_FUSION_THRESHOLD \
+-x NCCL_MIN_NRINGS=8 \
+-x NCCL_DEBUG=INFO \
+-x TENSORPACK_FP16=1 \
+-x HOROVOD_CYCLE_TIME=0.5 \
+-x HOROVOD_FUSION_THRESHOLD=67108864 \
 --output-filename /logs/mpirun_logs \
-/usr/local/bin/python3 /tensorpack-mask-rcnn/MaskRCNN_no_batch_convergence/train.py \
+/usr/local/bin/python3 /tensorpack-mask-rcnn/MaskRCNN/train.py \
 --logdir /logs/train_log \
---perf \
 --fp16 \
---summary_period 250 \
 --throughput_log_freq ${THROUGHPUT_LOG_FREQ} \
 --config MODE_MASK=True \
 MODE_FPN=True \
