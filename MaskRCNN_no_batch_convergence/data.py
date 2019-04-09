@@ -76,7 +76,7 @@ def print_class_histogram(roidbs):
 
 
 @memoized
-def get_all_anchors(stride=None, sizes=None):
+def get_all_anchors(stride=None, sizes=None, tile=True):
     """
     Get all anchors in the largest possible image, shifted, floatbox
     Args:
@@ -102,31 +102,37 @@ def get_all_anchors(stride=None, sizes=None):
     # anchors are intbox here.
     # anchors at featuremap [0,0] are centered at fpcoor (8,8) (half of stride)
 
-    max_size = cfg.PREPROC.MAX_SIZE
-    field_size = int(np.ceil(max_size / stride))
-    shifts = np.arange(0, field_size) * stride
-    shift_x, shift_y = np.meshgrid(shifts, shifts)
-    shift_x = shift_x.flatten()
-    shift_y = shift_y.flatten()
-    shifts = np.vstack((shift_x, shift_y, shift_x, shift_y)).transpose()
-    # Kx4, K = field_size * field_size
-    K = shifts.shape[0]
+    if tile:
+        max_size = cfg.PREPROC.MAX_SIZE
+        field_size = int(np.ceil(max_size / stride))
+        shifts = np.arange(0, field_size) * stride
+        shift_x, shift_y = np.meshgrid(shifts, shifts)
+        shift_x = shift_x.flatten()
+        shift_y = shift_y.flatten()
+        shifts = np.vstack((shift_x, shift_y, shift_x, shift_y)).transpose()
+        # Kx4, K = field_size * field_size
+        K = shifts.shape[0]
+    
+        A = cell_anchors.shape[0]
+        field_of_anchors = (
+            cell_anchors.reshape((1, A, 4)) +
+            shifts.reshape((1, K, 4)).transpose((1, 0, 2)))
+        field_of_anchors = field_of_anchors.reshape((field_size, field_size, A, 4))
+        # FSxFSxAx4
+        # Many rounding happens inside the anchor code anyway
+        # assert np.all(field_of_anchors == field_of_anchors.astype('int32'))
+        field_of_anchors = field_of_anchors.astype('float32')
+        field_of_anchors[:, :, :, [2, 3]] += 1
+        return field_of_anchors
+    else:
+        cell_anchors = cell_anchors.astype('float32')
+        cell_anchors[:, [2, 3]] += 1
+        return cell_anchors 
 
-    A = cell_anchors.shape[0]
-    field_of_anchors = (
-        cell_anchors.reshape((1, A, 4)) +
-        shifts.reshape((1, K, 4)).transpose((1, 0, 2)))
-    field_of_anchors = field_of_anchors.reshape((field_size, field_size, A, 4))
-    # FSxFSxAx4
-    # Many rounding happens inside the anchor code anyway
-    # assert np.all(field_of_anchors == field_of_anchors.astype('int32'))
-    field_of_anchors = field_of_anchors.astype('float32')
-    field_of_anchors[:, :, :, [2, 3]] += 1
-    return field_of_anchors
 
 
 @memoized
-def get_all_anchors_fpn(strides=None, sizes=None):
+def get_all_anchors_fpn(strides=None, sizes=None, tile=True):
     """
     Returns:
         [anchors]: each anchors is a SxSx NUM_ANCHOR_RATIOS x4 array.
@@ -138,7 +144,7 @@ def get_all_anchors_fpn(strides=None, sizes=None):
     assert len(strides) == len(sizes)
     foas = []
     for stride, size in zip(strides, sizes):
-        foa = get_all_anchors(stride=stride, sizes=(size,))
+        foa = get_all_anchors(stride=stride, sizes=(size,), tile=tile)
         foas.append(foa)
     return foas
 
