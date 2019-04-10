@@ -2,6 +2,7 @@
 
 BRANCH_NAME=${1:-"master"}
 
+# The BRANCH_NAME refers to the git pull that happens inside of the Dockerfile
 echo "Building docker image tensorpack-mask-rcnn:dev-${BRANCH_NAME}"
 echo ""
 
