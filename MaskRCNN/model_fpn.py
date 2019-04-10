@@ -72,7 +72,7 @@ def fpn_model(features, fp16=False):
 
         return p2345 + [p6]
 
-@under_name_scope()
+@under_name_scope(name_scope="fpn_map_rois_to_levels")
 def fpn_map_rois_to_levels_batch(boxes):
     """
     Assign boxes to level 2~5.
