@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 NUM_GPU=${1:-1}
-THROUGHPUT_LOG_FREQ=${2:-2000}
+BATCH_SIZE_PER_GPU=${2:-1}
+THROUGHPUT_LOG_FREQ=${3:-2000}
 
-let STEPS_PER_EPOCH=120000/${NUM_GPU}
 
 echo ""
 echo "NUM_GPU: ${NUM_GPU}"
-echo "STEPS_PER_EPOCH: ${STEPS_PER_EPOCH}"
+echo "BATCH_SIZE_PER_GPU: ${BATCH_SIZE_PER_GPU}"
 echo "THROUGHPUT_LOG_FREQ: ${THROUGHPUT_LOG_FREQ}"
 echo ""
 
@@ -30,13 +30,14 @@ echo ""
 --logdir /logs/train_log \
 --fp16 \
 --throughput_log_freq ${THROUGHPUT_LOG_FREQ} \
---config MODE_MASK=True \
+--config \
+MODE_MASK=True \
 MODE_FPN=True \
 DATA.BASEDIR=/data \
 DATA.TRAIN='["train2017"]' \
 DATA.VAL='("val2017",)' \
-TRAIN.STEPS_PER_EPOCH=${STEPS_PER_EPOCH} \
-TRAIN.LR_SCHEDULE='[120000, 160000, 180000]' \
+TRAIN.BATCH_SIZE_PER_GPU=1 \
+TRAIN.LR_EPOCH_SCHEDULE='[(8, 0.1), (10, 0.01), (12, None)]' \
 TRAIN.EVAL_PERIOD=12 \
 BACKBONE.WEIGHTS=/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
 BACKBONE.NORM=FreezeBN \

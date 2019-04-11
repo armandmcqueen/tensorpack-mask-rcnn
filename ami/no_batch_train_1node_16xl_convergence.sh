@@ -48,19 +48,17 @@ TENSORPACK_FP16=1 \
 -x TENSORPACK_FP16 \
 -x LD_LIBRARY_PATH -x PATH \
 --output-filename ${LOG_DIR}/mpirun_logs \
-/home/ubuntu/anaconda3/envs/${VENV}/bin/python3 /home/ubuntu/tensorpack-mask-rcnn/MaskRCNN_no_batch_convergence/train.py \
+/home/ubuntu/anaconda3/envs/${VENV}/bin/python3 /home/ubuntu/tensorpack-mask-rcnn/MaskRCNN/train.py \
 --logdir ${LOG_DIR} \
---perf \
 --fp16 \
 --throughput_log_freq 2000 \
---summary_period 0 \
 --config MODE_MASK=True \
 MODE_FPN=True \
 DATA.BASEDIR=/home/ubuntu/data \
 DATA.TRAIN='["train2017"]' \
 DATA.VAL='("val2017",)' \
-TRAIN.STEPS_PER_EPOCH=15000 \
-TRAIN.LR_SCHEDULE='[120000, 160000, 180000]' \
+TRAIN.BATCH_SIZE_PER_GPU=1 \
+TRAIN.LR_EPOCH_SCHEDULE='[(8, 0.1), (10, 0.01), (12, None)]' \
 BACKBONE.WEIGHTS=/home/ubuntu/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
 BACKBONE.NORM=FreezeBN \
 TRAIN.EVAL_PERIOD=1 \

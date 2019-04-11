@@ -72,8 +72,7 @@ class DetectionModel(ModelDesc):
         lr = tf.get_variable('learning_rate', initializer=0.003, trainable=False)
         tf.summary.scalar('learning_rate-summary', lr)
 
-        # The learning rate in the config is set for 8 GPUs, and we use trainers with average=False.
-        lr = lr / 8.
+
         opt = tf.train.MomentumOptimizer(lr, 0.9)
         if cfg.TRAIN.NUM_GPUS < 8:
             opt = optimizer.AccumGradOptimizer(opt, 8 // cfg.TRAIN.NUM_GPUS)
@@ -198,7 +197,7 @@ class ResNetFPNModel(DetectionModel):
                 batch_input_multilevel_box_logits.append(box_logits_t)
 
             rpn_losses = []
-            for i in range(BATCH_SIZE_PLACEHOLDER):
+            for i in range(cfg.TRAIN.BATCH_SIZE_PER_GPU):
                 orig_image_hw = orig_image_dims[i, :2]
                 si_all_anchors_fpn = get_all_anchors_fpn()
                 si_multilevel_box_logits = [box_logits[i, :, :, :, :] for box_logits in batch_input_multilevel_box_logits]
@@ -260,7 +259,7 @@ class ResNetFPNModel(DetectionModel):
                     input_gt_boxes,
                     input_gt_labels,
                     prepadding_gt_counts,
-                    batch_size=BATCH_SIZE_PLACEHOLDER)
+                    batch_size=cfg.TRAIN.BATCH_SIZE_PER_GPU)
 
             proposals = BoxProposals(proposal_boxes, proposal_labels, proposal_gt_id_for_each_fg)
 
@@ -294,7 +293,7 @@ class ResNetFPNModel(DetectionModel):
                                             proposal_fg_labels,
                                             proposal_gt_id_for_each_fg)
 
-            all_losses = fastrcnn_head.losses(BATCH_SIZE_PLACEHOLDER)
+            all_losses = fastrcnn_head.losses(cfg.TRAIN.BATCH_SIZE_PER_GPU)
 
 
 
@@ -324,7 +323,7 @@ class ResNetFPNModel(DetectionModel):
 
                 per_image_target_masks_for_fg = []
                 per_image_fg_labels = []
-                for i in range(BATCH_SIZE_PLACEHOLDER):
+                for i in range(cfg.TRAIN.BATCH_SIZE_PER_GPU):
 
                     single_image_gt_count = prepadding_gt_counts[i]
                     single_image_gt_masks = gt_masks[i, :single_image_gt_count, :, :] # NumGT x H x w (maybe? might have length 1 dim at beginning)
@@ -494,7 +493,7 @@ if __name__ == '__main__':
     #################################################################################################################
     # Performance investigation arguments
     parser.add_argument('--throughput_log_freq', help="In perf investigation mode, code will print throughput after every throughput_log_freq steps as well as after every epoch", type=int, default=100)
-    parser.add_argument('--num_total_images', help="Number of images in an epoch. = images_per_steps * steps_per_epoch (differs slightly from the total number of images).", type=int, default=120000)
+    parser.add_argument('--images_per_epoch', help="Number of images in an epoch. = images_per_steps * steps_per_epoch (differs slightly from the total number of images).", type=int, default=120000)
 
     parser.add_argument('--tfprof', help="Enable tf profiler", action="store_true")
     parser.add_argument('--tfprof_start_step', help="Step to enable tf profiling", type=int, default=15005)
@@ -556,31 +555,43 @@ if __name__ == '__main__':
             log_launch_config(args.log_full_git_diff)
 
         finalize_configs(is_training=True)
-        stepnum = cfg.TRAIN.STEPS_PER_EPOCH
 
-        # warmup is step based, lr is epoch based
-        init_lr = cfg.TRAIN.WARMUP_INIT_LR * min(8. / cfg.TRAIN.NUM_GPUS, 1.)
-        warmup_schedule = [(0, init_lr), (cfg.TRAIN.WARMUP, cfg.TRAIN.BASE_LR)]
-        warmup_end_epoch = cfg.TRAIN.WARMUP * 1. / stepnum
-        lr_schedule = [(int(warmup_end_epoch + 0.5), cfg.TRAIN.BASE_LR)]
 
-        factor = 8. / cfg.TRAIN.NUM_GPUS
-        for idx, steps in enumerate(cfg.TRAIN.LR_SCHEDULE[:-1]):
-            mult = 0.1 ** (idx + 1)
-            lr_schedule.append(
-                (steps * factor // stepnum, cfg.TRAIN.BASE_LR * mult))
+        images_per_step = cfg.TRAIN.NUM_GPUS * cfg.TRAIN.BATCH_SIZE_PER_GPU
+        steps_per_epoch = args.images_per_epoch // images_per_step
+        batch_size_lr_factor = images_per_step # The LR is defined for bs=1 and then scaled linearly with the batch size
+        base_lr_adjusted_for_bs = cfg.TRAIN.BASE_LR * batch_size_lr_factor
+
+        # Warmup LR schedule is step based
+        warmup_start_step = 0
+        warmup_end_step = cfg.TRAIN.WARMUP_STEPS
+        warmup_start_lr = max(cfg.TRAIN.WARMUP_INIT_LR*8, cfg.TRAIN.WARMUP_INIT_LR * batch_size_lr_factor) # If the batch size is very small, don't shrink the lr too much
+        warmup_end_lr = base_lr_adjusted_for_bs
+        warmup_schedule = [(warmup_start_step, warmup_start_lr), (warmup_end_step, warmup_end_lr)]
+
+
+        # Training LR schedule is epoch based
+        warmup_end_epoch = cfg.TRAIN.WARMUP_STEPS * 1. / steps_per_epoch
+        training_start_epoch = int(warmup_end_epoch + 0.5)
+        lr_schedule = [(training_start_epoch, base_lr_adjusted_for_bs)]
+
+
+        max_epoch = None
+        for epoch, scheduled_lr_multiplier in cfg.TRAIN.LR_EPOCH_SCHEDULE:
+            if scheduled_lr_multiplier is None:
+                max_epoch = epoch # Training end is indicated by a lr_multiplier of None
+                break
+
+            absolute_lr = base_lr_adjusted_for_bs * scheduled_lr_multiplier
+            lr_schedule.append((epoch, absolute_lr))
+
+
         logger.info("Warm Up Schedule (steps, value): " + str(warmup_schedule))
         logger.info("LR Schedule (epochs, value): " + str(lr_schedule))
 
 
-        train_dataflow = get_batch_train_dataflow(BATCH_SIZE_PLACEHOLDER)
+        train_dataflow = get_batch_train_dataflow(cfg.TRAIN.BATCH_SIZE_PER_GPU)
 
-
-        # This is what's commonly referred to as "epochs"
-        total_passes = cfg.TRAIN.LR_SCHEDULE[-1] * 8 / train_dataflow.size()
-        logger.info("Total passes of the training set is: {:.5g}".format(total_passes))
-
-        bsize = BATCH_SIZE_PLACEHOLDER
 
         callbacks = [
             PeriodicCallback(
@@ -594,14 +605,14 @@ if __name__ == '__main__':
             EstimatedTimeLeft(median=True),
             SessionRunTimeout(60000).set_chief_only(True),   # 1 minute timeout
         ] + [
-            EvalCallback(dataset, *MODEL.get_inference_tensor_names(), args.logdir, bsize)
+            EvalCallback(dataset, *MODEL.get_inference_tensor_names(), args.logdir, cfg.TRAIN.BATCH_SIZE_PER_GPU)
             for dataset in cfg.DATA.VAL
         ]
         if not is_horovod:
             callbacks.append(GPUUtilizationTracker())
 
-        callbacks.append(ThroughputTracker(BATCH_SIZE_PLACEHOLDER*cfg.TRAIN.NUM_GPUS,
-                                           args.num_total_images,
+        callbacks.append(ThroughputTracker(cfg.TRAIN.BATCH_SIZE_PER_GPU*cfg.TRAIN.NUM_GPUS,
+                                           args.images_per_epoch,
                                            trigger_every_n_steps=args.throughput_log_freq,
                                            log_fn=logger.info))
 
@@ -630,8 +641,8 @@ if __name__ == '__main__':
                MergeAllSummaries(period=250),
                RunUpdateOps()
             ],
-            steps_per_epoch=stepnum,
-            max_epoch=cfg.TRAIN.LR_SCHEDULE[-1] * factor // stepnum,
+            steps_per_epoch=steps_per_epoch,
+            max_epoch=max_epoch,
             session_init=session_init,
             session_config=None,
             starting_epoch=cfg.TRAIN.STARTING_EPOCH
