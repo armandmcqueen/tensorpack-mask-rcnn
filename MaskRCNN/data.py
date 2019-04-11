@@ -739,13 +739,22 @@ def get_batched_eval_dataflow(name, shard=0, num_shards=1, batch_size=1):
     def decode_images(inputs):
         return [[cv2.imread(inp[0], cv2.IMREAD_COLOR), inp[1]] for inp in inputs]
 
+    def resize_images(inputs):
+        resizer = CustomResize(cfg.PREPROC.TEST_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)
+        resized_imgs = [resizer.augment(inp[0]) for inp in inputs]
+        org_shapes = [inp[0].shape for inp in inputs]
+        scales = [np.sqrt(rimg.shape[0] * 1.0 / org_shape[0] * rimg.shape[1] / org_shape[1]) for rimg, org_shape in zip(resized_imgs, org_shapes)]
+
+        return [[resized_imgs[i], inp[1], scales[i], org_shapes[i][:2]] for i, inp in enumerate(inputs)] 
+
     def pad_and_batch(inputs):
         heights, widths, _ = zip(*[inp[0].shape for inp in inputs])
         max_h, max_w = max(heights), max(widths)
         padded_images = np.stack([np.pad(inp[0], [[0, max_h-inp[0].shape[0]], [0, max_w-inp[0].shape[1]], [0,0]], 'constant') for inp in inputs])
-        return [padded_images, [inp[1] for inp in inputs], list(zip(heights, widths))] 
+        return [padded_images, [inp[1] for inp in inputs], list(zip(heights, widths)), [inp[2] for inp in inputs], [inp[3] for inp in inputs]] 
 
     ds = MapData(ds, decode_images)
+    ds = MapData(ds, resize_images)
     ds = MapData(ds, pad_and_batch)
     return ds
 

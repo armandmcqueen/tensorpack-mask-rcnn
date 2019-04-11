@@ -104,7 +104,7 @@ def predict_image(img, model_func):
     results = [DetectionResult(*args) for args in zip(boxes, probs, labels, masks)]
     return results
 
-def predict_image_batch(img_batch, model_func, orig_sizes):
+def predict_image_batch(img_batch, model_func, resized_sizes, scales, orig_sizes):
     """
     Run detection on one image, using the TF callable.
     This function should handle the preprocessing internally.
@@ -118,22 +118,23 @@ def predict_image_batch(img_batch, model_func, orig_sizes):
         [DetectionResult]
     """
 
-    resizer = CustomResize(cfg.PREPROC.TEST_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)
+#    resizer = CustomResize(cfg.PREPROC.TEST_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)
+#
+#    resized_imgs = []
+#    scales = []
+#    img_sizes = []
+#    for i in range(img_batch.shape[0]):
+#        resized_img = resizer.augment(img_batch[i])
+#        resized_imgs.append(resized_img)
+#        img_sizes.append(img_batch[i].shape)
+#        scales.append(np.sqrt(resized_img.shape[0] * 1.0 / orig_sizes[i][0] * resized_img.shape[1] / orig_sizes[i][1]))
+#
+#    resized_imgs_batch = np.stack(resized_imgs)
+#
+    resized_sizes = np.stack(resized_sizes)
+    resized_sizes_in = np.concatenate((resized_sizes, 3*np.ones((resized_sizes.shape[0], 1))), axis=1) 
 
-    resized_imgs = []
-    scales = []
-    img_sizes = []
-    for i in range(img_batch.shape[0]):
-        resized_img = resizer.augment(img_batch[i])
-        resized_imgs.append(resized_img)
-        img_sizes.append(resized_img.shape)
-        scales.append(np.sqrt(resized_img.shape[0] * 1.0 / orig_sizes[i][0] * resized_img.shape[1] / orig_sizes[i][1]))
-
-    resized_imgs_batch = np.stack(resized_imgs)
-
-    orig_sizes_in = np.stack(img_sizes)
-
-    indices, boxes, probs, labels, *masks = model_func(resized_imgs_batch, orig_sizes_in)
+    indices, boxes, probs, labels, *masks = model_func(img_batch, resized_sizes_in)
 
     results = []
     for i in range(len(scales)): 
@@ -230,8 +231,8 @@ def predict_dataflow_batch(df, model_func, tqdm_bar=None):
         # tqdm is not quite thread-safe: https://github.com/tqdm/tqdm/issues/323
         if tqdm_bar is None:
             tqdm_bar = stack.enter_context(get_tqdm(total=df.size()))
-        for imgs, img_ids, orig_sizes in df:
-            results = predict_image_batch(imgs, model_func, orig_sizes)
+        for imgs, img_ids, resized_sizes, scales, orig_sizes in df:
+            results = predict_image_batch(imgs, model_func, resized_sizes, scales, orig_sizes)
             batch_id = 0
             for img_results in results:
                 for r in img_results:
