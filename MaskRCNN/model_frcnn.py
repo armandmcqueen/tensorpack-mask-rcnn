@@ -537,9 +537,11 @@ class FastRCNNHeadBatch(object):
             single_image_labels = tf.gather(self.proposal_labels, single_image_box_indices) # Vector len N
             single_image_label_logits = tf.gather(self.label_logits, single_image_box_indices)
 
-            single_image_box_logits = tf.gather(self.box_logits, single_image_box_indices)
-
-            single_image_fg_box_logits = tf.gather(single_image_box_logits, single_image_fg_boxes_indices)
+#            single_image_box_logits = tf.gather(self.box_logits, single_image_box_indices)
+#
+#            single_image_fg_box_logits = tf.gather(single_image_box_logits, single_image_fg_boxes_indices)
+            single_image_fg_box_logits_indices = tf.gather(self.proposal_fg_inds, single_image_fg_boxes_indices)
+            single_image_fg_box_logits = tf.gather(self.box_logits, single_image_fg_box_logits_indices)
 
             all_labels.append(single_image_labels)
             all_label_logits.append(single_image_label_logits)
