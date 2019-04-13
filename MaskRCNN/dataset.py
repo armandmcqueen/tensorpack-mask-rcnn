@@ -4,17 +4,12 @@
 import numpy as np
 import os
 import tqdm
-try:
-    import ujson as json
-    print("Imported ujson")
-except ImportError:
-    print("Failed to import ujson. Falling back to json")
-    import json
+import json
 
 from tensorpack.utils import logger
 from tensorpack.utils.timer import timed_operation
 
-from MaskRCNN.config import config as cfg
+from config import config as cfg
 
 __all__ = ['COCODetection', 'DetectionDataset']
 

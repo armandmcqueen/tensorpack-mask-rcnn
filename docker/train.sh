@@ -1,43 +1,44 @@
 #!/usr/bin/env bash
 NUM_GPU=${1:-1}
-IMAGES_PER_GPU=${2:-1}
-SUMMARY_PERIOD=${3:-0}
+BATCH_SIZE_PER_GPU=${2:-1}
+THROUGHPUT_LOG_FREQ=${3:-2000}
 
 
 echo ""
 echo "NUM_GPU: ${NUM_GPU}"
-echo "IMAGES_PER_GPU: ${IMAGES_PER_GPU}"
+echo "BATCH_SIZE_PER_GPU: ${BATCH_SIZE_PER_GPU}"
+echo "THROUGHPUT_LOG_FREQ: ${THROUGHPUT_LOG_FREQ}"
 echo ""
 
 
-# --use_nobatch_pipeline
 
-
-HOROVOD_TIMELINE=/logs/htimeline.json \
-HOROVOD_CYCLE_TIME=0.5 \
-HOROVOD_FUSION_THRESHOLD=67108864 \
 /usr/local/bin/mpirun -np ${NUM_GPU} \
 --H localhost:${NUM_GPU} \
 --mca plm_rsh_no_tree_spawn 1 -bind-to none -map-by slot -mca pml ob1 -mca btl ^openib \
 -mca btl_tcp_if_exclude lo,docker0 \
 -mca btl_vader_single_copy_mechanism none \
+-x LD_LIBRARY_PATH \
+-x PATH \
 -x NCCL_SOCKET_IFNAME=^docker0,lo \
--x NCCL_MIN_NRINGS=8 -x NCCL_DEBUG=INFO \
--x LD_LIBRARY_PATH -x PATH \
--x HOROVOD_CYCLE_TIME -x HOROVOD_FUSION_THRESHOLD \
+-x NCCL_MIN_NRINGS=8 \
+-x NCCL_DEBUG=INFO \
+-x TENSORPACK_FP16=1 \
+-x HOROVOD_CYCLE_TIME=0.5 \
+-x HOROVOD_FUSION_THRESHOLD=67108864 \
 --output-filename /logs/mpirun_logs \
 /usr/local/bin/python3 /tensorpack-mask-rcnn/MaskRCNN/train.py \
 --logdir /logs/train_log \
---perf \
---summary_period $SUMMARY_PERIOD \
---throughput_log_freq 1 \
---config MODE_MASK=True \
+--fp16 \
+--throughput_log_freq ${THROUGHPUT_LOG_FREQ} \
+--config \
+MODE_MASK=True \
 MODE_FPN=True \
 DATA.BASEDIR=/data \
 DATA.TRAIN='["train2017"]' \
 DATA.VAL='("val2017",)' \
-TRAIN.LR_SCHEDULE='[120000, 160000, 180000]' \
+TRAIN.BATCH_SIZE_PER_GPU=1 \
+TRAIN.LR_EPOCH_SCHEDULE='[(8, 0.1), (10, 0.01), (12, None)]' \
+TRAIN.EVAL_PERIOD=12 \
 BACKBONE.WEIGHTS=/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
 BACKBONE.NORM=FreezeBN \
-TRAINER=horovod \
-TRAIN.BATCH_SIZE_PER_GPU=${IMAGES_PER_GPU}
+TRAINER=horovod

@@ -18,15 +18,11 @@ cd docker
 
 ```
 cd tensorpack-mask-rcnn
-docker/train.sh 8 1 25 
+docker/train.sh 8 250
 ```
 
 
-This is 8 GPUs, 1 img per GPU, summary writer logs every 25 steps. 
-
-Logging so often hurts throughput - `docker/train.sh 8 1` will only log every epoch which is performant.
-
-`docker/nobatch_train.sh` doesn't take in an img per GPU argument, e.g. `docker/nobatch_train.sh 8 25` 
+This is 8 GPUs, 1 img per GPU, summary writer logs every 250 steps. 
 
 Logs will be exposed to the ec2 instance at ~/logs.
 
@@ -37,4 +33,4 @@ Logs will be exposed to the ec2 instance at ~/logs.
 
 ## Notes
 
-The current Dockerfile uses the wheel built for 16xl. The wheel built for 24xl might have a performance improvement, but it does not run on 16xl due to different available instruction sets.
+The current Dockerfile uses the wheel built for p3.16xl. The wheel built for p3dn.24xl might have a performance improvement, but it does not run on 16xl due to different available instruction sets.

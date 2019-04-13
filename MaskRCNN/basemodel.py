@@ -2,7 +2,7 @@
 # File: basemodel.py
 
 import numpy as np
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 import tensorflow as tf
 
 from tensorpack.models import BatchNorm, Conv2D, MaxPooling, layer_register
@@ -10,8 +10,8 @@ from tensorpack.tfutils import argscope
 from tensorpack.tfutils.scope_utils import auto_reuse_variable_scope
 from tensorpack.tfutils.varreplace import custom_getter_scope, freeze_variables
 
-from MaskRCNN.config import config as cfg
-from MaskRCNN.utils.mixed_precision import mixed_precision_scope
+from config import config as cfg
+from utils.mixed_precision import mixed_precision_scope
 
 
 @layer_register(log_shape=True)
@@ -212,7 +212,8 @@ def resnet_fpn_backbone(image, num_blocks, fp16=False):
             chan = image.shape[1]
             pad_base = maybe_reverse_pad(2, 3)
             l = tf.pad(image, tf.stack(
-                [[0, 0], [0, 0],
+                [[0, 0],
+                [0, 0],
                 [pad_base[0], pad_base[1] + pad_shape2d[0]],
                 [pad_base[0], pad_base[1] + pad_shape2d[1]]]))
             l.set_shape([None, chan, None, None])
@@ -229,3 +230,4 @@ def resnet_fpn_backbone(image, num_blocks, fp16=False):
     # 32x downsampling up to now
     # size of c5: ceil(input/32)
     return c2, c3, c4, c5
+

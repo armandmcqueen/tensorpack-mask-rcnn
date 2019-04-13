@@ -8,40 +8,19 @@ from tensorpack.tfutils.common import get_tf_version_tuple
 from tensorpack.tfutils.scope_utils import under_name_scope
 from tensorpack.tfutils.summary import add_moving_summary
 
-STATICA_HACK = True
-globals()['kcah_acitats'[::-1].upper()] = False
-if STATICA_HACK:
-    from .basemodel import GroupNorm
-    from .config import config as cfg
-    from .perf import print_buildtime_shape
-    from .utils.mixed_precision import mixed_precision_scope
-else:
-    from MaskRCNN.basemodel import GroupNorm
-    from MaskRCNN.config import config as cfg
-    from MaskRCNN.perf import print_buildtime_shape
-    from MaskRCNN.utils.mixed_precision import mixed_precision_scope
+from basemodel import GroupNorm
+from config import config as cfg
+from utils.mixed_precision import mixed_precision_scope
 
 
 @under_name_scope()
-def maskrcnn_loss(mask_logits, fg_labels, fg_target_masks, shortcut=False):
+def maskrcnn_loss(mask_logits, fg_labels, fg_target_masks):
     """
     Args:
         mask_logits: #fg x #category xhxw
         fg_labels: #fg, in 1~#class, int64
         fg_target_masks: #fgxhxw, float32
     """
-    if shortcut:
-        mask_logits_loss = tf.cast(tf.reduce_mean(mask_logits), dtype=tf.float32)
-        fg_labels_loss = tf.cast(tf.reduce_mean(fg_labels), dtype=tf.float32)
-        fg_target_masks_loss = tf.cast(tf.reduce_mean(fg_target_masks), dtype=tf.float32)
-        loss = mask_logits_loss + fg_labels_loss + fg_target_masks_loss
-        return loss
-
-    prefix = "maskrcnn_loss"
-    print_buildtime_shape("mask_logits", mask_logits, prefix=prefix)
-    print_buildtime_shape("fg_labels", fg_labels, prefix=prefix)
-    print_buildtime_shape("fg_target_masks", fg_target_masks, prefix=prefix)
-
     num_fg = tf.size(fg_labels, out_type=tf.int64)
     indices = tf.stack([tf.range(num_fg), fg_labels - 1], axis=1)  # #fgx2
     mask_logits = tf.gather_nd(mask_logits, indices)  # #fgxhxw
@@ -90,17 +69,19 @@ def maskrcnn_upXconv_head(feature, num_category, num_convs, norm=None, fp16=Fals
     if fp16:
         l = tf.cast(l, tf.float16)
     with mixed_precision_scope(mixed=fp16):
-        with argscope([Conv2D, Conv2DTranspose], data_format='channels_first',
-                      kernel_initializer=tf.variance_scaling_initializer(
+      with argscope([Conv2D, Conv2DTranspose], data_format='channels_first',
+                  kernel_initializer=tf.variance_scaling_initializer(
                       scale=2.0, mode='fan_out',
                       distribution='untruncated_normal' if get_tf_version_tuple() >= (1, 12) else 'normal')):
-            # c2's MSRAFill is fan_out
-            for k in range(num_convs):
-                l = Conv2D('fcn{}'.format(k), l, cfg.MRCNN.HEAD_DIM, 3, activation=tf.nn.relu)
-                if norm is not None:
-                    l = GroupNorm('gn{}'.format(k), l)
-            l = Conv2DTranspose('deconv', l, cfg.MRCNN.HEAD_DIM, 2, strides=2, activation=tf.nn.relu)
-            l = Conv2D('conv', l, num_category, 1)
+        # c2's MSRAFill is fan_out
+        for k in range(num_convs):
+            l = Conv2D('fcn{}'.format(k), l, cfg.MRCNN.HEAD_DIM, 3, activation=tf.nn.relu)
+            if norm is not None:
+                if fp16: l = tf.cast(l, tf.float32)
+                l = GroupNorm('gn{}'.format(k), l)
+                if fp16: l = tf.cast(l, tf.float16)
+        l = Conv2DTranspose('deconv', l, cfg.MRCNN.HEAD_DIM, 2, strides=2, activation=tf.nn.relu)
+        l = Conv2D('conv', l, num_category, 1)
     if fp16:
         l = tf.cast(l, tf.float32)
     return l

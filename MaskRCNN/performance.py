@@ -1,9 +1,35 @@
-import tensorflow as tf
 import tensorpack
 import time
+import tensorflow as tf
 
 def humanize_float(num):
     return "{0:,.2f}".format(num)
+
+
+
+def summarize_tensor(tensor_name, tensor_to_summarize, trigger_tensor, additional_print_val=None):
+    t_shape = tf.shape(tensor_to_summarize)
+    t_size = tf.size(tensor_to_summarize)
+
+    t_sizerange = tf.range(t_size)
+    t_sizerange_float = tf.cast(t_sizerange, dtype=tensor_to_summarize.dtype)
+    t_reshaped = tf.reshape(t_sizerange_float, shape=t_shape)
+    t_mult = tf.multiply(t_reshaped, tensor_to_summarize)
+    summary = tf.reduce_sum(t_mult)
+    if additional_print_val is None:
+        print_op = tf.print(tensor_name, summary, summarize=-1)
+    else:
+        print_op = tf.print(tensor_name, summary, additional_print_val, summarize=-1)
+    with tf.control_dependencies([print_op]):
+        return tf.identity(trigger_tensor)
+
+
+
+
+
+
+
+
 
 
 # Checks at graph_build time
@@ -24,6 +50,8 @@ def print_runtime_shape(name, tensor, prefix=None):
         s += f'[{prefix}] '
     s += f'{name}: '
     return runtime_print([s, tf.shape(tensor)], tensor)
+
+
 
 
 
@@ -60,9 +88,11 @@ def print_runtime_tensor(name, tensor, prefix=None, summarize=-1):
         return tf.identity(tensor)
 
 
+
+
+
 """
 trigger_tensor = print_runtime_tensor_loose_branch("tensor_to_examine", tensor_to_examine, prefix="example_fn", trigger_tensor=trigger_tensor)
-
 Print a tensor, even if the tensor is not used by the graph. Useful when you want to transform and print a tensor to 
 examine it, but the transformed tensor is not used in the actual graph so the transform+print is not executed.
 """
@@ -113,12 +143,10 @@ class ThroughputTracker(tensorpack.Callback):
         self._step_start_time = epoch_start_time
         self._epoch_step_durations = []
         self._step_counter = 0
-        self._global_step_count = 0
 
 
 
     def _trigger_step(self):
-        self._global_step_count += 1
         self._step_end_time = time.time()
         step_duration = self._step_end_time - self._step_start_time
         self._epoch_step_durations.append(step_duration)
@@ -129,7 +157,7 @@ class ThroughputTracker(tensorpack.Callback):
                 sum_step_durations = sum(self._epoch_step_durations[-self._trigger_every_n_steps:]) / self._trigger_every_n_steps
                 mean_step_duration = sum_step_durations
 
-                log_prefix = f'[ThroughputTracker] (Step {self._global_step_count}) Over last {self._trigger_every_n_steps} steps'
+                log_prefix = f'[ThroughputTracker] Over last {self._trigger_every_n_steps} steps'
                 self._log_fn(f'{log_prefix}, MeanDuration={humanize_float(mean_step_duration)} seconds')
                 self._log_fn(f'{log_prefix}, MeanThroughput={humanize_float(self._items_per_step / mean_step_duration)} items/sec')
                 self._step_counter = 0

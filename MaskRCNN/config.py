@@ -75,16 +75,16 @@ config = AttrDict()
 _C = config     # short alias to avoid coding
 
 # mode flags ---------------------
-_C.TRAINER = 'horovod'  # options: 'horovod', 'replicated'
+_C.TRAINER = 'replicated'  # options: 'horovod', 'replicated'
 _C.MODE_MASK = True        # FasterRCNN or MaskRCNN
 _C.MODE_FPN = True
 
 # dataset -----------------------
 _C.DATA.BASEDIR = '/path/to/your/DATA/DIR'
 # All TRAIN dataset will be concatenated for training.
-_C.DATA.TRAIN = ['train2017']   # i.e. trainval35k, AKA train2017
+_C.DATA.TRAIN = ['train2014', 'valminusminival2014']   # i.e. trainval35k, AKA train2017
 # Each VAL dataset will be evaluated separately (instead of concatenated)
-_C.DATA.VAL = ('val2017', )  # AKA val2017
+_C.DATA.VAL = ('minival2014', )  # AKA val2017
 # This two config will be populated later by the dataset loader:
 _C.DATA.NUM_CATEGORY = 0  # without the background class (e.g., 80 for COCO)
 _C.DATA.CLASS_NAMES = []  # NUM_CLASS (NUM_CATEGORY+1) strings, the first is "BG".
@@ -110,11 +110,10 @@ _C.BACKBONE.STRIDE_1X1 = False  # True for MSRA models
 # schedule -----------------------
 _C.TRAIN.NUM_GPUS = None         # by default, will be set from code
 _C.TRAIN.WEIGHT_DECAY = 1e-4
-_C.TRAIN.BASE_LR = 1e-2  # defined for total batch size=8. Otherwise it will be adjusted automatically
-_C.TRAIN.WARMUP = 1000   # in terms of iterations. This is not affected by #GPUs
-_C.TRAIN.WARMUP_INIT_LR = 1e-2 * 0.33  # defined for total batch size=8. Otherwise it will be adjusted automatically
+_C.TRAIN.BASE_LR = 1e-2  / 8. / 8. # defined for total batch size=1. It will be adjusted automatically using linear scaling.
+_C.TRAIN.WARMUP_STEPS = 1000   # in terms of iterations. This is not affected by #GPUs
+_C.TRAIN.WARMUP_INIT_LR = 1e-2 * 0.33 / 8. / 8.  # defined for total batch size=1. It will be adjusted automatically
 _C.TRAIN.STARTING_EPOCH = 1  # the first epoch to start with, useful to continue a training
-_C.TRAIN.BATCH_SIZE_PER_GPU = 1
 
 # LR_SCHEDULE means equivalent steps when the total batch size is 8.
 # When the total bs!=8, the actual iterations to decrease learning rate, and
@@ -122,11 +121,14 @@ _C.TRAIN.BATCH_SIZE_PER_GPU = 1
 # Therefore, there is *no need* to modify the config if you only change the number of GPUs.
 
 # _C.TRAIN.LR_SCHEDULE = [120000, 160000, 180000]      # "1x" schedule in detectron
-_C.TRAIN.LR_SCHEDULE = [240000, 320000, 360000]      # "2x" schedule in detectron
+# _C.TRAIN.LR_SCHEDULE = [240000, 320000, 360000]      # "2x" schedule in detectron
 # Longer schedules for from-scratch training (https://arxiv.org/abs/1811.08883):
 # _C.TRAIN.LR_SCHEDULE = [960000, 1040000, 1080000]    # "6x" schedule in detectron
 # _C.TRAIN.LR_SCHEDULE = [1500000, 1580000, 1620000]   # "9x" schedule in detectron
+
+_C.TRAIN.LR_EPOCH_SCHEDULE = [(8, 0.1), (10, 0.01), (12, None)] # "1x" schedule in detectron
 _C.TRAIN.EVAL_PERIOD = 25  # period (epochs) to run evaluation
+_C.TRAIN.BATCH_SIZE_PER_GPU = 1
 
 # preprocessing --------------------
 # Alternative old (worse & faster) setting: 600
@@ -148,8 +150,8 @@ _C.RPN.NEGATIVE_ANCHOR_THRESH = 0.3
 # rpn training -------------------------
 _C.RPN.FG_RATIO = 0.5  # fg ratio among selected RPN anchors
 _C.RPN.BATCH_PER_IM = 256  # total (across FPN levels) number of anchors that are marked valid
+#_C.RPN.MIN_SIZE = 0
 _C.RPN.MIN_SIZE = 0.1
-# _C.RPN.MIN_SIZE = 0
 _C.RPN.PROPOSAL_NMS_THRESH = 0.7
 # Anchors which overlap with a crowd box (IOA larger than threshold) will be ignored.
 # Setting this to a value larger than 1.0 will disable the feature.

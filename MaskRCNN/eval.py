@@ -19,10 +19,10 @@ from tensorpack.tfutils.common import get_tf_version_tuple
 from tensorpack.utils import logger
 from tensorpack.utils.utils import get_tqdm
 
-from MaskRCNN.common import CustomResize, clip_boxes
-from MaskRCNN.data import get_eval_dataflow
-from MaskRCNN.dataset import DetectionDataset
-from MaskRCNN.config import config as cfg
+from common import CustomResize, clip_boxes
+from data import get_eval_dataflow, get_batched_eval_dataflow
+from dataset import DetectionDataset
+from config import config as cfg
 
 try:
     import horovod.tensorflow as hvd
@@ -104,8 +104,115 @@ def predict_image(img, model_func):
     results = [DetectionResult(*args) for args in zip(boxes, probs, labels, masks)]
     return results
 
+def predict_image_batch(img_batch, model_func, resized_sizes, scales, orig_sizes):
+    """
+    Run detection on one image, using the TF callable.
+    This function should handle the preprocessing internally.
+
+    Args:
+        img: an image
+        model_func: a callable from the TF model.
+            It takes image and returns (boxes, probs, labels, [masks])
+
+    Returns:
+        [DetectionResult]
+    """
+
+#    resizer = CustomResize(cfg.PREPROC.TEST_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)
+#
+#    resized_imgs = []
+#    scales = []
+#    img_sizes = []
+#    for i in range(img_batch.shape[0]):
+#        resized_img = resizer.augment(img_batch[i])
+#        resized_imgs.append(resized_img)
+#        img_sizes.append(img_batch[i].shape)
+#        scales.append(np.sqrt(resized_img.shape[0] * 1.0 / orig_sizes[i][0] * resized_img.shape[1] / orig_sizes[i][1]))
+#
+#    resized_imgs_batch = np.stack(resized_imgs)
+#
+    resized_sizes = np.stack(resized_sizes)
+    resized_sizes_in = np.concatenate((resized_sizes, 3*np.ones((resized_sizes.shape[0], 1))), axis=1) 
+
+    indices, boxes, probs, labels, *masks = model_func(img_batch, resized_sizes_in)
+
+    results = []
+    for i in range(len(scales)): 
+        ind = np.where(indices.astype(np.int32) == i)[0] 
+
+        if len(ind) > 0:
+            boxes[ind, :] = boxes[ind, :]/scales[i]
+
+            # boxes are already clipped inside the graph, but after the floating point scaling, this may not be true any more.
+            boxes[ind, :] = clip_boxes(boxes[ind, :], orig_sizes[i])
+
+        if masks and len(ind) > 0:
+           # has mask
+           full_masks = [_paste_mask(box, mask, orig_sizes[i])
+                      for box, mask in zip(boxes[ind,:], masks[0][ind,:])]
+           masks = full_masks
+        else:
+           # fill with none
+           masks = [None] * len(boxes[ind,:])
+
+    results.append([DetectionResult(*args) for args in zip(boxes, probs, labels, masks)])
+    return results
+
 
 def predict_dataflow(df, model_func, tqdm_bar=None):
+    """
+    Args:
+        df: a DataFlow which produces (image, image_id)
+        model_func: a callable from the TF model.
+            It takes image and returns (boxes, probs, labels, [masks])
+        tqdm_bar: a tqdm object to be shared among multiple evaluation instances. If None,
+            will create a new one.
+    Returns:
+        list of dict, in the format used by
+        `DetectionDataset.eval_or_save_inference_results`
+    """
+    df.reset_state()
+    all_results = []
+    with ExitStack() as stack:
+        # tqdm is not quite thread-safe: https://github.com/tqdm/tqdm/issues/323
+        if tqdm_bar is None:
+            tqdm_bar = stack.enter_context(get_tqdm(total=df.size()))
+        for img, img_id in df:
+            results = predict_image(img, model_func)
+            for r in results:
+
+                img_id = int(img_id)
+                class_id = int(r.class_id)
+                bbox = list([float(b) for b in r.box])
+                score = round(float(r.score), 4)
+
+#                 print("A result")
+#                 print(f'image_id [{type(img_id)}] {img_id}')
+#                 print(f'class_id [{type(class_id)}] {class_id}')
+#                 print(f'bbox [{type(bbox)}] {bbox}')
+#                 print(f'bbox[0] [{type(bbox[0])}] {bbox[0]}')
+#                 print(f'score [{type(score)}] {score}')
+
+                res = {
+                    'image_id': img_id,
+                    'category_id': class_id,
+                    'bbox': bbox,
+                    'score': score,
+                }
+
+                # also append segmentation to results
+                if r.mask is not None:
+                    rle = cocomask.encode(
+                        np.array(r.mask[:, :, None], order='F'))[0]
+                    rle['counts'] = rle['counts'].decode('ascii')
+                    res['segmentation'] = rle
+                all_results.append(res)
+            tqdm_bar.update(1)
+    return all_results
+
+
+
+def predict_dataflow_batch(df, model_func, tqdm_bar=None):
     """
     Args:
         df: a DataFlow which produces (image, image_id)
@@ -124,24 +231,39 @@ def predict_dataflow(df, model_func, tqdm_bar=None):
         # tqdm is not quite thread-safe: https://github.com/tqdm/tqdm/issues/323
         if tqdm_bar is None:
             tqdm_bar = stack.enter_context(get_tqdm(total=df.size()))
-        for img, img_id in df:
-            results = predict_image(img, model_func)
-            for r in results:
+        for imgs, img_ids, resized_sizes, scales, orig_sizes in df:
+            results = predict_image_batch(imgs, model_func, resized_sizes, scales, orig_sizes)
+            batch_id = 0
+            for img_results in results:
+                for r in img_results:
 
-                res = {
-                    'image_id': int(img_id),
-                    'category_id': r.class_id,
-                    'bbox': list(r.box),
-                    'score': round(float(r.score), 4),
-                }
+                    img_id = int(img_ids[batch_id])
+                    class_id = int(r.class_id)
+                    bbox = list([float(b) for b in r.box])
+                    score = round(float(r.score), 4)
 
-                # also append segmentation to results
-                if r.mask is not None:
-                    rle = cocomask.encode(
-                        np.array(r.mask[:, :, None], order='F'))[0]
-                    rle['counts'] = rle['counts'].decode('ascii')
-                    res['segmentation'] = rle
-                all_results.append(res)
+#                     print("A result")
+#                     print(f'image_id [{type(img_id)}] {img_id}')
+#                     print(f'class_id [{type(class_id)}] {class_id}')
+#                     print(f'bbox [{type(bbox)}] {bbox}')
+#                     print(f'bbox[0] [{type(bbox[0])}] {bbox[0]}')
+#                     print(f'score [{type(score)}] {score}')
+
+                    res = {
+                        'image_id': img_id,
+                        'category_id': class_id,
+                        'bbox': bbox,
+                        'score': score,
+                    }
+
+                    # also append segmentation to results
+                    if r.mask is not None:
+                        rle = cocomask.encode(
+                            np.array(r.mask[:, :, None], order='F'))[0]
+                        rle['counts'] = rle['counts'].decode('ascii')
+                        res['segmentation'] = rle
+                    all_results.append(res)
+                batch_id += 1
             tqdm_bar.update(1)
     return all_results
 
@@ -180,10 +302,12 @@ class EvalCallback(Callback):
 
     _chief_only = False
 
-    def __init__(self, eval_dataset, in_names, out_names, output_dir):
+    def __init__(self, eval_dataset, in_names, out_names, output_dir, batch_size):
         self._eval_dataset = eval_dataset
         self._in_names, self._out_names = in_names, out_names
         self._output_dir = output_dir
+        self.batched = batch_size > 0 
+        self.batch_size = batch_size
 
     def _setup_graph(self):
         num_gpu = cfg.TRAIN.NUM_GPUS
@@ -203,7 +327,12 @@ class EvalCallback(Callback):
             self._horovod_run_eval = hvd.rank() == hvd.local_rank()
             if self._horovod_run_eval:
                 self.predictor = self._build_predictor(0)
-                self.dataflow = get_eval_dataflow(self._eval_dataset,
+
+                if self.batched:
+                    self.dataflow = get_batched_eval_dataflow(self._eval_dataset,
+                                                  shard=hvd.local_rank(), num_shards=hvd.local_size(), batch_size=self.batch_size)
+                else:
+                    self.dataflow = get_eval_dataflow(self._eval_dataset,
                                                   shard=hvd.local_rank(), num_shards=hvd.local_size())
 
             self.barrier = hvd.allreduce(tf.random_normal(shape=[1]))
@@ -231,7 +360,11 @@ class EvalCallback(Callback):
             ) for rank in range(hvd.local_size())]
 
             if self._horovod_run_eval:
-                local_results = predict_dataflow(self.dataflow, self.predictor)
+                if self.batched:
+                    local_results = predict_dataflow_batch(self.dataflow, self.predictor)
+                else:
+                    local_results = predict_dataflow(self.dataflow, self.predictor)
+
                 fname = filenames[hvd.local_rank()]
                 with open(fname, 'w') as f:
                     json.dump(local_results, f)

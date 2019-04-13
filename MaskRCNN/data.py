@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # File: data.py
 
+from tensorpack.dataflow import RNGDataFlow
 import copy
 import numpy as np
 import cv2
@@ -12,15 +13,40 @@ from tensorpack.dataflow import (
 from tensorpack.utils import logger
 from tensorpack.utils.argtools import log_once, memoized
 
-from MaskRCNN.common import (
+from common import (
     CustomResize, DataFromListOfDict, box_to_point8,
     filter_boxes_inside_shape, point8_to_box, segmentation_to_mask, np_iou)
-from MaskRCNN.config import config as cfg
-from MaskRCNN.dataset import DetectionDataset
-from MaskRCNN.utils.generate_anchors import generate_anchors
-from MaskRCNN.utils.np_box_ops import area as np_area, ioa as np_ioa
+from config import config as cfg
+from dataset import DetectionDataset
+from utils.generate_anchors import generate_anchors
+from utils.np_box_ops import area as np_area, ioa as np_ioa
+
+import math
 
 # import tensorpack.utils.viz as tpviz
+
+
+class DataFromListOfDictBatched(RNGDataFlow):
+    def __init__(self, lst, keys, batchsize, shuffle=False):
+        self._lst = lst
+        self._keys = keys
+        self._shuffle = shuffle
+        self._size = len(lst)
+        self._bs = batchsize
+
+    def __len__(self):
+        return int(math.ceil(len(self._lst)/self._bs)) #self._size
+
+    def __iter__(self):
+        if self._shuffle:
+            self.rng.shuffle(self._lst)
+        num_batches = int(math.ceil(len(self._lst)/self._bs))
+        for batch in range(num_batches):
+            # print(batch)
+            last = min(len(self._lst), self._bs*(batch+1))
+            dp = [[dic[k] for k in self._keys] for dic in self._lst[batch*self._bs:last]]
+            yield dp
+
 
 
 class MalformedData(BaseException):
@@ -50,7 +76,7 @@ def print_class_histogram(roidbs):
 
 
 @memoized
-def get_all_anchors(stride=None, sizes=None):
+def get_all_anchors(stride=None, sizes=None, tile=True):
     """
     Get all anchors in the largest possible image, shifted, floatbox
     Args:
@@ -76,31 +102,37 @@ def get_all_anchors(stride=None, sizes=None):
     # anchors are intbox here.
     # anchors at featuremap [0,0] are centered at fpcoor (8,8) (half of stride)
 
-    max_size = cfg.PREPROC.MAX_SIZE
-    field_size = int(np.ceil(max_size / stride))
-    shifts = np.arange(0, field_size) * stride
-    shift_x, shift_y = np.meshgrid(shifts, shifts)
-    shift_x = shift_x.flatten()
-    shift_y = shift_y.flatten()
-    shifts = np.vstack((shift_x, shift_y, shift_x, shift_y)).transpose()
-    # Kx4, K = field_size * field_size
-    K = shifts.shape[0]
+    if tile:
+        max_size = cfg.PREPROC.MAX_SIZE
+        field_size = int(np.ceil(max_size / stride))
+        shifts = np.arange(0, field_size) * stride
+        shift_x, shift_y = np.meshgrid(shifts, shifts)
+        shift_x = shift_x.flatten()
+        shift_y = shift_y.flatten()
+        shifts = np.vstack((shift_x, shift_y, shift_x, shift_y)).transpose()
+        # Kx4, K = field_size * field_size
+        K = shifts.shape[0]
+    
+        A = cell_anchors.shape[0]
+        field_of_anchors = (
+            cell_anchors.reshape((1, A, 4)) +
+            shifts.reshape((1, K, 4)).transpose((1, 0, 2)))
+        field_of_anchors = field_of_anchors.reshape((field_size, field_size, A, 4))
+        # FSxFSxAx4
+        # Many rounding happens inside the anchor code anyway
+        # assert np.all(field_of_anchors == field_of_anchors.astype('int32'))
+        field_of_anchors = field_of_anchors.astype('float32')
+        field_of_anchors[:, :, :, [2, 3]] += 1
+        return field_of_anchors
+    else:
+        cell_anchors = cell_anchors.astype('float32')
+        cell_anchors[:, [2, 3]] += 1
+        return cell_anchors 
 
-    A = cell_anchors.shape[0]
-    field_of_anchors = (
-        cell_anchors.reshape((1, A, 4)) +
-        shifts.reshape((1, K, 4)).transpose((1, 0, 2)))
-    field_of_anchors = field_of_anchors.reshape((field_size, field_size, A, 4))
-    # FSxFSxAx4
-    # Many rounding happens inside the anchor code anyway
-    # assert np.all(field_of_anchors == field_of_anchors.astype('int32'))
-    field_of_anchors = field_of_anchors.astype('float32')
-    field_of_anchors[:, :, :, [2, 3]] += 1
-    return field_of_anchors
 
 
 @memoized
-def get_all_anchors_fpn(strides=None, sizes=None):
+def get_all_anchors_fpn(strides=None, sizes=None, tile=True):
     """
     Returns:
         [anchors]: each anchors is a SxSx NUM_ANCHOR_RATIOS x4 array.
@@ -112,7 +144,7 @@ def get_all_anchors_fpn(strides=None, sizes=None):
     assert len(strides) == len(sizes)
     foas = []
     for stride, size in zip(strides, sizes):
-        foa = get_all_anchors(stride=stride, sizes=(size,))
+        foa = get_all_anchors(stride=stride, sizes=(size,), tile=tile)
         foas.append(foa)
     return foas
 
@@ -267,44 +299,115 @@ def get_multilevel_rpn_anchor_input(im, boxes, is_crowd):
     return multilevel_inputs
 
 
-def group_by_aspect_ratio(roidbs, batch_size):
-    batched_roidbs = []
-    batch_portrait = []
-    batch_landscape = []
+def get_train_dataflow():
+    """
+    Return a training dataflow. Each datapoint consists of the following:
 
-    for i, d in enumerate(roidbs):
-        aspect_ratio = float(d['width']) / float(d['height'])
-        # portrait
-        if aspect_ratio <= 1:
-            batch_portrait.append(d)
-            if len(batch_portrait) == batch_size:
-                batched_roidbs.append(batch_portrait)
-                batch_portrait = []
-        # landscape
-        else:
-            batch_landscape.append(d)
-            if len(batch_landscape) == batch_size:
-                batched_roidbs.append(batch_landscape)
-                batch_landscape = []
+    An image: (h, w, 3),
 
-    return batched_roidbs
+    1 or more pairs of (anchor_labels, anchor_boxes):
+    anchor_labels: (h', w', NA)
+    anchor_boxes: (h', w', NA, 4)
+
+    gt_boxes: (N, 4)
+    gt_labels: (N,)
+
+    If MODE_MASK, gt_masks: (N, h, w)
+    """
+
+    roidbs = DetectionDataset().load_training_roidbs(cfg.DATA.TRAIN)
+    print_class_histogram(roidbs)
+
+    # Valid training images should have at least one fg box.
+    # But this filter shall not be applied for testing.
+    num = len(roidbs)
+    roidbs = list(filter(lambda img: len(img['boxes'][img['is_crowd'] == 0]) > 0, roidbs))
+    logger.info("Filtered {} images which contain no non-crowd groudtruth boxes. Total #images for training: {}".format(
+        num - len(roidbs), len(roidbs)))
+
+    ds = DataFromList(roidbs, shuffle=True)
+
+    aug = imgaug.AugmentorList(
+        [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
+         imgaug.Flip(horiz=True)])
+
+    def preprocess(roidb):
+        fname, boxes, klass, is_crowd = roidb['file_name'], roidb['boxes'], roidb['class'], roidb['is_crowd']
+        boxes = np.copy(boxes)
+        im = cv2.imread(fname, cv2.IMREAD_COLOR)
+        assert im is not None, fname
+        im = im.astype('float32')
+        # assume floatbox as input
+        assert boxes.dtype == np.float32, "Loader has to return floating point boxes!"
+
+        # augmentation:
+        im, params = aug.augment_return_params(im)
+        points = box_to_point8(boxes)
+        points = aug.augment_coords(points, params)
+        boxes = point8_to_box(points)
+        assert np.min(np_area(boxes)) > 0, "Some boxes have zero area!"
+
+        ret = {'images': im}
+        # rpn anchor:
+        try:
+            if cfg.MODE_FPN:
+                multilevel_anchor_inputs = get_multilevel_rpn_anchor_input(im, boxes, is_crowd)
+                for i, (anchor_labels, anchor_boxes) in enumerate(multilevel_anchor_inputs):
+                    ret['anchor_labels_lvl{}'.format(i + 2)] = anchor_labels
+                    ret['anchor_boxes_lvl{}'.format(i + 2)] = anchor_boxes
+            else:
+                # anchor_labels, anchor_boxes
+                ret['anchor_labels'], ret['anchor_boxes'] = get_rpn_anchor_input(im, boxes, is_crowd)
+
+            boxes = boxes[is_crowd == 0]    # skip crowd boxes in training target
+            klass = klass[is_crowd == 0]
+            ret['gt_boxes'] = boxes
+            ret['gt_labels'] = klass
+            if not len(boxes):
+                raise MalformedData("No valid gt_boxes!")
+        except MalformedData as e:
+            log_once("Input {} is filtered for training: {}".format(fname, str(e)), 'warn')
+            return None
+
+        if cfg.MODE_MASK:
+            # augmentation will modify the polys in-place
+            segmentation = copy.deepcopy(roidb['segmentation'])
+            segmentation = [segmentation[k] for k in range(len(segmentation)) if not is_crowd[k]]
+            assert len(segmentation) == len(boxes)
+
+            # Apply augmentation on polygon coordinates.
+            # And produce one image-sized binary mask per box.
+            masks = []
+            for polys in segmentation:
+                polys = [aug.augment_coords(p, params) for p in polys]
+                masks.append(segmentation_to_mask(polys, im.shape[0], im.shape[1]))
+            masks = np.asarray(masks, dtype='uint8')    # values in {0, 1}
+            ret['gt_masks'] = masks
+
+            # from viz import draw_annotation, draw_mask
+            # viz = draw_annotation(im, boxes, klass)
+            # for mask in masks:
+            #     viz = draw_mask(viz, mask)
+            # tpviz.interactive_imshow(viz)
+
+        # for k, v in ret.items():
+        #    print("key", k)
+        #    if type(v) == np.ndarray:
+        #        print("val", v.shape)
+        #    else:
+        #        print("val", v)
+
+        return ret
+
+    if cfg.TRAINER == 'horovod':
+        ds = MultiThreadMapData(ds, 5, preprocess)
+        # MPI does not like fork()
+    else:
+        ds = MultiProcessMapDataZMQ(ds, 10, preprocess)
+    return ds
 
 
-
-def sort_by_aspect_ratio(roidbs, batch_size):
-    sorted_roidbs = sorted(roidbs, 
-                           key=lambda x: float(x['width']) / float(x['height']))
-    batched_roidbs = []
-    batch = []
-    for d in sorted_roidbs:
-        batch.append(d)
-        if len(batch) == batch_size:
-            batched_roidbs.append(batch)
-            batch = []
-    return batched_roidbs
-
-
-def get_train_dataflow(batch_size):
+def get_batch_train_dataflow(batch_size):
     """
     Return a training dataflow. Each datapoint consists of the following:
 
@@ -384,7 +487,7 @@ def get_train_dataflow(batch_size):
             boxes = point8_to_box(points)
             assert np.min(np_area(boxes)) > 0, "Some boxes have zero area!"
 
-            ret = {'image': im}
+            ret = {'images': im}
             # rpn anchor:
             try:
                 if cfg.MODE_FPN:
@@ -469,7 +572,7 @@ def get_train_dataflow(batch_size):
         """
 
 
-        image_dims = [d["image"].shape for d in datapoint_list]
+        image_dims = [d["images"].shape for d in datapoint_list]
         heights = [dim[0] for dim in image_dims]
         widths = [dim[1] for dim in image_dims]
 
@@ -481,7 +584,7 @@ def get_train_dataflow(batch_size):
         padded_images = []
         original_image_dims = []
         for datapoint in datapoint_list:
-            image = datapoint["image"]
+            image = datapoint["images"]
             original_image_dims.append(image.shape)
 
             h_padding = max_height - image.shape[0]
@@ -525,8 +628,8 @@ def get_train_dataflow(batch_size):
 
 
 
-            h_padding = max_height - datapoint["image"].shape[0]
-            w_padding = max_width - datapoint["image"].shape[1]
+            h_padding = max_height - datapoint["images"].shape[0]
+            w_padding = max_width - datapoint["images"].shape[1]
 
 
 
@@ -552,8 +655,14 @@ def get_train_dataflow(batch_size):
         # print(batched_datapoint)
         # print("END BATCHED DATAPOINT")
 
-        return batched_datapoint
+        # for k, v in batched_datapoint.items():
+        #    print("key", k)
+        #    if type(v) == np.ndarray:
+        #        print("val", v.shape)
+        #    else:
+        #        print("val", v)
 
+        return batched_datapoint
 
     ds = DataFromList(batched_roidbs, shuffle=True)
 
@@ -588,9 +697,6 @@ def get_train_dataflow(batch_size):
     return ds
 
 
-
-
-
 def get_eval_dataflow(name, shard=0, num_shards=1):
     """
     Args:
@@ -615,13 +721,51 @@ def get_eval_dataflow(name, shard=0, num_shards=1):
     return ds
 
 
+def get_batched_eval_dataflow(name, shard=0, num_shards=1, batch_size=1):
+    """
+    Args:
+        name (str): name of the dataset to evaluate
+        shard, num_shards: to get subset of evaluation data
+    """
+    roidbs = DetectionDataset().load_inference_roidbs(name)
+
+    num_imgs = len(roidbs)
+    img_per_shard = num_imgs // num_shards
+    img_range = (shard * img_per_shard, (shard + 1) * img_per_shard if shard + 1 < num_shards else num_imgs)
+
+    # no filter for training
+    ds = DataFromListOfDictBatched(roidbs[img_range[0]: img_range[1]], ['file_name', 'id'], batch_size)
+
+    def decode_images(inputs):
+        return [[cv2.imread(inp[0], cv2.IMREAD_COLOR), inp[1]] for inp in inputs]
+
+    def resize_images(inputs):
+        resizer = CustomResize(cfg.PREPROC.TEST_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)
+        resized_imgs = [resizer.augment(inp[0]) for inp in inputs]
+        org_shapes = [inp[0].shape for inp in inputs]
+        scales = [np.sqrt(rimg.shape[0] * 1.0 / org_shape[0] * rimg.shape[1] / org_shape[1]) for rimg, org_shape in zip(resized_imgs, org_shapes)]
+
+        return [[resized_imgs[i], inp[1], scales[i], org_shapes[i][:2]] for i, inp in enumerate(inputs)] 
+
+    def pad_and_batch(inputs):
+        heights, widths, _ = zip(*[inp[0].shape for inp in inputs])
+        max_h, max_w = max(heights), max(widths)
+        padded_images = np.stack([np.pad(inp[0], [[0, max_h-inp[0].shape[0]], [0, max_w-inp[0].shape[1]], [0,0]], 'constant') for inp in inputs])
+        return [padded_images, [inp[1] for inp in inputs], list(zip(heights, widths)), [inp[2] for inp in inputs], [inp[3] for inp in inputs]] 
+
+    ds = MapData(ds, decode_images)
+    ds = MapData(ds, resize_images)
+    ds = MapData(ds, pad_and_batch)
+    return ds
+
+
 if __name__ == '__main__':
     import os
     from tensorpack.dataflow import PrintData
     cfg.DATA.BASEDIR = os.path.expanduser('~/data')
-    ds = get_train_dataflow()
-    # ds = PrintData(ds, 100)
-    TestDataSpeed(ds, 50000).start()
+    ds = get_batched_eval_dataflow('train_reduced')
     ds.reset_state()
+    cnt = 0
     for k in ds:
-        pass
+        print(k) 
+        cnt += 1
