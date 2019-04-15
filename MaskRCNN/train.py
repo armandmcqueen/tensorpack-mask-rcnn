@@ -367,9 +367,13 @@ class ResNetFPNModel(DetectionModel):
             label_scores = fastrcnn_head.output_scores(name='fastrcnn_all_scores')
 
             final_boxes, final_scores, final_labels, box_ids = fastrcnn_predictions_batch(decoded_boxes, label_scores, name_scope='output')
+            batch_indices = tf.gather(proposal_boxes[:,0], box_ids, name='output/batch_indices')
 
             if cfg.MODE_MASK:
-                roi_feature_maskrcnn = multilevel_roi_align(features[:4], final_boxes, 14)
+
+                batch_ind_boxes = tf.concat((tf.expand_dims(batch_indices, 1), final_boxes), axis=1)
+
+                roi_feature_maskrcnn = multilevel_roi_align_tf_op(features[:4], batch_ind_boxes, 14)
                 maskrcnn_head_func = getattr(model_mrcnn, cfg.FPN.MRCNN_HEAD_FUNC)
                 mask_logits = maskrcnn_head_func(
                     'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY, fp16=self.fp16)   # #fg x #cat x 28 x 28
@@ -377,7 +381,6 @@ class ResNetFPNModel(DetectionModel):
                 final_mask_logits = tf.gather_nd(mask_logits, indices)   # #resultx28x28
                 tf.sigmoid(final_mask_logits, name='output/masks')
 
-                tf.gather(proposal_boxes[:,0], box_ids, name='output/batch_indices')
             return []
 
 
@@ -555,7 +558,6 @@ if __name__ == '__main__':
             log_launch_config(args.log_full_git_diff)
 
         finalize_configs(is_training=True)
-
 
         images_per_step = cfg.TRAIN.NUM_GPUS * cfg.TRAIN.BATCH_SIZE_PER_GPU
         steps_per_epoch = args.images_per_epoch // images_per_step
