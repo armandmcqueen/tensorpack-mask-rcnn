@@ -263,7 +263,7 @@ def multilevel_rpn_losses_batch_fixed_single_image(
 
 @under_name_scope()
 def generate_fpn_proposals_batch_tf_op(multilevel_anchor_boxes,
-        multilevel_box_logits, multilevel_label_logits, orig_image_dims):
+        multilevel_box_logits, multilevel_label_logits, orig_image_dims, batch_size):
     """
     Args:
         multilevel_box_logits:      #lvl [ BS x (NAx4) x H x W ] boxes
@@ -285,7 +285,7 @@ def generate_fpn_proposals_batch_tf_op(multilevel_anchor_boxes,
     all_boxes = []
     all_scores = []
     if cfg.FPN.PROPOSAL_MODE == 'Level':
-        fpn_nms_topk = cfg.RPN.TRAIN_PER_LEVEL_NMS_TOPK if training else cfg.RPN.TEST_PER_LEVEL_NMS_TOPK
+        fpn_nms_topk = cfg.RPN.TRAIN_PER_LEVEL_NMS_TOPK*batch_size if training else cfg.RPN.TEST_PER_LEVEL_NMS_TOPK
         for lvl in range(num_lvl):
             with tf.name_scope(f'Lvl{lvl}'):
                 im_info = tf.cast(orig_images_hw, tf.float32)

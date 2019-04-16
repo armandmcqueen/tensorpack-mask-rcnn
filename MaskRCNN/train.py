@@ -176,7 +176,8 @@ class ResNetFPNModel(DetectionModel):
         proposal_boxes, proposal_scores = generate_fpn_proposals_batch_tf_op(all_anchors_fpn,
                                                                              multilevel_box_logits,
                                                                              multilevel_label_logits,
-                                                                             image_shape2d)
+                                                                             image_shape2d,
+                                                                             cfg.TRAIN.BATCH_SIZE_PER_GPU)
 
 
  
@@ -227,8 +228,8 @@ class ResNetFPNModel(DetectionModel):
                 rpn_losses.extend(si_losses)
 
             with tf.name_scope('rpn_losses'):
-                total_label_loss = tf.add_n(rpn_losses[::2], name='label_loss')
-                total_box_loss = tf.add_n(rpn_losses[1::2], name='box_loss')
+                total_label_loss = tf.truediv(tf.add_n(rpn_losses[::2]), tf.cast(cfg.TRAIN.BATCH_SIZE_PER_GPU, dtype=tf.float32), name='label_loss')
+                total_box_loss = tf.truediv(tf.add_n(rpn_losses[1::2]), tf.cast(cfg.TRAIN.BATCH_SIZE_PER_GPU, dtype=tf.float32), name='box_loss')
                 add_moving_summary(total_label_loss, total_box_loss)
                 losses = [total_label_loss, total_box_loss]
 

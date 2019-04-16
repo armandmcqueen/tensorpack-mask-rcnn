@@ -167,7 +167,7 @@ _C.RPN.TEST_PRE_NMS_TOPK = 6000
 _C.RPN.TEST_POST_NMS_TOPK = 1000   # if you encounter OOM in inference, set this to a smaller number
 # for FPN, #proposals per-level and #proposals after merging are (for now) the same
 # if FPN.PROPOSAL_MODE = 'Joint', these options have no effect
-_C.RPN.TRAIN_PER_LEVEL_NMS_TOPK = 2000
+_C.RPN.TRAIN_PER_LEVEL_NMS_TOPK = 2000 
 _C.RPN.TEST_PER_LEVEL_NMS_TOPK = 1000
 
 # fastrcnn training ---------------------
