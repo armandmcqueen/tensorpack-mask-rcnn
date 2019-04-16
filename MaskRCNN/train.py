@@ -40,9 +40,13 @@ from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_prop
 from performance import ThroughputTracker, print_runtime_shape, print_runtime_tensor, \
     print_runtime_tensor_loose_branch, summarize_tensor, humanize_float
 
+from serialize import serialize_backbone, serialize_rpn
 
 # TODO: Change placeholder to CLI arg
 BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global arg. Right now, this is a constant
+
+SERIALIZE_BACKBONE = True
+SERIALIZE_RPN = True
 
 
 
@@ -98,9 +102,18 @@ class DetectionModel(ModelDesc):
 
         image = self.preprocess(inputs['images'])     # NCHW
 
-        features = self.backbone(image)
+        if SERIALIZE_BACKBONE:
+            features = self.backbone(image)
+        else:
+            features = serialize_backbone(self.backbone, image, cfg.TRAIN.BATCH_SIZE_PER_GPU)
+
         anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
-        proposal_boxes, rpn_losses = self.rpn(image, features, anchor_inputs, inputs['orig_image_dims'])  # inputs?
+
+
+        if SERIALIZE_RPN:
+            proposal_boxes, rpn_losses = serialize_rpn(self.rpn, image, features, anchor_inputs, inputs['orig_image_dims'], self.training, cfg.TRAIN.BATCH_SIZE_PER_GPU)  # inputs?
+        else:
+            proposal_boxes, rpn_losses, _ = self.rpn(image, features, anchor_inputs, inputs['orig_image_dims'])  # inputs?
 
         targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
         head_losses = self.roi_heads(image, features, proposal_boxes, targets, inputs)
@@ -158,7 +171,7 @@ class ResNetFPNModel(DetectionModel):
         return p23456
 
 
-    def rpn(self, image, features, inputs, orig_image_dims):
+    def rpn(self, image, features, inputs, orig_image_dims, batch_size):
         assert len(cfg.RPN.ANCHOR_SIZES) == len(cfg.FPN.ANCHOR_STRIDES)
 
         image_shape2d = orig_image_dims[:,:2]
@@ -177,7 +190,7 @@ class ResNetFPNModel(DetectionModel):
                                                                              multilevel_box_logits,
                                                                              multilevel_label_logits,
                                                                              image_shape2d,
-                                                                             cfg.TRAIN.BATCH_SIZE_PER_GPU)
+                                                                             batch_size)
 
 
  
@@ -198,7 +211,7 @@ class ResNetFPNModel(DetectionModel):
                 batch_input_multilevel_box_logits.append(box_logits_t)
 
             rpn_losses = []
-            for i in range(cfg.TRAIN.BATCH_SIZE_PER_GPU):
+            for i in range(batch_size):
                 orig_image_hw = orig_image_dims[i, :2]
                 si_all_anchors_fpn = get_all_anchors_fpn()
                 si_multilevel_box_logits = [box_logits[i, :, :, :, :] for box_logits in batch_input_multilevel_box_logits]
@@ -228,8 +241,8 @@ class ResNetFPNModel(DetectionModel):
                 rpn_losses.extend(si_losses)
 
             with tf.name_scope('rpn_losses'):
-                total_label_loss = tf.truediv(tf.add_n(rpn_losses[::2]), tf.cast(cfg.TRAIN.BATCH_SIZE_PER_GPU, dtype=tf.float32), name='label_loss')
-                total_box_loss = tf.truediv(tf.add_n(rpn_losses[1::2]), tf.cast(cfg.TRAIN.BATCH_SIZE_PER_GPU, dtype=tf.float32), name='box_loss')
+                total_label_loss = tf.truediv(tf.add_n(rpn_losses[::2]), tf.cast(batch_size, dtype=tf.float32), name='label_loss')
+                total_box_loss = tf.truediv(tf.add_n(rpn_losses[1::2]), tf.cast(batch_size, dtype=tf.float32), name='box_loss')
                 add_moving_summary(total_label_loss, total_box_loss)
                 losses = [total_label_loss, total_box_loss]
 
@@ -238,7 +251,7 @@ class ResNetFPNModel(DetectionModel):
         else:
             losses = []
 
-        return proposal_boxes, losses
+        return proposal_boxes, losses, proposal_scores
 
     def roi_heads(self, image, features, proposal_boxes, targets, inputs):
 
