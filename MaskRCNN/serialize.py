@@ -41,7 +41,7 @@ def serialize_rpn(fn, images, features, anchor_inputs, orig_image_dims, training
 
         single_image_features_unpadded = [feature[:,:,:dims[0], :dims[1]] for feature, dims in zip(single_image_features, orig_featuremap_dims)] 
 
-        single_image_proposals, single_image_rpn_losses, single_image_proposal_scores = fn(single_image_unpadded, single_image_features_unpadded, anchor_inputs, orig_image_dims[i:(i+1)], batch_size=1)
+        single_image_proposals, single_image_rpn_losses, single_image_proposal_scores = fn(single_image_unpadded, single_image_features_unpadded, single_image_anchors, orig_image_dims[i:(i+1)], batch_size=1)
 
         serialized_proposals.append(single_image_proposals) 
         serialized_scores.append(single_image_proposal_scores) 
