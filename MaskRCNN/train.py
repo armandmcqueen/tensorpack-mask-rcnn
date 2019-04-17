@@ -42,22 +42,14 @@ from performance import ThroughputTracker, print_runtime_shape, print_runtime_te
 
 from serialize import serialize_backbone, serialize_rpn
 
-# TODO: Change placeholder to CLI arg
-BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global arg. Right now, this is a constant
 
-SERIALIZE_BACKBONE = True
+SERIALIZE_BACKBONE = False 
 SERIALIZE_RPN = True
-
-
 
 try:
     import horovod.tensorflow as hvd
 except ImportError:
     pass
-
-
-
-
 
 
 class DetectionModel(ModelDesc):
@@ -103,9 +95,9 @@ class DetectionModel(ModelDesc):
         image = self.preprocess(inputs['images'])     # NCHW
 
         if SERIALIZE_BACKBONE:
-            features = self.backbone(image)
-        else:
             features = serialize_backbone(self.backbone, image, inputs['orig_image_dims'], cfg.TRAIN.BATCH_SIZE_PER_GPU if self.training else 1)
+        else:
+            features = self.backbone(image)
 
         anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
 
@@ -113,7 +105,7 @@ class DetectionModel(ModelDesc):
         if SERIALIZE_RPN:
             proposal_boxes, rpn_losses = serialize_rpn(self.rpn, image, features, anchor_inputs, inputs['orig_image_dims'], self.training, cfg.TRAIN.BATCH_SIZE_PER_GPU if self.training else 1)  # inputs?
         else:
-            proposal_boxes, rpn_losses, _ = self.rpn(image, features, anchor_inputs, inputs['orig_image_dims'])  # inputs?
+            proposal_boxes, rpn_losses, _ = self.rpn(image, features, anchor_inputs, inputs['orig_image_dims'], cfg.TRAIN.BATCH_SIZE_PER_GPU)  # inputs?
 
         targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
         head_losses = self.roi_heads(image, features, proposal_boxes, targets, inputs)
