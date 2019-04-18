@@ -214,17 +214,18 @@ class ResNetFPNModel(DetectionModel):
                 # Given the original image dims, find what size each layer of the FPN feature map would be (follow FPN padding logic)
                 mult = float(cfg.FPN.RESOLUTION_REQUIREMENT)  # the image is padded so that it is a multiple of this (32 with default config).
                 orig_image_hw_after_fpn_padding = tf.ceil(tf.cast(orig_image_hw, tf.float32) / mult) * mult
-                si_multilevel_anchors_narrowed = []
+                featuremap_dims_per_level = []
                 for lvl, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
                     featuremap_dims_float = orig_image_hw_after_fpn_padding / float(stride)
-                    featuremap_dims = tf.cast(tf.math.floor(featuremap_dims_float + 0.5), tf.int32)  # Fix bankers rounding
-
-                    narrowed_anchors_for_lvl = si_multilevel_anchors[lvl].narrow_to_featuremap_dims(featuremap_dims)
-                    si_multilevel_anchors_narrowed.append(narrowed_anchors_for_lvl)
-
+                    featuremap_dims_per_level.append(tf.cast(tf.math.floor(featuremap_dims_float + 0.5), tf.int32))  # Fix bankers rounding
+                
+                si_multilevel_anchors_narrowed = [anchors.narrow_to_featuremap_dims(dims) for anchors, dims in zip(si_multilevel_anchors, featuremap_dims_per_level)]
+                si_multilevel_box_logits_narrowed = [box_logits[:dims[0], :dims[1],:,:] for box_logits, dims in zip(si_multilevel_box_logits, featuremap_dims_per_level)]
+                si_multilevel_label_logits_narrowed = [label_logits[:dims[0], :dims[1],:] for label_logits, dims in zip(si_multilevel_label_logits, featuremap_dims_per_level)]
+                    
                 si_losses = multilevel_rpn_losses_batch_fixed_single_image(si_multilevel_anchors_narrowed,
-                                                                           si_multilevel_label_logits,
-                                                                           si_multilevel_box_logits)
+                                                                           si_multilevel_label_logits_narrowed,
+                                                                           si_multilevel_box_logits_narrowed)
                 rpn_losses.extend(si_losses)
 
             with tf.name_scope('rpn_losses'):
@@ -232,8 +233,6 @@ class ResNetFPNModel(DetectionModel):
                 total_box_loss = tf.truediv(tf.add_n(rpn_losses[1::2]), tf.cast(cfg.TRAIN.BATCH_SIZE_PER_GPU, dtype=tf.float32), name='box_loss')
                 add_moving_summary(total_label_loss, total_box_loss)
                 losses = [total_label_loss, total_box_loss]
-
-
 
         else:
             losses = []
