@@ -23,10 +23,8 @@ def clip_boxes_batch(boxes, window, batch_ids, name=None):
     whwh = tf.concat((wh, wh), axis=1)
 
     multiples = tf.stack([tf.constant(1), tf.shape(boxes)[1], tf.constant(1)])
-
     whwh_tiled = tf.tile(tf.expand_dims(whwh, 1), multiples)    # asd = [1, #class, 1]
 
-#    m = tf.tile(tf.reverse(window, [0]), [2])    # (4,)
     boxes = tf.minimum(boxes, tf.cast(whwh_tiled, tf.float32), name=name)
     return boxes
 

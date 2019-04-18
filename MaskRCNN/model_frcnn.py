@@ -134,9 +134,6 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
         return num_fg, num_bg, fg_inds, bg_inds
 
 
-
-
-
     all_ret_boxes = []
     all_ret_labels = []
     all_fg_inds_wrt_gt = []
@@ -150,7 +147,6 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
         num_bgs.append(num_bg)
 
         best_iou_ind = best_iou_inds[i]
-
 
         fg_inds_wrt_gt = tf.gather(best_iou_ind, fg_inds)  # num_fg
 
@@ -179,8 +175,6 @@ def sample_fast_rcnn_targets_batch(boxes, gt_boxes, gt_labels, orig_gt_counts, b
 
     ret_boxes = tf.concat(all_ret_boxes, axis=0)    # ? x 5
     ret_labels = tf.concat(all_ret_labels, axis=0)  # ? vector
-
-
 
     # stop the gradient -- they are meant to be training targets
     sampled_boxes = tf.stop_gradient(ret_boxes, name='sampled_proposal_boxes')
@@ -451,7 +445,6 @@ class FastRCNNHeadBatch(object):
                  box_logits,
                  label_logits,
                  bbox_regression_weights,
-                 proposal_batch_idx_map,
                  prepadding_gt_counts,
                  proposal_boxes):
         """
@@ -461,13 +454,11 @@ class FastRCNNHeadBatch(object):
             label_logits: Nx#class, the output of the head
             gt_boxes: BS x MaxGTs x 4
             bbox_regression_weights: a 4 element tensor
-            proposal_batch_idx_map: N element vector with batch index from that BoxProposal.box
         """
         self.box_logits = box_logits
         self.label_logits = label_logits
 
         self.bbox_regression_weights = bbox_regression_weights
-        self.proposal_batch_idx_map = proposal_batch_idx_map
         self.prepadding_gt_counts = prepadding_gt_counts
 
         self.proposal_boxes = proposal_boxes
@@ -537,9 +528,6 @@ class FastRCNNHeadBatch(object):
             single_image_labels = tf.gather(self.proposal_labels, single_image_box_indices) # Vector len N
             single_image_label_logits = tf.gather(self.label_logits, single_image_box_indices)
 
-#            single_image_box_logits = tf.gather(self.box_logits, single_image_box_indices)
-#
-#            single_image_fg_box_logits = tf.gather(single_image_box_logits, single_image_fg_boxes_indices)
             single_image_fg_box_logits_indices = tf.gather(self.proposal_fg_inds, single_image_fg_boxes_indices)
             single_image_fg_box_logits = tf.gather(self.box_logits, single_image_fg_box_logits_indices)
 
@@ -560,8 +548,6 @@ class FastRCNNHeadBatch(object):
     @memoized_method
     def decoded_output_boxes_batch(self):
         """ Returns: N x #class x 4 """
-#        self.proposal_boxes = tf.concat((tf.zeros([tf.shape(self.proposal_boxes)[0], 1], dtype=tf.float32), self.proposal_boxes), axis=1)      # REMOVE WHEN COMPLETELY BATCHIFIED
-  
         batch_ids, nobatch_proposal_boxes = tf.split(self.proposal_boxes, [1, 4], 1)
         anchors = tf.tile(tf.expand_dims(nobatch_proposal_boxes, 1),
                           [1, cfg.DATA.NUM_CLASS, 1])  # N x #class x 4

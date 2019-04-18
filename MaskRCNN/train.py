@@ -30,30 +30,21 @@ from config import finalize_configs, config as cfg
 from data import get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow, get_batch_train_dataflow
 from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
 from model_box import RPNAnchors, clip_boxes_batch, crop_and_resize_from_batch_codebase
-from model_fpn import fpn_model, multilevel_roi_align, generate_fpn_proposals_batch_tf_op, \
+from model_fpn import fpn_model, generate_fpn_proposals_batch_tf_op, \
     multilevel_roi_align_tf_op, multilevel_rpn_losses_batch_fixed_single_image
 from model_frcnn import BoxProposals, fastrcnn_predictions_batch, sample_fast_rcnn_targets_batch, \
     fastrcnn_outputs_batch, FastRCNNHeadBatch
 from model_mrcnn import maskrcnn_loss
-from model_rpn import rpn_head_withbatch
+from model_rpn import rpn_head
 from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
 from performance import ThroughputTracker, print_runtime_shape, print_runtime_tensor, \
     print_runtime_tensor_loose_branch, summarize_tensor, humanize_float
-
-
-# TODO: Change placeholder to CLI arg
-BATCH_SIZE_PLACEHOLDER = 1 # Some pieces of batch code rely on batch size global arg. Right now, this is a constant
-
 
 
 try:
     import horovod.tensorflow as hvd
 except ImportError:
     pass
-
-
-
-
 
 
 class DetectionModel(ModelDesc):
@@ -114,7 +105,6 @@ class DetectionModel(ModelDesc):
             return total_cost
 
 
-
 class ResNetFPNModel(DetectionModel):
     def __init__(self, fp16):
         super(ResNetFPNModel, self).__init__(fp16)
@@ -167,7 +157,7 @@ class ResNetFPNModel(DetectionModel):
 
         rpn_outputs = []
         for pi in features:
-            label_logits, box_logits = rpn_head_withbatch('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS), fp16=self.fp16)
+            label_logits, box_logits = rpn_head('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS), fp16=self.fp16)
             rpn_outputs.append((label_logits, box_logits))
 
         multilevel_label_logits = [k[0] for k in rpn_outputs]
@@ -178,33 +168,26 @@ class ResNetFPNModel(DetectionModel):
                                                                              multilevel_label_logits,
                                                                              image_shape2d,
                                                                              cfg.TRAIN.BATCH_SIZE_PER_GPU)
-
-
- 
-
-
-
         if self.training:
 
-            batch_input_multilevel_anchor_labels = [inputs['anchor_labels_lvl{}'.format(i + 2)] for i in range(len(all_anchors_fpn))]
-            batch_input_multilevel_anchor_boxes = [inputs['anchor_boxes_lvl{}'.format(i + 2)] for i in range(len(all_anchors_fpn))]
-            batch_input_multilevel_label_logits = multilevel_label_logits
+            multilevel_anchor_labels = [inputs['anchor_labels_lvl{}'.format(i + 2)] for i in range(len(all_anchors_fpn))]
+            multilevel_anchor_boxes = [inputs['anchor_boxes_lvl{}'.format(i + 2)] for i in range(len(all_anchors_fpn))]
 
-            batch_input_multilevel_box_logits = []
+            multilevel_box_logits_reshaped = []
             for box_logits in multilevel_box_logits:
                 shp = tf.shape(box_logits)  # Nx(NAx4)xfHxfW
                 box_logits_t = tf.transpose(box_logits, [0, 2, 3, 1])  # NxfHxfWx(NAx4)
                 box_logits_t = tf.reshape(box_logits_t, tf.stack([shp[0], shp[2], shp[3], -1, 4]))  # NxfHxfWxNAx4
-                batch_input_multilevel_box_logits.append(box_logits_t)
+                multilevel_box_logits_reshaped.append(box_logits_t)
 
             rpn_losses = []
             for i in range(cfg.TRAIN.BATCH_SIZE_PER_GPU):
                 orig_image_hw = orig_image_dims[i, :2]
                 si_all_anchors_fpn = get_all_anchors_fpn()
-                si_multilevel_box_logits = [box_logits[i, :, :, :, :] for box_logits in batch_input_multilevel_box_logits]
-                si_multilevel_label_logits = [label_logits[i, :, :, :] for label_logits in batch_input_multilevel_label_logits]
-                si_multilevel_anchor_labels = [anchor_labels[i, :, :, :] for anchor_labels in batch_input_multilevel_anchor_labels]
-                si_multilevel_anchors_boxes = [anchor_boxes[i, :, :, :, :] for anchor_boxes in batch_input_multilevel_anchor_boxes]
+                si_multilevel_box_logits = [box_logits[i] for box_logits in multilevel_box_logits_reshaped]
+                si_multilevel_label_logits = [label_logits[i] for label_logits in multilevel_label_logits]
+                si_multilevel_anchor_labels = [anchor_labels[i] for anchor_labels in multilevel_anchor_labels]
+                si_multilevel_anchors_boxes = [anchor_boxes[i] for anchor_boxes in multilevel_anchor_boxes]
 
                 si_multilevel_anchors = [RPNAnchors(si_all_anchors_fpn[j],
                                                     si_multilevel_anchor_labels[j],
@@ -243,7 +226,6 @@ class ResNetFPNModel(DetectionModel):
 
         image_shape2d = inputs['orig_image_dims'][:,:2]      # BSx2 (h&w)
 
-
         assert len(features) == 5, "Features have to be P23456!"
         gt_boxes, gt_labels, *_ = targets
 
@@ -272,13 +254,10 @@ class ResNetFPNModel(DetectionModel):
         fastrcnn_label_logits, fastrcnn_box_logits = fastrcnn_outputs_batch('fastrcnn/outputs', head_feature, cfg.DATA.NUM_CLASS)
 
         regression_weights = tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32)
-        batch_indices_for_rois = proposal_boxes[:,0]
-
 
         fastrcnn_head = FastRCNNHeadBatch(fastrcnn_box_logits,
                                           fastrcnn_label_logits,
                                           regression_weights,
-                                          batch_indices_for_rois,
                                           prepadding_gt_counts,
                                           proposal_boxes)
         if self.training:
@@ -304,7 +283,6 @@ class ResNetFPNModel(DetectionModel):
 
                 maskrcnn_head_func = getattr(model_mrcnn, cfg.FPN.MRCNN_HEAD_FUNC)
 
-
                 roi_feature_maskrcnn = multilevel_roi_align_tf_op(
                     features[:4], proposals.fg_boxes(), 14,
                     name_scope='multilevel_roi_align_mask')
@@ -313,10 +291,6 @@ class ResNetFPNModel(DetectionModel):
                         'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY, fp16=self.fp16)   # #fg x #cat x 28 x 28
 
                 proposal_fg_labels = proposals.fg_labels() # vector of length NumFG
-
-
-                prepadding_gt_counts = inputs['orig_gt_counts']
-                orig_image_dims = image_shape2d #inputs['orig_image_dims'][:,:2]      # BSx2 tensor
 
                 proposal_fg_boxes = proposals.fg_boxes()
                 proposal_gt_id_for_each_fg = proposals.fg_inds_wrt_gt
@@ -341,7 +315,7 @@ class ResNetFPNModel(DetectionModel):
                                                                        single_image_fg_boxes,
                                                                        single_image_fg_inds_wrt_gt,
                                                                        28,
-                                                                       orig_image_dims[i],
+                                                                       image_shape2d[i],
                                                                        pad_border=False,
                                                                        verbose_batch_index=i)  # fg x 1x28x28
                     per_image_fg_labels.append(single_image_fg_labels)
@@ -361,9 +335,7 @@ class ResNetFPNModel(DetectionModel):
         else:
 
             decoded_boxes, batch_ids = fastrcnn_head.decoded_output_boxes_batch()
-
             decoded_boxes = clip_boxes_batch(decoded_boxes, image_shape2d, tf.cast(batch_ids, dtype=tf.int32), name='fastrcnn_all_boxes')
-
             label_scores = fastrcnn_head.output_scores(name='fastrcnn_all_scores')
 
             final_boxes, final_scores, final_labels, box_ids = fastrcnn_predictions_batch(decoded_boxes, label_scores, name_scope='output')

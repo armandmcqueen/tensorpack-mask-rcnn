@@ -12,7 +12,6 @@ from tensorpack.tfutils.tower import get_current_tower_context
 
 from basemodel import GroupNorm
 from config import config as cfg
-from model_box import roi_align
 from model_rpn import rpn_losses
 from utils.box_ops import area as tf_area
 from utils.mixed_precision import mixed_precision_scope
@@ -140,46 +139,6 @@ def fpn_map_rois_to_levels(boxes):
     return level_ids, level_boxes
 
 
-@under_name_scope()
-def multilevel_roi_align(features, rcnn_boxes, resolution):
-    """
-    Args:
-        features ([tf.Tensor]): 4 FPN feature level 2-5
-        rcnn_boxes (tf.Tensor): nx4 boxes
-        resolution (int): output spatial resolution
-    Returns:
-        NxC x res x res
-    """
-    assert len(features) == 4, features
-    # Reassign rcnn_boxes to levels
-    level_ids, level_boxes = fpn_map_rois_to_levels(rcnn_boxes)
-    all_rois = []
-
-    # Crop patches from corresponding levels
-    for i, boxes, featuremap in zip(itertools.count(), level_boxes, features):
-        with tf.name_scope('roi_level{}'.format(i + 2)):
-            boxes_on_featuremap = boxes * (1.0 / cfg.FPN.ANCHOR_STRIDES[i])
-            all_rois.append(roi_align(featuremap, boxes_on_featuremap, resolution))
-
-            # roi_feature_maps = tf.roi_align(featuremap,
-            #                                 boxes,
-            #                                 pooled_height=resolution,
-            #                                 pooled_width=resolution,
-            #                                 spatial_scale=1.0 / cfg.FPN.ANCHOR_STRIDES[i],
-            #                                 sampling_ratio=2)
-            # all_rois.append(roi_feature_maps)
-
-    # this can fail if using TF<=1.8 with MKL build
-    all_rois = tf.concat(all_rois, axis=0)  # NCHW
-    # Unshuffle to the original order, to match the original samples
-    level_id_perm = tf.concat(level_ids, axis=0)  # A permutation of 1~N
-    level_id_invert_perm = tf.invert_permutation(level_id_perm)
-    all_rois = tf.gather(all_rois, level_id_invert_perm)
-    return all_rois
-
-
-
-
 @under_name_scope(name_scope="multilevel_roi_align")
 def multilevel_roi_align_tf_op(features, rcnn_boxes, resolution):
     """
@@ -198,11 +157,6 @@ def multilevel_roi_align_tf_op(features, rcnn_boxes, resolution):
     # Crop patches from corresponding levels
     for i, boxes, featuremap in zip(itertools.count(), level_boxes, features):
         with tf.name_scope('roi_level{}'.format(i + 2)):
-            #boxes_on_featuremap = boxes * (1.0 / cfg.FPN.ANCHOR_STRIDES[i])
-            #all_rois.append(roi_align(featuremap, boxes_on_featuremap, resolution))
-
-#            if boxes.shape.dims[1].value == 4:                                                               # REMOVE WHEN COMPLETELY BATCHIFIED
-#                boxes = tf.concat((tf.zeros([tf.shape(boxes)[0], 1], dtype=tf.float32), boxes), axis=1)      # REMOVE WHEN COMPLETELY BATCHIFIED
 
             # coordinate system fix for boxes
             boxes = tf.concat((boxes[:,:1], boxes[:,1:] - 0.5*cfg.FPN.ANCHOR_STRIDES[i]), axis=1) 
@@ -255,12 +209,6 @@ def multilevel_rpn_losses_batch_fixed_single_image(
 
 
 
-
-
-
-
-
-
 @under_name_scope()
 def generate_fpn_proposals_batch_tf_op(multilevel_anchor_boxes,
         multilevel_box_logits, multilevel_label_logits, orig_image_dims, batch_size):
@@ -280,7 +228,6 @@ def generate_fpn_proposals_batch_tf_op(multilevel_anchor_boxes,
     assert len(multilevel_label_logits) == num_lvl
     orig_images_hw = orig_image_dims[:, :2]
 
-
     training = get_current_tower_context().is_training
     all_boxes = []
     all_scores = []
@@ -291,59 +238,13 @@ def generate_fpn_proposals_batch_tf_op(multilevel_anchor_boxes,
                 im_info = tf.cast(orig_images_hw, tf.float32)
                 # h, w
 
-                label_logits = multilevel_label_logits[lvl]
-                # label_logits = print_runtime_shape(f'label_logits, lvl{lvl}', label_logits, prefix=bug_prefix)
-                #scores = tf.transpose(label_logits, [0, 3, 1, 2])
-                scores = label_logits
-
-                #box_logits = multilevel_box_logits[lvl] # N(A4)HW
-                box_logits = tf.transpose(multilevel_box_logits[lvl],[0, 2, 3, 1])
-
-
-
-                bbox_deltas = box_logits
-                # bbox_deltas = print_runtime_shape(f'bbox_deltas (pre-reshape), lvl {lvl}', bbox_deltas, prefix=bug_prefix)
-
-
+                scores = multilevel_label_logits[lvl]
+                bbox_deltas = tf.transpose(multilevel_box_logits[lvl],[0, 2, 3, 1])
 
                 single_level_anchor_boxes = multilevel_anchor_boxes[lvl]
-                shp = tf.shape(single_level_anchor_boxes)
                 single_level_anchor_boxes = tf.reshape(single_level_anchor_boxes, (-1, 4))
-                #print("single_level_anchor_boxes", single_level_anchor_boxes)
-                """
-
-                area = cfg.RPN.ANCHOR_SIZES[lvl] ** 2
-                anchor_list = []
-                for ratio in cfg.RPN.ANCHOR_RATIOS:
-                    # ratio = h/w
-                    # h = w x ratio
-
-                    # area = h x w
-                    # h = area / w
-
-                    # w x ratio = area / w
-                    # w = sqrt (area / ratio)
-
-                    # h = w * ratio
-
-                    w = (area / ratio) ** 0.5
-                    h = w * ratio
-                    x1 = -1 * (w / 2.)
-                    y1 = -1 * (h / 2.)
-                    x2 = -x1
-                    y2 = -y1
-
-                    anchor = tf.constant([x1, y1, x2, y2], dtype=tf.float32)
-                    anchor_list.append(anchor)
-                # print(anchor_list)
-                anchors = tf.stack(anchor_list)
-
-                """
-
 
                 # https://caffe2.ai/docs/operators-catalogue.html#generateproposals
-
-
                 rois, rois_probs = tf.generate_bounding_box_proposals(scores,
                                                                    bbox_deltas,
                                                                    im_info,
@@ -357,7 +258,6 @@ def generate_fpn_proposals_batch_tf_op(multilevel_anchor_boxes,
                 # rois_probs = print_runtime_shape(f'rois_probs, lvl {lvl}', rois_probs, prefix=bug_prefix)
                 all_boxes.append(rois)
                 all_scores.append(rois_probs)
-
 
         proposal_boxes = tf.concat(all_boxes, axis=0)  # (#lvl x BS) x K x 5
         proposal_boxes = tf.reshape(proposal_boxes, [-1, 5])        # (#lvl x BS x K) x 5
