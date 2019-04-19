@@ -61,7 +61,7 @@ TRAIN.BATCH_SIZE_PER_GPU=2 \
 TRAIN.LR_EPOCH_SCHEDULE='[(8, 0.1), (10, 0.01), (12, None)]' \
 BACKBONE.WEIGHTS=/home/ubuntu/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
 BACKBONE.NORM=FreezeBN \
-TRAIN.EVAL_PERIOD=1 \
+TRAIN.EVAL_PERIOD=12 \
 TRAINER=horovod
 
 #-x HOROVOD_AUTOTUNE \

@@ -26,6 +26,53 @@ import math
 # import tensorpack.utils.viz as tpviz
 
 
+def _get_padding_shape(aspect_ratio):
+    for shape in cfg.PREPROC.PADDING_SHAPES:
+        if aspect_ratio >= float(shape[0])/float(shape[1]):
+            return shape
+        
+    return cfg.PREPROC.PADDING_SHAPES[-1]
+
+
+def get_padding_shape(h, w):
+    aspect_ratio = float(h)/float(w)
+
+    if aspect_ratio > 1.0:
+        inv = 1./aspect_ratio
+    else:
+        inv = aspect_ratio
+
+    shp = _get_padding_shape(inv)
+    if aspect_ratio > 1.0:
+        return (shp[1], shp[0])
+    return shp
+
+
+def get_next_roidb(roidbs, i, shp, taken):
+
+    if i == len(roidbs) - 1:
+        return None
+
+    for k in range(i+1, len(roidbs)):
+        if get_padding_shape(roidbs[k]['height'], roidbs[k]['width']) == shp and not taken[k]: 
+            return k 
+        if k - i > 40:    # don't try too hard
+            break
+
+    # at least try to get one dimension the same
+    for k in range(i, len(roidbs)):
+        padding_shape = get_padding_shape(roidbs[k]['height'], roidbs[k]['width'])
+        if (padding_shape[0] == shp[0] or padding_shape[1] == shp[1]) and not taken[k]: 
+            return k 
+        if k - i > 40:    # don't try too hard
+            break
+
+    for k in range(i, len(roidbs)):
+        if not taken[k]: 
+            return k
+
+    return None
+
 class DataFromListOfDictBatched(RNGDataFlow):
     def __init__(self, lst, keys, batchsize, shuffle=False):
         self._lst = lst
@@ -439,14 +486,33 @@ def get_batch_train_dataflow(batch_size):
 
     print("Batching roidbs")
     batched_roidbs = []
-    batch = []
 
-    for i, d in enumerate(roidbs):
-        if i % batch_size == 0:
-            if len(batch) == batch_size:
-                batched_roidbs.append(batch)
+    if cfg.PREPROC.PREDEFINED_PADDING:
+        taken = [False for _ in roidbs]
+        done = False
+    
+        for i, d in enumerate(roidbs): 
             batch = []
-        batch.append(d)
+            if not taken[i]:
+                batch.append(d)
+                padding_shape = get_padding_shape(d['height'], d['width']) 
+                while len(batch) < batch_size: 
+                    k = get_next_roidb(roidbs, i, padding_shape, taken)
+                    if k == None:
+                        done = True
+                        break
+                    batch.append(roidbs[k])
+                    taken[i], taken[k] = True, True
+                if not done:
+                    batched_roidbs.append(batch)
+    else:
+        batch = []
+        for i, d in enumerate(roidbs):
+            if i % batch_size == 0:
+                if len(batch) == batch_size:
+                    batched_roidbs.append(batch)
+                batch = []
+            batch.append(d)
 
     #batched_roidbs = sort_by_aspect_ratio(roidbs, batch_size)
     #batched_roidbs = group_by_aspect_ratio(roidbs, batch_size)
@@ -571,13 +637,18 @@ def get_batch_train_dataflow(batch_size):
         For each image, save original dimension and pad
         """
 
-
-        image_dims = [d["images"].shape for d in datapoint_list]
-        heights = [dim[0] for dim in image_dims]
-        widths = [dim[1] for dim in image_dims]
-
-        max_height = max(heights)
-        max_width = max(widths)
+        if cfg.PREPROC.PREDEFINED_PADDING:
+            padding_shapes = [get_padding_shape(*(d["images"].shape[:2])) for d in datapoint_list]
+            max_height = max([shp[0] for shp in padding_shapes])       
+            max_width = max([shp[1] for shp in padding_shapes])       
+ 
+        else:
+            image_dims = [d["images"].shape for d in datapoint_list]
+            heights = [dim[0] for dim in image_dims]
+            widths = [dim[1] for dim in image_dims]
+    
+            max_height = max(heights)
+            max_width = max(widths)
 
 
         # image

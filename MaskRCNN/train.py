@@ -605,6 +605,7 @@ if __name__ == '__main__':
             else:
                 session_init = get_model_loader(cfg.BACKBONE.WEIGHTS) if cfg.BACKBONE.WEIGHTS else None
 
+
         traincfg = TrainConfig(
             model=MODEL,
             data=QueueInput(train_dataflow),
