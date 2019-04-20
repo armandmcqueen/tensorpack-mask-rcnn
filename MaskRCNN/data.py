@@ -25,14 +25,12 @@ import math
 
 # import tensorpack.utils.viz as tpviz
 
-
 def _get_padding_shape(aspect_ratio):
     for shape in cfg.PREPROC.PADDING_SHAPES:
         if aspect_ratio >= float(shape[0])/float(shape[1]):
             return shape
         
     return cfg.PREPROC.PADDING_SHAPES[-1]
-
 
 def get_padding_shape(h, w):
     aspect_ratio = float(h)/float(w)

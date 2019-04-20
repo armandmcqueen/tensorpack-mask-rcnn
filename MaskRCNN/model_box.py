@@ -202,13 +202,9 @@ def crop_and_resize_from_batch_codebase(image, boxes, box_ind, crop_size, orig_i
 
     boxes = tf.stop_gradient(boxes)
 
-
-    org_img_size = tf.concat((tf.constant([-1, -1], dtype=tf.int32), orig_image_dims), axis=0)
-    image = tf.slice(image, begin=tf.zeros(4, dtype=tf.int32), size=org_img_size)
-
-#    h = orig_image_dims[0]
-#    w = orig_image_dims[1]
-#    image = image[:, :, :h, :w]
+#    org_img_size = tf.concat((tf.constant([-1, -1], dtype=tf.int32), orig_image_dims), axis=0)
+#    image = tf.slice(image, begin=tf.zeros(4, dtype=tf.int32), size=org_img_size)
+    image = image[:, :, :orig_image_dims[0], :orig_image_dims[1]]
 
     # TF's crop_and_resize produces zeros on border
     if pad_border:

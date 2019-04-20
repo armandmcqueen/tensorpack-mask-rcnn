@@ -140,7 +140,7 @@ _C.PREPROC.MAX_SIZE = 1333
 _C.PREPROC.PIXEL_MEAN = [123.675, 116.28, 103.53]
 _C.PREPROC.PIXEL_STD = [58.395, 57.12, 57.375]
 _C.PREPROC.PREDEFINED_PADDING = True
-_C.PREPROC.PADDING_SHAPES = [(800, 1000), (800, 1100), (800, 1200), (800, 1300), (800, 1350)]    # only add landscape shapes in decreasing h/w aspect ratio order - the corresponding portrait shape will be automatically created
+_C.PREPROC.PADDING_SHAPES = [(800, 1000), (800, 1200), (800, 1350)]    # only add landscape shapes in decreasing h/w aspect ratio order - the corresponding portrait shape will be automatically created
 
 # anchors -------------------------
 _C.RPN.ANCHOR_STRIDE = 16
