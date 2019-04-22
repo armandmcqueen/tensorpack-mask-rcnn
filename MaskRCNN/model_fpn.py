@@ -71,8 +71,8 @@ def fpn_model(features, fp16=False):
 
         return p2345 + [p6]
 
-@under_name_scope(name_scope="fpn_map_rois_to_levels")
-def fpn_map_rois_to_levels_batch(boxes):
+@under_name_scope()
+def fpn_map_rois_to_levels(boxes):
     """
     Assign boxes to level 2~5.
 
@@ -106,41 +106,7 @@ def fpn_map_rois_to_levels_batch(boxes):
 
 
 @under_name_scope()
-def fpn_map_rois_to_levels(boxes):
-    """
-    Assign boxes to level 2~5.
-
-    Args:
-        boxes (nx4):
-
-    Returns:
-        [tf.Tensor]: 4 tensors for level 2-5. Each tensor is a vector of indices of boxes in its level.
-        [tf.Tensor]: 4 tensors, the gathered boxes in each level.
-
-    Be careful that the returned tensor could be empty.
-    """
-    sqrtarea = tf.sqrt(tf_area(boxes))
-    level = tf.cast(tf.floor(
-        4 + tf.log(sqrtarea * (1. / 224) + 1e-6) * (1.0 / np.log(2))), tf.int32)
-
-    # RoI levels range from 2~5 (not 6)
-    level_ids = [
-        tf.where(level <= 2),
-        tf.where(tf.equal(level, 3)),   # == is not supported
-        tf.where(tf.equal(level, 4)),
-        tf.where(level >= 5)]
-    level_ids = [tf.reshape(x, [-1], name='roi_level{}_id'.format(i + 2))
-                 for i, x in enumerate(level_ids)]
-    num_in_levels = [tf.size(x, name='num_roi_level{}'.format(i + 2))
-                     for i, x in enumerate(level_ids)]
-    add_moving_summary(*num_in_levels)
-
-    level_boxes = [tf.gather(boxes, ids) for ids in level_ids]
-    return level_ids, level_boxes
-
-
-@under_name_scope(name_scope="multilevel_roi_align")
-def multilevel_roi_align_tf_op(features, rcnn_boxes, resolution):
+def multilevel_roi_align(features, rcnn_boxes, resolution):
     """
     Args:
         features ([tf.Tensor]): 4 FPN feature level 2-5
@@ -151,7 +117,7 @@ def multilevel_roi_align_tf_op(features, rcnn_boxes, resolution):
     """
     assert len(features) == 4, features
     # Reassign rcnn_boxes to levels
-    level_ids, level_boxes = fpn_map_rois_to_levels_batch(rcnn_boxes)
+    level_ids, level_boxes = fpn_map_rois_to_levels(rcnn_boxes)
     all_rois = []
 
     # Crop patches from corresponding levels
@@ -178,8 +144,7 @@ def multilevel_roi_align_tf_op(features, rcnn_boxes, resolution):
     return all_rois
 
 
-def multilevel_rpn_losses_batch_fixed_single_image(
-        multilevel_anchors, multilevel_label_logits, multilevel_box_logits):
+def multilevel_rpn_losses(multilevel_anchors, multilevel_label_logits, multilevel_box_logits):
     """
     Args:
         multilevel_anchors: #lvl RPNAnchors
@@ -210,8 +175,11 @@ def multilevel_rpn_losses_batch_fixed_single_image(
 
 
 @under_name_scope()
-def generate_fpn_proposals_batch_tf_op(multilevel_anchor_boxes,
-        multilevel_box_logits, multilevel_label_logits, orig_image_dims, batch_size):
+def generate_fpn_proposals(multilevel_anchor_boxes,
+                           multilevel_box_logits,
+                           multilevel_label_logits,
+                           orig_image_dims,
+                           batch_size):
     """
     Args:
         multilevel_box_logits:      #lvl [ BS x (NAx4) x H x W ] boxes
@@ -222,7 +190,7 @@ def generate_fpn_proposals_batch_tf_op(multilevel_anchor_boxes,
         boxes: K x 5 float
         scores:  (#lvl x BS x K) vector       (logits)
     """
-    prefix = "model_fpn.generate_fpn_proposals_batch_tf_op"
+    prefix = "model_fpn.generate_fpn_proposals"
     bug_prefix = "GEN_PROPOSALS_BUG fpn"
     num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
     assert len(multilevel_label_logits) == num_lvl

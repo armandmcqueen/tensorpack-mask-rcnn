@@ -29,11 +29,9 @@ from dataset import DetectionDataset
 from config import finalize_configs, config as cfg
 from data import get_all_anchors_fpn, get_eval_dataflow, get_train_dataflow, get_batch_train_dataflow
 from eval import DetectionResult, predict_image, multithread_predict_dataflow, EvalCallback
-from model_box import RPNAnchors, clip_boxes_batch, crop_and_resize_from_batch_codebase
-from model_fpn import fpn_model, generate_fpn_proposals_batch_tf_op, \
-    multilevel_roi_align_tf_op, multilevel_rpn_losses_batch_fixed_single_image
-from model_frcnn import BoxProposals, fastrcnn_predictions_batch, sample_fast_rcnn_targets_batch, \
-    fastrcnn_outputs_batch, FastRCNNHeadBatch
+from model_box import RPNAnchors, clip_boxes_batch, crop_and_resize
+from model_fpn import fpn_model, generate_fpn_proposals, multilevel_roi_align, multilevel_rpn_losses
+from model_frcnn import fastrcnn_predictions, sample_fast_rcnn_targets, fastrcnn_outputs, BoxClassHead
 from model_mrcnn import maskrcnn_loss
 from model_rpn import rpn_head
 from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
@@ -136,10 +134,6 @@ class ResNetFPNModel(DetectionModel):
 
         return ret
 
-    def slice_feature_and_anchors(self, p23456, anchors):
-        for i, stride in enumerate(cfg.FPN.ANCHOR_STRIDES):
-            with tf.name_scope('FPN_slice_lvl{}'.format(i)):
-                anchors[i] = anchors[i].narrow_to(p23456[i])
 
     def backbone(self, image):
         c2345 = resnet_fpn_backbone(image, cfg.BACKBONE.RESNET_NUM_BLOCKS, fp16=self.fp16)
@@ -163,7 +157,7 @@ class ResNetFPNModel(DetectionModel):
         multilevel_label_logits = [k[0] for k in rpn_outputs]
         multilevel_box_logits = [k[1] for k in rpn_outputs]
 
-        proposal_boxes, proposal_scores = generate_fpn_proposals_batch_tf_op(all_anchors_fpn,
+        proposal_boxes, proposal_scores = generate_fpn_proposals(all_anchors_fpn,
                                                                              multilevel_box_logits,
                                                                              multilevel_label_logits,
                                                                              image_shape2d,
@@ -207,7 +201,7 @@ class ResNetFPNModel(DetectionModel):
                 si_multilevel_box_logits_narrowed = [box_logits[:dims[0], :dims[1],:,:] for box_logits, dims in zip(si_multilevel_box_logits, featuremap_dims_per_level)]
                 si_multilevel_label_logits_narrowed = [label_logits[:dims[0], :dims[1],:] for label_logits, dims in zip(si_multilevel_label_logits, featuremap_dims_per_level)]
                     
-                si_losses = multilevel_rpn_losses_batch_fixed_single_image(si_multilevel_anchors_narrowed,
+                si_losses = multilevel_rpn_losses(si_multilevel_anchors_narrowed,
                                                                            si_multilevel_label_logits_narrowed,
                                                                            si_multilevel_box_logits_narrowed)
                 rpn_label_losses.append(si_losses[0])
@@ -238,26 +232,23 @@ class ResNetFPNModel(DetectionModel):
             input_gt_boxes = gt_boxes
             input_gt_labels = gt_labels
 
-            proposal_boxes, proposal_labels, proposal_gt_id_for_each_fg = sample_fast_rcnn_targets_batch(
+            proposal_boxes, proposal_labels, proposal_gt_id_for_each_fg = sample_fast_rcnn_targets(
                     input_proposal_boxes,
                     input_gt_boxes,
                     input_gt_labels,
                     prepadding_gt_counts,
                     batch_size=cfg.TRAIN.BATCH_SIZE_PER_GPU)
 
-            proposals = BoxProposals(proposal_boxes, proposal_labels, proposal_gt_id_for_each_fg)
-
-
-        roi_feature_fastrcnn = multilevel_roi_align_tf_op(features[:4], proposal_boxes, 7)
+        roi_feature_fastrcnn = multilevel_roi_align(features[:4], proposal_boxes, 7)
 
         fastrcnn_head_func = getattr(model_frcnn, cfg.FPN.FRCNN_HEAD_FUNC)
         head_feature = fastrcnn_head_func('fastrcnn', roi_feature_fastrcnn, fp16=self.fp16)
 
-        fastrcnn_label_logits, fastrcnn_box_logits = fastrcnn_outputs_batch('fastrcnn/outputs', head_feature, cfg.DATA.NUM_CLASS)
+        fastrcnn_label_logits, fastrcnn_box_logits = fastrcnn_outputs('fastrcnn/outputs', head_feature, cfg.DATA.NUM_CLASS)
 
         regression_weights = tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32)
 
-        fastrcnn_head = FastRCNNHeadBatch(fastrcnn_box_logits,
+        fastrcnn_head = BoxClassHead(fastrcnn_box_logits,
                                           fastrcnn_label_logits,
                                           regression_weights,
                                           prepadding_gt_counts,
@@ -276,26 +267,20 @@ class ResNetFPNModel(DetectionModel):
 
             all_losses = fastrcnn_head.losses(cfg.TRAIN.BATCH_SIZE_PER_GPU)
 
-
-
-
-        if self.training:
             if cfg.MODE_MASK:
                 gt_masks = targets[2]
 
                 maskrcnn_head_func = getattr(model_mrcnn, cfg.FPN.MRCNN_HEAD_FUNC)
 
-                roi_feature_maskrcnn = multilevel_roi_align_tf_op(
-                    features[:4], proposals.fg_boxes(), 14,
+                roi_feature_maskrcnn = multilevel_roi_align(
+                    features[:4], proposal_fg_boxes, 14,
                     name_scope='multilevel_roi_align_mask')
 
                 mask_logits = maskrcnn_head_func(
                         'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY, fp16=self.fp16)   # #fg x #cat x 28 x 28
 
-                proposal_fg_labels = proposals.fg_labels() # vector of length NumFG
 
-                proposal_fg_boxes = proposals.fg_boxes()
-                proposal_gt_id_for_each_fg = proposals.fg_inds_wrt_gt
+
 
                 per_image_target_masks_for_fg = []
                 per_image_fg_labels = []
@@ -313,7 +298,7 @@ class ResNetFPNModel(DetectionModel):
 
                     single_image_gt_masks = tf.expand_dims(single_image_gt_masks, axis=1)
 
-                    single_image_target_masks_for_fg = crop_and_resize_from_batch_codebase(single_image_gt_masks,
+                    single_image_target_masks_for_fg = crop_and_resize(single_image_gt_masks,
                                                                        single_image_fg_boxes,
                                                                        single_image_fg_inds_wrt_gt,
                                                                        28,
@@ -340,14 +325,14 @@ class ResNetFPNModel(DetectionModel):
             decoded_boxes = clip_boxes_batch(decoded_boxes, image_shape2d, tf.cast(batch_ids, dtype=tf.int32), name='fastrcnn_all_boxes')
             label_scores = fastrcnn_head.output_scores(name='fastrcnn_all_scores')
 
-            final_boxes, final_scores, final_labels, box_ids = fastrcnn_predictions_batch(decoded_boxes, label_scores, name_scope='output')
+            final_boxes, final_scores, final_labels, box_ids = fastrcnn_predictions(decoded_boxes, label_scores, name_scope='output')
             batch_indices = tf.gather(proposal_boxes[:,0], box_ids, name='output/batch_indices')
 
             if cfg.MODE_MASK:
 
                 batch_ind_boxes = tf.concat((tf.expand_dims(batch_indices, 1), final_boxes), axis=1)
 
-                roi_feature_maskrcnn = multilevel_roi_align_tf_op(features[:4], batch_ind_boxes, 14)
+                roi_feature_maskrcnn = multilevel_roi_align(features[:4], batch_ind_boxes, 14)
                 maskrcnn_head_func = getattr(model_mrcnn, cfg.FPN.MRCNN_HEAD_FUNC)
                 mask_logits = maskrcnn_head_func(
                     'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY, fp16=self.fp16)   # #fg x #cat x 28 x 28

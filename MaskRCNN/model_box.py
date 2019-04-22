@@ -101,85 +101,12 @@ def encode_bbox_target(boxes, anchors):
     return tf.reshape(encoded, tf.shape(boxes))
 
 
+
+
+
+
 @under_name_scope()
-def crop_and_resize(image, boxes, box_ind, crop_size, pad_border=True):
-    """
-    Aligned version of tf.image.crop_and_resize, following our definition of floating point boxes.
-
-    Args:
-        image: NCHW
-        boxes: nx4, x1y1x2y2
-        box_ind: (n,)
-        crop_size (int):
-    Returns:
-        n,C,size,size
-    """
-    assert isinstance(crop_size, int), crop_size
-    boxes = tf.stop_gradient(boxes)
-
-    # TF's crop_and_resize produces zeros on border
-    if pad_border:
-        # this can be quite slow
-        image = tf.pad(image, [[0, 0], [0, 0], [1, 1], [1, 1]], mode='SYMMETRIC')
-        boxes = boxes + 1
-
-    @under_name_scope()
-    def transform_fpcoor_for_tf(boxes, image_shape, crop_shape):
-        """
-        The way tf.image.crop_and_resize works (with normalized box):
-        Initial point (the value of output[0]): x0_box * (W_img - 1)
-        Spacing: w_box * (W_img - 1) / (W_crop - 1)
-        Use the above grid to bilinear sample.
-
-        However, what we want is (with fpcoor box):
-        Spacing: w_box / W_crop
-        Initial point: x0_box + spacing/2 - 0.5
-        (-0.5 because bilinear sample (in my definition) assumes floating point coordinate
-         (0.0, 0.0) is the same as pixel value (0, 0))
-
-        This function transform fpcoor boxes to a format to be used by tf.image.crop_and_resize
-
-        Returns:
-            y1x1y2x2
-        """
-        x0, y0, x1, y1 = tf.split(boxes, 4, axis=1)
-
-        spacing_w = (x1 - x0) / tf.cast(crop_shape[1], tf.float32)
-        spacing_h = (y1 - y0) / tf.cast(crop_shape[0], tf.float32)
-
-        imshape = [tf.cast(image_shape[0] - 1, tf.float32), tf.cast(image_shape[1] - 1, tf.float32)]
-        nx0 = (x0 + spacing_w / 2 - 0.5) / imshape[1]
-        ny0 = (y0 + spacing_h / 2 - 0.5) / imshape[0]
-
-        nw = spacing_w * tf.cast(crop_shape[1] - 1, tf.float32) / imshape[1]
-        nh = spacing_h * tf.cast(crop_shape[0] - 1, tf.float32) / imshape[0]
-
-        return tf.concat([ny0, nx0, ny0 + nh, nx0 + nw], axis=1)
-
-    # Expand bbox to a minium size of 1
-    # boxes_x1y1, boxes_x2y2 = tf.split(boxes, 2, axis=1)
-    # boxes_wh = boxes_x2y2 - boxes_x1y1
-    # boxes_center = tf.reshape((boxes_x2y2 + boxes_x1y1) * 0.5, [-1, 2])
-    # boxes_newwh = tf.maximum(boxes_wh, 1.)
-    # boxes_x1y1new = boxes_center - boxes_newwh * 0.5
-    # boxes_x2y2new = boxes_center + boxes_newwh * 0.5
-    # boxes = tf.concat([boxes_x1y1new, boxes_x2y2new], axis=1)
-
-    image_shape = tf.shape(image)[2:]
-    boxes = transform_fpcoor_for_tf(boxes, image_shape, [crop_size, crop_size])
-    image = tf.transpose(image, [0, 2, 3, 1])   # nhwc
-    ret = tf.image.crop_and_resize(
-        image, boxes, tf.cast(box_ind, tf.int32),
-        crop_size=[crop_size, crop_size])
-    ret = tf.transpose(ret, [0, 3, 1, 2])   # ncss
-    return ret
-
-
-
-
-
-@under_name_scope(name_scope="crop_and_resize")
-def crop_and_resize_from_batch_codebase(image, boxes, box_ind, crop_size, orig_image_dims, pad_border=True, verbose_batch_index=None):
+def crop_and_resize(image, boxes, box_ind, crop_size, orig_image_dims, pad_border=True, verbose_batch_index=None):
     """
     Aligned version of tf.image.crop_and_resize, following our definition of floating point boxes.
 
@@ -268,25 +195,6 @@ def crop_and_resize_from_batch_codebase(image, boxes, box_ind, crop_size, orig_i
     return ret
 
 
-@under_name_scope()
-def roi_align(featuremap, boxes, resolution):
-    """
-    Args:
-        featuremap: 1xCxHxW
-        boxes: Nx4 floatbox
-        resolution: output spatial resolution
-
-    Returns:
-        NxCx res x res
-    """
-    # sample 4 locations per roi bin
-    ret = crop_and_resize(
-        featuremap, boxes,
-        tf.zeros([tf.shape(boxes)[0]], dtype=tf.int32),
-        resolution * 2)
-    ret = tf.nn.avg_pool(ret, [1, 1, 2, 2], [1, 1, 2, 2], padding='SAME', data_format='NCHW')
-    return ret
-
 
 class RPNAnchors(namedtuple('_RPNAnchors', ['boxes', 'gt_labels', 'gt_boxes'])):
     """
@@ -299,20 +207,6 @@ class RPNAnchors(namedtuple('_RPNAnchors', ['boxes', 'gt_labels', 'gt_boxes'])):
 
     def decode_logits(self, logits):
         return decode_bbox_target(logits, self.boxes)
-
-    @under_name_scope()
-    def narrow_to(self, featuremap):
-        """
-        Slice anchors to the spatial size of this featuremap.
-        """
-        shape2d = tf.shape(featuremap)[2:]  # h,w
-        slice3d = tf.concat([shape2d, [-1]], axis=0)
-        slice4d = tf.concat([shape2d, [-1, -1]], axis=0)
-        boxes = tf.slice(self.boxes, [0, 0, 0, 0], slice4d)
-        gt_labels = tf.slice(self.gt_labels, [0, 0, 0], slice3d)
-        gt_boxes = tf.slice(self.gt_boxes, [0, 0, 0, 0], slice4d)
-        return RPNAnchors(boxes, gt_labels, gt_boxes)
-
 
     @under_name_scope()
     def narrow_to_featuremap_dims(self, featuremap_dims):
