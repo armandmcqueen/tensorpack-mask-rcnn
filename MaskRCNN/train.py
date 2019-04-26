@@ -623,7 +623,7 @@ if __name__ == '__main__':
     training_duration_secs = time.time() - start_time
     logger.info(f'Total duration: {humanize_float(training_duration_secs)}')
 
-    time.sleep(30)
+    time.sleep(600)
 
     bbox_map_line = subprocess.check_output(f'tail -100 {args.logdir}/log.log | grep "mAP(bbox)/IoU=0.5:0.95"',
                                             shell=True).decode("utf-8")
