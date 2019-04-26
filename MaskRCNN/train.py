@@ -623,7 +623,6 @@ if __name__ == '__main__':
     training_duration_secs = time.time() - start_time
     logger.info(f'Total duration: {humanize_float(training_duration_secs)}')
 
-    time.sleep(600)
 
     if is_horovod and hvd.rank() != 0:
         pass
