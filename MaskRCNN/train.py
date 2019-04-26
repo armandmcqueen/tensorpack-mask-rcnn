@@ -631,8 +631,8 @@ if __name__ == '__main__':
                                                 shell=True).decode("utf-8")
         segm_map_line = subprocess.check_output(f'tail -100 {args.logdir}/log.log | grep "mAP(segm)/IoU=0.5:0.95"',
                                                 shell=True).decode("utf-8")
-        bbox_map = bbox_map_line.strip().split(':')[-1]
-        segm_map = segm_map_line.strip().split(':')[-1]
+        bbox_map = float(bbox_map_line.split(':')[-1].strip())
+        segm_map = float(segm_map_line.split(':')[-1].strip())
 
         results = {
             'duration': training_duration_secs,
