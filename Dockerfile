@@ -11,7 +11,7 @@ RUN wget https://github.com/armandmcqueen/tensorpack-mask-rcnn/releases/download
     pip install tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl && \
     rm tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl
 
-RUN pip install keras h5py
+RUN pip install keras h5py benchmarkai-client-lib
 
 # Install Horovod, temporarily using CUDA stubs
 RUN ldconfig /usr/local/cuda-10.0/targets/x86_64-linux/lib/stubs && \
