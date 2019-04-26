@@ -625,17 +625,20 @@ if __name__ == '__main__':
 
     time.sleep(600)
 
-    bbox_map_line = subprocess.check_output(f'tail -100 {args.logdir}/log.log | grep "mAP(bbox)/IoU=0.5:0.95"',
-                                            shell=True).decode("utf-8")
-    segm_map_line = subprocess.check_output(f'tail -100 {args.logdir}/log.log | grep "mAP(segm)/IoU=0.5:0.95"',
-                                            shell=True).decode("utf-8")
-    bbox_map = bbox_map_line.strip().split(':')[-1]
-    segm_map = segm_map_line.strip().split(':')[-1]
+    if is_horovod and hvd.rank() != 0:
+        pass
+    else:
+        bbox_map_line = subprocess.check_output(f'tail -100 {args.logdir}/log.log | grep "mAP(bbox)/IoU=0.5:0.95"',
+                                                shell=True).decode("utf-8")
+        segm_map_line = subprocess.check_output(f'tail -100 {args.logdir}/log.log | grep "mAP(segm)/IoU=0.5:0.95"',
+                                                shell=True).decode("utf-8")
+        bbox_map = bbox_map_line.strip().split(':')[-1]
+        segm_map = segm_map_line.strip().split(':')[-1]
 
-    results = {
-        'duration': training_duration_secs,
-        'bbox_map': bbox_map,
-        'segm_map': segm_map
-    }
+        results = {
+            'duration': training_duration_secs,
+            'bbox_map': bbox_map,
+            'segm_map': segm_map
+        }
 
-    emit(results)
+        emit(results)
