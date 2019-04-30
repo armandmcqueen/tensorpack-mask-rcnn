@@ -44,7 +44,7 @@ def fpn_model(features, fp16=False):
         #     x = tf.image.resize_nearest_neighbor(x, shape2d * 2, align_corners=True)
         #     x = tf.transpose(x, [0, 3, 1, 2])
         #     return x
-    
+
     with mixed_precision_scope(mixed=fp16):
       with argscope(Conv2D, data_format='channels_first',
                   activation=tf.identity, use_bias=True,
@@ -65,7 +65,7 @@ def fpn_model(features, fp16=False):
         if use_gn:
             p2345 = [GroupNorm('gn_p{}'.format(i + 2), c) for i, c in enumerate(p2345)]
         p6 = MaxPooling('maxpool_p6', p2345[-1], pool_size=1, strides=2, data_format='channels_first', padding='VALID')
-        
+
         if fp16:
             return [tf.cast(l, tf.float32) for l in p2345] + [tf.cast(p6, tf.float32)]
 
@@ -125,7 +125,7 @@ def multilevel_roi_align(features, rcnn_boxes, resolution):
         with tf.name_scope('roi_level{}'.format(i + 2)):
 
             # coordinate system fix for boxes
-            boxes = tf.concat((boxes[:,:1], boxes[:,1:] - 0.5*cfg.FPN.ANCHOR_STRIDES[i]), axis=1) 
+            boxes = tf.concat((boxes[:,:1], boxes[:,1:] - 0.5*cfg.FPN.ANCHOR_STRIDES[i]), axis=1)
 
             roi_feature_maps = tf.roi_align(featuremap,
                                             boxes,
@@ -146,6 +146,9 @@ def multilevel_roi_align(features, rcnn_boxes, resolution):
 
 def multilevel_rpn_losses(multilevel_anchors, multilevel_label_logits, multilevel_box_logits):
     """
+    Calculate the rpn loss for all FPN layers for a single image.
+
+
     Args:
         multilevel_anchors: #lvl RPNAnchors
         multilevel_label_logits: #lvl tensors of shape HxWxA

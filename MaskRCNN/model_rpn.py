@@ -10,16 +10,29 @@ from tensorpack.tfutils.summary import add_moving_summary
 from config import config as cfg
 from model_box import clip_boxes
 from utils.mixed_precision import mixed_precision_scope
+from performance import print_buildtime_shape, print_runtime_shape, print_runtime_tensor
+import time
 
 @layer_register(log_shape=True)
 @auto_reuse_variable_scope
 def rpn_head(featuremap, channel, num_anchors, fp16=False):
     """
-    Returns:
-        label_logits: BS x fH x fW x NA
-        box_logits: BS x (NAx4) x fH x fW
-    """
+    The RPN head that takes the feature map from the FPN and outputs bounding box logits.
 
+    For every pixel on the feature maps, there are a certain number of anchors.
+    The output will be:
+    label logits: indicate whether there is an object for a certain anchor in one pixel
+    box logits: The encoded box logits from fast-rccn paper https://arxiv.org/abs/1506.01497
+                page 5, in order to be consistent with the ground truth encoded boxes
+
+    Args:
+        featuremap: feature map for a single FPN layer, i.e. one from P23456, BS x NumChannel x H x W
+        channel: # channels of the feature map, scalar, default 256
+        num_anchors(NA): # of anchors for each pixel in the current feature map, scalar, default 3
+    Returns:
+        label_logits: BS x H x W x NA
+        box_logits: BS x (NA * 4) x H x W, encoded
+    """
     if fp16:
         featuremap = tf.cast(featuremap, tf.float16)
 
@@ -27,12 +40,13 @@ def rpn_head(featuremap, channel, num_anchors, fp16=False):
         with argscope(Conv2D, data_format='channels_first',
                       kernel_initializer=tf.random_normal_initializer(stddev=0.01)):
             hidden = Conv2D('conv0', featuremap, channel, 3, activation=tf.nn.relu)
-
+            # BS x N_channels x H x W
             label_logits = Conv2D('class', hidden, num_anchors, 1)
+            # BS x NA x H x W
             box_logits = Conv2D('box', hidden, 4 * num_anchors, 1)
-            # BS, NA(*4), im/16, im/16 (NCHW)
+            # BS x (NA*4) x H x W
 
-            label_logits = tf.transpose(label_logits, [0, 2, 3, 1])  # BS x fH x fW x NA
+            label_logits = tf.transpose(label_logits, [0, 2, 3, 1])  # BS x H x W x NA
 
     if fp16:
         label_logits = tf.cast(label_logits, tf.float32)
@@ -44,12 +58,16 @@ def rpn_head(featuremap, channel, num_anchors, fp16=False):
 @under_name_scope()
 def rpn_losses(anchor_labels, anchor_boxes, label_logits, box_logits):
     """
-    Args:
-        anchor_labels: fHxfWxNA
-        anchor_boxes: fHxfWxNAx4, encoded
-        label_logits:  fHxfWxNA
-        box_logits: fHxfWxNAx4
+    Calculate the rpn loss for one FPN layer for a single image.
+    The ground truth(GT) anchor labels and anchor boxes has been preprocessed to fit
+    the dimensions of FPN feature map. The GT boxes are encoded from fast-rcnn paper
+    https://arxiv.org/abs/1506.01497 page 5.
 
+    Args:
+        anchor_labels: GT anchor labels, H x W x NA
+        anchor_boxes: GT boxes for each anchor, H x W x NA x 4, encoded
+        label_logits: label logits from the rpn head, H x W x NA
+        box_logits: box logits from the rpn head, H x W x NA x 4
     Returns:
         label_loss, box_loss
     """
@@ -103,6 +121,3 @@ def rpn_losses(anchor_labels, anchor_boxes, label_logits, box_logits):
 
     # add_moving_summary(label_loss, box_loss, nr_valid, nr_pos)
     return [label_loss, box_loss]
-
-
-
