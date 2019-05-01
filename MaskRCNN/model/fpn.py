@@ -8,11 +8,9 @@ from tensorpack.models import Conv2D, FixedUnPooling, MaxPooling, layer_register
 from tensorpack.tfutils.argscope import argscope
 from tensorpack.tfutils.scope_utils import under_name_scope
 from tensorpack.tfutils.summary import add_moving_summary
-from tensorpack.tfutils.tower import get_current_tower_context
 
-from basemodel import GroupNorm
+from model.backbone import GroupNorm
 from config import config as cfg
-from model_rpn import rpn_losses
 from utils.box_ops import area as tf_area
 from utils.mixed_precision import mixed_precision_scope
 
@@ -144,104 +142,3 @@ def multilevel_roi_align(features, rcnn_boxes, resolution):
     return all_rois
 
 
-def multilevel_rpn_losses(multilevel_anchors, multilevel_label_logits, multilevel_box_logits):
-    """
-    Calculate the rpn loss for all FPN layers for a single image.
-
-
-    Args:
-        multilevel_anchors: #lvl RPNAnchors
-        multilevel_label_logits: #lvl tensors of shape HxWxA
-        multilevel_box_logits: #lvl tensors of shape HxWxAx4
-    Returns:
-        label_loss, box_loss
-    """
-    num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
-    assert len(multilevel_anchors) == num_lvl
-    assert len(multilevel_label_logits) == num_lvl
-    assert len(multilevel_box_logits) == num_lvl
-
-    losses = []
-    with tf.name_scope('single_image_rpn_losses'):
-        for lvl in range(num_lvl):
-            anchors = multilevel_anchors[lvl]
-            label_loss, box_loss = rpn_losses(
-                anchors.gt_labels, anchors.encoded_gt_boxes(),
-                multilevel_label_logits[lvl], multilevel_box_logits[lvl],
-                name_scope='level{}'.format(lvl + 2))
-            losses.extend([label_loss, box_loss])
-
-        total_label_loss = tf.add_n(losses[::2])
-        total_box_loss = tf.add_n(losses[1::2])
-    return [total_label_loss, total_box_loss]
-
-
-
-@under_name_scope()
-def generate_fpn_proposals(multilevel_anchor_boxes,
-                           multilevel_box_logits,
-                           multilevel_label_logits,
-                           orig_image_dims,
-                           batch_size):
-    """
-    Args:
-        multilevel_box_logits:      #lvl [ BS x (NAx4) x H x W ] boxes
-        multilevel_label_logits:    #lvl [ BS x H x W x A ] tensors
-        orig_image_dimensions: Original (prepadding) image dimensions (h,w,c)   BS x 3
-
-    Returns:
-        boxes: K x 5 float
-        scores:  (#lvl x BS x K) vector       (logits)
-    """
-    prefix = "model_fpn.generate_fpn_proposals"
-    bug_prefix = "GEN_PROPOSALS_BUG fpn"
-    num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
-    assert len(multilevel_label_logits) == num_lvl
-    orig_images_hw = orig_image_dims[:, :2]
-
-    training = get_current_tower_context().is_training
-    all_boxes = []
-    all_scores = []
-    if cfg.FPN.PROPOSAL_MODE == 'Level':
-        fpn_nms_topk = cfg.RPN.TRAIN_PER_LEVEL_NMS_TOPK*batch_size if training else cfg.RPN.TEST_PER_LEVEL_NMS_TOPK
-        for lvl in range(num_lvl):
-            with tf.name_scope(f'Lvl{lvl}'):
-                im_info = tf.cast(orig_images_hw, tf.float32)
-                # h, w
-
-                scores = multilevel_label_logits[lvl]
-                bbox_deltas = tf.transpose(multilevel_box_logits[lvl],[0, 2, 3, 1])
-
-                single_level_anchor_boxes = multilevel_anchor_boxes[lvl]
-                single_level_anchor_boxes = tf.reshape(single_level_anchor_boxes, (-1, 4))
-
-                # https://caffe2.ai/docs/operators-catalogue.html#generateproposals
-                rois, rois_probs = tf.generate_bounding_box_proposals(scores,
-                                                                   bbox_deltas,
-                                                                   im_info,
-                                                                   single_level_anchor_boxes,
-                                                                   spatial_scale=1.0 / cfg.FPN.ANCHOR_STRIDES[lvl],
-                                                                   pre_nms_topn=fpn_nms_topk,
-                                                                   post_nms_topn=fpn_nms_topk,
-                                                                   nms_threshold=cfg.RPN.PROPOSAL_NMS_THRESH,
-                                                                   min_size=cfg.RPN.MIN_SIZE)
-
-                # rois_probs = print_runtime_shape(f'rois_probs, lvl {lvl}', rois_probs, prefix=bug_prefix)
-                all_boxes.append(rois)
-                all_scores.append(rois_probs)
-
-        proposal_boxes = tf.concat(all_boxes, axis=0)  # (#lvl x BS) x K x 5
-        proposal_boxes = tf.reshape(proposal_boxes, [-1, 5])        # (#lvl x BS x K) x 5
-
-        proposal_scores = tf.concat(all_scores, axis=0)  # (#lvl x BS) x K
-        proposal_scores = tf.reshape(proposal_scores, [-1])         # (#lvl x BS x 5) vector
-
-        proposal_topk = tf.minimum(tf.size(proposal_scores), fpn_nms_topk)
-        proposal_scores, topk_indices = tf.nn.top_k(proposal_scores, k=proposal_topk, sorted=False)
-        proposal_boxes = tf.gather(proposal_boxes, topk_indices)
-
-    else:
-        raise RuntimeError("Only level-wise predictions are supported with batches")
-
-    return tf.stop_gradient(proposal_boxes, name='boxes'), \
-        tf.stop_gradient(proposal_scores, name='scores')

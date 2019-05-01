@@ -8,7 +8,7 @@ from tensorpack.tfutils.common import get_tf_version_tuple
 from tensorpack.tfutils.scope_utils import under_name_scope
 from tensorpack.tfutils.summary import add_moving_summary
 
-from basemodel import GroupNorm
+from model.backbone import GroupNorm
 from config import config as cfg
 from utils.mixed_precision import mixed_precision_scope
 

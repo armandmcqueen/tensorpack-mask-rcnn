@@ -184,10 +184,10 @@ _C.FPN.PROPOSAL_MODE = 'Level'  # 'Level', 'Joint'
 _C.FPN.NUM_CHANNEL = 256
 _C.FPN.NORM = 'None'  # 'None', 'GN'
 # The head option is only used in FPN. For C4 models, the head is C5
-_C.FPN.FRCNN_HEAD_FUNC = 'fastrcnn_2fc_head'
-# choices: fastrcnn_2fc_head, fastrcnn_4conv1fc_{,gn_}head
-_C.FPN.FRCNN_CONV_HEAD_DIM = 256
-_C.FPN.FRCNN_FC_HEAD_DIM = 1024
+_C.FPN.BOXCLASS_HEAD_FUNC = 'boxclass_2fc_head'
+# choices: boxclass_2fc_head, boxclass_4conv1fc_{,gn_}head
+_C.FPN.BOXCLASS_CONV_HEAD_DIM = 256
+_C.FPN.BOXCLASS_FC_HEAD_DIM = 1024
 _C.FPN.MRCNN_HEAD_FUNC = 'maskrcnn_up4conv_head'   # choices: maskrcnn_up4conv_{,gn_}head
 
 # Mask-RCNN
@@ -229,7 +229,7 @@ def finalize_configs(is_training):
         size_mult = _C.FPN.RESOLUTION_REQUIREMENT * 1.
         _C.PREPROC.MAX_SIZE = np.ceil(_C.PREPROC.MAX_SIZE / size_mult) * size_mult
         assert _C.FPN.PROPOSAL_MODE in ['Level', 'Joint']
-        assert _C.FPN.FRCNN_HEAD_FUNC.endswith('_head')
+        assert _C.FPN.BOXCLASS_HEAD_FUNC.endswith('_head')
         assert _C.FPN.MRCNN_HEAD_FUNC.endswith('_head')
         assert _C.FPN.NORM in ['None', 'GN']
 
