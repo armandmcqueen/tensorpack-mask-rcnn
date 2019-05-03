@@ -13,6 +13,7 @@ from model.backbone import GroupNorm
 from config import config as cfg
 from utils.box_ops import area as tf_area
 from utils.mixed_precision import mixed_precision_scope
+from performance import print_buildtime_shape, print_runtime_shape
 
 
 @layer_register(log_shape=True)
@@ -75,15 +76,17 @@ def fpn_map_rois_to_levels(boxes):
     Assign boxes to level 2~5.
 
     Args:
-        boxes (nx4):
+        boxes: t x 5, t is the number of sampled boxes
 
     Returns:
-        [tf.Tensor]: 4 tensors for level 2-5. Each tensor is a vector of indices of boxes in its level.
-        [tf.Tensor]: 4 tensors, the gathered boxes in each level.
+        level_ids[tf.Tensor]: 4 tensors for level 2-5. Each tensor is a vector of indices of boxes in its level.
+        level_boxes[tf.Tensor]: 4 tensors, the gathered boxes in each level.
 
     Be careful that the returned tensor could be empty.
     """
     sqrtarea = tf.sqrt(tf_area(boxes[:,1:]))
+    # Map equation from the FPN paper: https://arxiv.org/abs/1612.03144, page 4
+    # k = [k0 + log2(sqrt(wh)/224)]
     level = tf.cast(tf.floor(
         4 + tf.log(sqrtarea * (1. / 224) + 1e-6) * (1.0 / np.log(2))), tf.int32)
 
@@ -107,11 +110,11 @@ def fpn_map_rois_to_levels(boxes):
 def multilevel_roi_align(features, rcnn_boxes, resolution):
     """
     Args:
-        features ([tf.Tensor]): 4 FPN feature level 2-5
-        rcnn_boxes (tf.Tensor): nx4 boxes
-        resolution (int): output spatial resolution
+        features ([tf.Tensor]): 4 FPN feature level P2-5, each with BS X NumChannel X H_feature X W_feature
+        rcnn_boxes (tf.Tensor): t x 5, t is the number of sampled boxes
+        resolution (int): output spatial resolution, scalar
     Returns:
-        NxC x res x res
+        all_rois: Num_fg_boxes x NumChannel x H_roi x W_roi
     """
     assert len(features) == 4, features
     # Reassign rcnn_boxes to levels
@@ -140,5 +143,3 @@ def multilevel_roi_align(features, rcnn_boxes, resolution):
     level_id_invert_perm = tf.invert_permutation(level_id_perm)
     all_rois = tf.gather(all_rois, level_id_invert_perm)
     return all_rois
-
-

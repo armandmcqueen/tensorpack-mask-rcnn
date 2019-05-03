@@ -10,7 +10,7 @@ from utils.box_ops import pairwise_iou_batch
 def sample_fast_rcnn_targets(boxes, gt_boxes, gt_labels, orig_gt_counts, batch_size):
     """
     Sample some boxes from all proposals for training.
-    #fg is guaranteed to be > 0, because ground truth boxes will be added as proposals.
+    #fg(foreground) is guaranteed to be > 0, because ground truth boxes will be added as proposals.
     Args:
         boxes: (#lvl x BS x K) x 5 region proposals. [batch_index, floatbox] aka Nx5
         gt_boxes: BS x MaxGT x 4, floatbox

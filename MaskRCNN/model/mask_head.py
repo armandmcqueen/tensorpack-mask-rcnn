@@ -11,19 +11,20 @@ from tensorpack.tfutils.summary import add_moving_summary
 from model.backbone import GroupNorm
 from config import config as cfg
 from utils.mixed_precision import mixed_precision_scope
-
+from performance import print_buildtime_shape, print_runtime_shape
 
 @under_name_scope()
 def maskrcnn_loss(mask_logits, fg_labels, fg_target_masks):
     """
     Args:
-        mask_logits: #fg x #category xhxw
-        fg_labels: #fg, in 1~#class, int64
-        fg_target_masks: #fgxhxw, float32
+        mask_logits: Num_fg_boxes x num_category x H_roi x W_roi
+        fg_labels: 1-D Num_fg_boxes, in 1~#class, int64
+        fg_target_masks: Num_fg_boxes x H_roi x W_roi, float32
+    Returns: mask loss
     """
-    num_fg = tf.size(fg_labels, out_type=tf.int64)
-    indices = tf.stack([tf.range(num_fg), fg_labels - 1], axis=1)  # #fgx2
-    mask_logits = tf.gather_nd(mask_logits, indices)  # #fgxhxw
+    num_fg = tf.size(fg_labels, out_type=tf.int64) # scalar Num_fg_boxes
+    indices = tf.stack([tf.range(num_fg), fg_labels - 1], axis=1)  # Num_fg_boxes x 2
+    mask_logits = tf.gather_nd(mask_logits, indices)  # Num_fg_boxes x H_roi x W_roi
     mask_probs = tf.sigmoid(mask_logits)
 
     # add some training visualizations to tensorboard
@@ -37,6 +38,7 @@ def maskrcnn_loss(mask_logits, fg_labels, fg_target_masks):
         labels=fg_target_masks, logits=mask_logits)
     loss = tf.reduce_mean(loss, name='maskrcnn_loss')
 
+    # Calculate the accuracy
     pred_label = mask_probs > 0.5
     truth_label = fg_target_masks > 0.5
     accuracy = tf.reduce_mean(
@@ -56,13 +58,13 @@ def maskrcnn_loss(mask_logits, fg_labels, fg_target_masks):
 def maskrcnn_upXconv_head(feature, num_category, num_convs, norm=None, fp16=False):
     """
     Args:
-        feature (NxCx s x s): size is 7 in C4 models and 14 in FPN models.
-        num_category(int):
+        feature: roi feature maps, Num_boxes x NumChannel x H_roi x W_roi,
+        num_category(int): Number of total classes
         num_convs (int): number of convolution layers
         norm (str or None): either None or 'GN'
 
     Returns:
-        mask_logits (N x num_category x 2s x 2s):
+        mask_logits: Num_boxes x num_category x (2 * H_roi) x (2 * W_roi)
     """
     assert norm in [None, 'GN'], norm
     l = feature
@@ -80,16 +82,16 @@ def maskrcnn_upXconv_head(feature, num_category, num_convs, norm=None, fp16=Fals
                 if fp16: l = tf.cast(l, tf.float32)
                 l = GroupNorm('gn{}'.format(k), l)
                 if fp16: l = tf.cast(l, tf.float16)
-        l = Conv2DTranspose('deconv', l, cfg.MRCNN.HEAD_DIM, 2, strides=2, activation=tf.nn.relu)
+        l = Conv2DTranspose('deconv', l, cfg.MRCNN.HEAD_DIM, 2, strides=2, activation=tf.nn.relu) # 2x upsampling
         l = Conv2D('conv', l, num_category, 1)
     if fp16:
         l = tf.cast(l, tf.float32)
     return l
 
-
+# Without Group Norm
 def maskrcnn_up4conv_head(*args, **kwargs):
     return maskrcnn_upXconv_head(*args, num_convs=4, **kwargs)
 
-
+# With Group Norm
 def maskrcnn_up4conv_gn_head(*args, **kwargs):
     return maskrcnn_upXconv_head(*args, num_convs=4, norm='GN', **kwargs)

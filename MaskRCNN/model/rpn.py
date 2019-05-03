@@ -11,6 +11,7 @@ from tensorpack.tfutils.summary import add_moving_summary
 from config import config as cfg
 from model_box import clip_boxes
 from utils.mixed_precision import mixed_precision_scope
+from performance import print_buildtime_shape, print_runtime_shape
 
 @layer_register(log_shape=True)
 @auto_reuse_variable_scope
@@ -20,15 +21,16 @@ def rpn_head(featuremap, channel, num_anchors, fp16=False):
     For every pixel on the feature maps, there are a certain number of anchors.
     The output will be:
     label logits: indicate whether there is an object for a certain anchor in one pixel
-    box logits: The encoded box logits from fast-rccn paper https://arxiv.org/abs/1506.01497
+    box logits: The encoded box logits from fast-rcnn paper https://arxiv.org/abs/1506.01497
                 page 5, in order to be consistent with the ground truth encoded boxes
+
     Args:
-        featuremap: feature map for a single FPN layer, i.e. one from P23456, BS x NumChannel x H x W
-        channel: # channels of the feature map, scalar, default 256
+        featuremap: feature map for a single FPN layer, i.e. one from P23456, BS x NumChannel x H_feature x W_feature
+        channel: NumChannel of the feature map, scalar, default 256
         num_anchors(NA): # of anchors for each pixel in the current feature map, scalar, default 3
     Returns:
-        label_logits: BS x H x W x NA
-        box_logits: BS x (NA * 4) x H x W, encoded
+        label_logits: BS x H_feature x W_feature x NA
+        box_logits: BS x (NA * 4) x H_feature x W_feature, encoded
     """
     if fp16:
         featuremap = tf.cast(featuremap, tf.float16)
@@ -37,13 +39,13 @@ def rpn_head(featuremap, channel, num_anchors, fp16=False):
         with argscope(Conv2D, data_format='channels_first',
                       kernel_initializer=tf.random_normal_initializer(stddev=0.01)):
             hidden = Conv2D('conv0', featuremap, channel, 3, activation=tf.nn.relu)
-            # BS x N_channels x H x W
+            # BS x NumChannel x H_feature x W_feature
             label_logits = Conv2D('class', hidden, num_anchors, 1)
-            # BS x NA x H x W
+            # BS x NA x H_feature x W_feature
             box_logits = Conv2D('box', hidden, 4 * num_anchors, 1)
-            # BS x (NA*4) x H x W
+            # BS x (NA*4) x H_feature x W_feature
 
-            label_logits = tf.transpose(label_logits, [0, 2, 3, 1])  # BS x H x W x NA
+            label_logits = tf.transpose(label_logits, [0, 2, 3, 1])  # BS x H_feature x W_feature x NA
 
     if fp16:
         label_logits = tf.cast(label_logits, tf.float32)
@@ -60,11 +62,12 @@ def rpn_losses(anchor_labels, anchor_boxes, label_logits, box_logits):
     The ground truth(GT) anchor labels and anchor boxes has been preprocessed to fit
     the dimensions of FPN feature map. The GT boxes are encoded from fast-rcnn paper
     https://arxiv.org/abs/1506.01497 page 5.
+
     Args:
-        anchor_labels: GT anchor labels, H x W x NA
-        anchor_boxes: GT boxes for each anchor, H x W x NA x 4, encoded
-        label_logits: label logits from the rpn head, H x W x NA
-        box_logits: box logits from the rpn head, H x W x NA x 4
+        anchor_labels: GT anchor labels, H_feature x W_feature x NA
+        anchor_boxes: GT boxes for each anchor, H_feature x W_feature x NA x 4, encoded
+        label_logits: label logits from the rpn head, H_feature x W_feature x NA
+        box_logits: box logits from the rpn head, H_feature x W_feature x NA x 4
     Returns:
         label_loss, box_loss
     """
@@ -123,10 +126,11 @@ def rpn_losses(anchor_labels, anchor_boxes, label_logits, box_logits):
 def multilevel_rpn_losses(multilevel_anchors, multilevel_label_logits, multilevel_box_logits):
     """
     Calculate the rpn loss for all FPN layers for a single image.
+
     Args:
         multilevel_anchors: #lvl RPNAnchors
-        multilevel_label_logits: #lvl tensors of shape HxWxA
-        multilevel_box_logits: #lvl tensors of shape HxWxAx4
+        multilevel_label_logits: [H_feature x W_feature x NA] * Num_levels
+        multilevel_box_logits: [H_feature x W_feature x NA x 4] * Num_levels
     Returns:
         label_loss, box_loss
     """
@@ -158,13 +162,16 @@ def generate_fpn_proposals(multilevel_anchor_boxes,
                            orig_image_dims,
                            batch_size):
     """
+    Generating the rois from the box logits and pick K with top label scores as
+    the box proposals.
+
     Args:
-        multilevel_box_logits:      #lvl [ BS x (NAx4) x H x W ] boxes
-        multilevel_label_logits:    #lvl [ BS x H x W x A ] tensors
+        multilevel_box_logits:      #lvl [ BS x (NA * 4) x H_feature x W_feature ] boxes
+        multilevel_label_logits:    #lvl [ BS x H_feature x W_feature x NA ] tensors
         orig_image_dimensions: Original (prepadding) image dimensions (h,w,c)   BS x 3
     Returns:
         boxes: K x 5 float
-        scores:  (#lvl x BS x K) vector       (logits)
+        scores:  1-D, K (logits)
     """
     prefix = "model_fpn.generate_fpn_proposals"
     bug_prefix = "GEN_PROPOSALS_BUG fpn"
@@ -180,15 +187,15 @@ def generate_fpn_proposals(multilevel_anchor_boxes,
         for lvl in range(num_lvl):
             with tf.name_scope(f'Lvl{lvl}'):
                 im_info = tf.cast(orig_images_hw, tf.float32)
-                # h, w
 
-                scores = multilevel_label_logits[lvl]
-                bbox_deltas = tf.transpose(multilevel_box_logits[lvl],[0, 2, 3, 1])
+                scores = multilevel_label_logits[lvl] # BS x H_feature x W_featurex NA
+                bbox_deltas = tf.transpose(multilevel_box_logits[lvl],[0, 2, 3, 1]) #BS x H_feature x W_feature x (NA * 4)
 
                 single_level_anchor_boxes = multilevel_anchor_boxes[lvl]
                 single_level_anchor_boxes = tf.reshape(single_level_anchor_boxes, (-1, 4))
-
                 # https://caffe2.ai/docs/operators-catalogue.html#generateproposals
+                # roi: (# boxes for a single level) x 5, the 5 colunms arranged as: batch_index, x_1, y_1, x_2, y_2
+                # rois_probs: 1-D, # boxes for a single level
                 rois, rois_probs = tf.generate_bounding_box_proposals(scores,
                                                                    bbox_deltas,
                                                                    im_info,
@@ -198,20 +205,19 @@ def generate_fpn_proposals(multilevel_anchor_boxes,
                                                                    post_nms_topn=fpn_nms_topk,
                                                                    nms_threshold=cfg.RPN.PROPOSAL_NMS_THRESH,
                                                                    min_size=cfg.RPN.MIN_SIZE)
-
                 # rois_probs = print_runtime_shape(f'rois_probs, lvl {lvl}', rois_probs, prefix=bug_prefix)
                 all_boxes.append(rois)
                 all_scores.append(rois_probs)
 
-        proposal_boxes = tf.concat(all_boxes, axis=0)  # (#lvl x BS) x K x 5
-        proposal_boxes = tf.reshape(proposal_boxes, [-1, 5])        # (#lvl x BS x K) x 5
+        proposal_boxes = tf.concat(all_boxes, axis=0)  # Num_all_rois x 5
+        proposal_boxes = tf.reshape(proposal_boxes, [-1, 5]) # Num_all_rois x 5
 
-        proposal_scores = tf.concat(all_scores, axis=0)  # (#lvl x BS) x K
-        proposal_scores = tf.reshape(proposal_scores, [-1])         # (#lvl x BS x 5) vector
+        proposal_scores = tf.concat(all_scores, axis=0)  # 1-D Num_all_rois
+        proposal_scores = tf.reshape(proposal_scores, [-1])  # 1-D Num_all_rois
 
         proposal_topk = tf.minimum(tf.size(proposal_scores), fpn_nms_topk)
         proposal_scores, topk_indices = tf.nn.top_k(proposal_scores, k=proposal_topk, sorted=False)
-        proposal_boxes = tf.gather(proposal_boxes, topk_indices)
+        proposal_boxes = tf.gather(proposal_boxes, topk_indices) # K x 5
 
     else:
         raise RuntimeError("Only level-wise predictions are supported with batches")

@@ -162,7 +162,7 @@ def boxclass_predictions(boxes, scores):
     final_labels = tf.add(cat_ids, 1, name='labels')
     final_ids = tf.stack([cat_ids, box_ids], axis=1, name='all_ids')
     final_boxes = tf.gather_nd(boxes, final_ids, name='boxes')
-    return final_boxes, final_scores, final_labels, box_ids 
+    return final_boxes, final_scores, final_labels, box_ids
 
 
 
@@ -174,11 +174,13 @@ FastRCNN heads for FPN:
 @layer_register(log_shape=True)
 def boxclass_2fc_head(feature, fp16=False):
     """
+    Fully connected layer for the class and box branch
+
     Args:
-        feature (any shape):
+        feature map: The roi feature map, Num_boxes x Num_channels x H_roi x W_roi
 
     Returns:
-        2D head feature
+        2D head feature: Num_boxes x Num_features
     """
     dim = cfg.FPN.BOXCLASS_FC_HEAD_DIM
     if fp16:
@@ -350,7 +352,7 @@ class BoxClassHead(object):
                 self.box_logits / self.bbox_regression_weights,
                 anchors
         )
-        return decoded_boxes, tf.reshape(batch_ids, [-1]) 
+        return decoded_boxes, tf.reshape(batch_ids, [-1])
 
 
     @memoized_method
@@ -369,6 +371,3 @@ class BoxClassHead(object):
     def output_scores(self, name=None):
         """ Returns: N x #class scores, summed to one for each box."""
         return tf.nn.softmax(self.label_logits, name=name)
-
-
-
