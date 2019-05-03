@@ -31,7 +31,6 @@ def summarize_tensor(tensor_name, tensor_to_summarize, trigger_tensor, additiona
 
 
 
-
 # Checks at graph_build time
 def print_buildtime_shape(name, tensor, prefix=None):
     if prefix is not None:

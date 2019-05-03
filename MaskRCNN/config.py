@@ -110,9 +110,9 @@ _C.BACKBONE.STRIDE_1X1 = False  # True for MSRA models
 # schedule -----------------------
 _C.TRAIN.NUM_GPUS = None         # by default, will be set from code
 _C.TRAIN.WEIGHT_DECAY = 1e-4
-_C.TRAIN.BASE_LR = 1e-2  / 8. / 8. # defined for total batch size=1. It will be adjusted automatically using linear scaling.
+_C.TRAIN.BASE_LR = 1e-2  / 8. # defined for total batch size=1. It will be adjusted automatically using linear scaling.
 _C.TRAIN.WARMUP_STEPS = 1000   # in terms of iterations. This is not affected by #GPUs
-_C.TRAIN.WARMUP_INIT_LR = 1e-2 * 0.33 / 8. / 8.  # defined for total batch size=1. It will be adjusted automatically
+_C.TRAIN.WARMUP_INIT_LR = 1e-2 * 0.33 / 8. # defined for total batch size=1. It will be adjusted automatically
 _C.TRAIN.STARTING_EPOCH = 1  # the first epoch to start with, useful to continue a training
 
 # LR_SCHEDULE means equivalent steps when the total batch size is 8.

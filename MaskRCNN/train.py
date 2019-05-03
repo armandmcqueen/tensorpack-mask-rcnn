@@ -301,10 +301,10 @@ if __name__ == '__main__':
 
 
         if is_horovod:
-            trainer = HorovodTrainer(average=False)
+            trainer = HorovodTrainer(average=True)
         else:
             # nccl mode appears faster than cpu mode
-            trainer = SyncMultiGPUTrainerReplicated(cfg.TRAIN.NUM_GPUS, average=False, mode='nccl')
+            trainer = SyncMultiGPUTrainerReplicated(cfg.TRAIN.NUM_GPUS, average=True, mode='nccl')
         launch_train_with_config(traincfg, trainer)
 
     training_duration_secs = time.time() - start_time
