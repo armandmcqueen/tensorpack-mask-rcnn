@@ -4,7 +4,10 @@
 import numpy as np
 import os
 import tqdm
-import json
+try:
+    import ujson as json
+except ImportError:
+    import json
 
 from tensorpack.utils import logger
 from tensorpack.utils.timer import timed_operation
@@ -54,17 +57,29 @@ class COCODetection(object):
         """
         from pycocotools.cocoeval import COCOeval
         ret = {}
+        fields = ['IoU=0.5:0.95', 'IoU=0.5', 'IoU=0.75', 'small', 'medium', 'large']
+        json_obj = json.load(open(json_file))
+
+        # Prevent crash in self.coco.loadRes if the json is empty
+        if len(json_obj) == 0:
+            for k in range(6):
+                ret['mAP(bbox)/' + fields[k]] = 0.0
+
+            if cfg.MODE_MASK:
+                for k in range(6):
+                    ret['mAP(segm)/' + fields[k]] = 0.0
+            return ret
+
         cocoDt = self.coco.loadRes(json_file)
         cocoEval = COCOeval(self.coco, cocoDt, 'bbox')
         cocoEval.evaluate()
         cocoEval.accumulate()
         cocoEval.summarize()
-        fields = ['IoU=0.5:0.95', 'IoU=0.5', 'IoU=0.75', 'small', 'medium', 'large']
+
         for k in range(6):
             ret['mAP(bbox)/' + fields[k]] = cocoEval.stats[k]
 
-        json_obj = json.load(open(json_file))
-        if len(json_obj) > 0 and 'segmentation' in json_obj[0]:
+        if 'segmentation' in json_obj[0]:
             cocoEval = COCOeval(self.coco, cocoDt, 'segm')
             cocoEval.evaluate()
             cocoEval.accumulate()
@@ -72,6 +87,7 @@ class COCODetection(object):
             for k in range(6):
                 ret['mAP(segm)/' + fields[k]] = cocoEval.stats[k]
         return ret
+
 
     def load(self, add_gt=True, add_mask=False):
         """
