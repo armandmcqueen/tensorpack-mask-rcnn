@@ -74,8 +74,8 @@ def rpn_losses(anchor_labels, anchor_boxes, label_logits, box_logits):
     with tf.device('/cpu:0'):
         valid_mask = tf.stop_gradient(tf.not_equal(anchor_labels, -1))
         pos_mask = tf.stop_gradient(tf.equal(anchor_labels, 1))
-#        nr_valid = tf.stop_gradient(tf.count_nonzero(valid_mask, dtype=tf.int32), name='num_valid_anchor')
-#        nr_pos = tf.identity(tf.count_nonzero(pos_mask, dtype=tf.int32), name='num_pos_anchor')
+        nr_valid = tf.stop_gradient(tf.count_nonzero(valid_mask, dtype=tf.int32), name='num_valid_anchor')
+        nr_pos = tf.identity(tf.count_nonzero(pos_mask, dtype=tf.int32), name='num_pos_anchor')
         # nr_pos is guaranteed >0 in C4. But in FPN. even nr_valid could be 0.
 
         valid_anchor_labels = tf.boolean_mask(anchor_labels, valid_mask)
@@ -108,7 +108,7 @@ def rpn_losses(anchor_labels, anchor_boxes, label_logits, box_logits):
     label_loss = tf.nn.sigmoid_cross_entropy_with_logits(
         labels=tf.cast(valid_anchor_labels, tf.float32), logits=valid_label_logits)
     label_loss = tf.reduce_sum(label_loss) * (1. / cfg.RPN.BATCH_PER_IM)
-    label_loss = tf.where(tf.equal(tf.size(valid_anchor_labels), 0), placeholder, label_loss, name='label_loss')
+    label_loss = tf.where(tf.equal(nr_valid, 0), placeholder, label_loss, name='label_loss')
 
     pos_anchor_boxes = tf.boolean_mask(anchor_boxes, pos_mask)
     pos_box_logits = tf.boolean_mask(box_logits, pos_mask)
@@ -117,7 +117,7 @@ def rpn_losses(anchor_labels, anchor_boxes, label_logits, box_logits):
         pos_anchor_boxes, pos_box_logits, delta=delta,
         reduction=tf.losses.Reduction.SUM) / delta
     box_loss = box_loss * (1. / cfg.RPN.BATCH_PER_IM)
-    box_loss = tf.where(tf.equal(tf.size(pos_anchor_boxes), 0), placeholder, box_loss, name='box_loss')
+    box_loss = tf.where(tf.equal(nr_pos, 0), placeholder, box_loss, name='box_loss')
 
     # add_moving_summary(label_loss, box_loss, nr_valid, nr_pos)
     return [label_loss, box_loss]

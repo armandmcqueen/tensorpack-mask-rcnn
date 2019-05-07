@@ -161,8 +161,7 @@ class ResNetFPNModel(DetectionModel):
                 box_logits_t = tf.reshape(box_logits_t, tf.stack([shp[0], shp[2], shp[3], -1, 4]))  # BS x H_feature x W_feature x NA x 4
                 multilevel_box_logits_reshaped.append(box_logits_t)
 
-            rpn_box_losses = []
-            rpn_label_losses = []
+            rpn_losses  = []
             for i in range(cfg.TRAIN.BATCH_SIZE_PER_GPU):
                 orig_image_hw = orig_image_dims[i, :2]
                 si_all_anchors_fpn = get_all_anchors_fpn()
@@ -193,12 +192,12 @@ class ResNetFPNModel(DetectionModel):
                 si_losses = multilevel_rpn_losses(si_multilevel_anchors_narrowed,
                                                   si_multilevel_label_logits_narrowed,
                                                   si_multilevel_box_logits_narrowed)
-                rpn_label_losses.append(si_losses[0])
-                rpn_box_losses.append(si_losses[1])
+                rpn_losses.extend(si_losses)
+
 
             with tf.name_scope('rpn_losses'):
-                total_label_loss = tf.reduce_mean(tf.stack(rpn_label_losses), name='label_loss')
-                total_box_loss = tf.reduce_mean(tf.stack(rpn_box_losses), name='box_loss')
+                total_label_loss = tf.truediv(tf.add_n(rpn_losses[::2]), tf.cast(cfg.TRAIN.BATCH_SIZE_PER_GPU, dtype=tf.float32), name='label_loss')
+                total_box_loss = tf.truediv(tf.add_n(rpn_losses[1::2]), tf.cast(cfg.TRAIN.BATCH_SIZE_PER_GPU, dtype=tf.float32), name='box_loss')
                 add_moving_summary(total_label_loss, total_box_loss)
                 losses = [total_label_loss, total_box_loss]
 
