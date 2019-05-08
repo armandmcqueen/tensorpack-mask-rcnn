@@ -224,3 +224,105 @@ def generate_fpn_proposals(multilevel_anchor_boxes,
 
     return tf.stop_gradient(proposal_boxes, name='boxes'), \
         tf.stop_gradient(proposal_scores, name='scores')
+
+
+
+
+@under_name_scope()
+def generate_fpn_proposals_topk_per_image(multilevel_anchor_boxes,
+                                          multilevel_box_logits,
+                                          multilevel_label_logits,
+                                          orig_image_dims,
+                                          batch_size):
+    """
+    Args:
+        multilevel_box_logits:      #lvl [ BS x (NAx4) x H x W ] boxes
+        multilevel_label_logits:    #lvl [ BS x H x W x A ] tensors
+        orig_image_dimensions: Original (prepadding) image dimensions (h,w,c)   BS x 3
+    Returns:
+        boxes: K x 5 float
+        scores:  (#lvl x BS x K) vector       (logits)
+    """
+
+    num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
+    assert len(multilevel_label_logits) == num_lvl
+    orig_images_hw = orig_image_dims[:, :2]
+
+    training = get_current_tower_context().is_training
+    all_boxes = []
+    all_scores = []
+    if cfg.FPN.PROPOSAL_MODE == 'Level':
+        fpn_nms_topk = cfg.RPN.TRAIN_PER_LEVEL_NMS_TOPK if training else cfg.RPN.TEST_PER_LEVEL_NMS_TOPK
+        boxes_list = []
+        scores_list = []
+
+        bs = batch_size if training else 1
+
+        for i in range(bs):
+            all_boxes = []
+            all_scores = []
+            for lvl in range(num_lvl):
+                with tf.name_scope(f'Lvl{lvl}'):
+                    im_info = tf.cast(orig_images_hw[i:(i + 1)], tf.float32)
+                    # h, w
+
+                    scores = multilevel_label_logits[lvl][i:(i + 1)]
+                    bbox_deltas = tf.transpose(multilevel_box_logits[lvl][i:(i + 1)], [0, 2, 3, 1])
+
+                    single_level_anchor_boxes = multilevel_anchor_boxes[lvl]
+                    single_level_anchor_boxes = tf.reshape(single_level_anchor_boxes, (-1, 4))
+
+                    # https://caffe2.ai/docs/operators-catalogue.html#generateproposals
+                    rois, rois_probs = tf.generate_bounding_box_proposals(scores,
+                                                                          bbox_deltas,
+                                                                          im_info,
+                                                                          single_level_anchor_boxes,
+                                                                          spatial_scale=1.0 / cfg.FPN.ANCHOR_STRIDES[
+                                                                              lvl],
+                                                                          pre_nms_topn=fpn_nms_topk,
+                                                                          post_nms_topn=fpn_nms_topk,
+                                                                          nms_threshold=cfg.RPN.PROPOSAL_NMS_THRESH,
+                                                                          min_size=cfg.RPN.MIN_SIZE)
+
+                    # rois_probs = print_runtime_shape(f'rois_probs, lvl {lvl}', rois_probs, prefix=bug_prefix)
+                    all_boxes.append(tf.concat((i + rois[:, :1], rois[:, 1:]), axis=1))
+                    all_scores.append(rois_probs)
+
+            proposal_boxes = tf.concat(all_boxes, axis=0)  # (#lvl x BS) x K x 5
+            proposal_boxes = tf.reshape(proposal_boxes, [-1, 5])  # (#lvl x BS x K) x 5
+
+            proposal_scores = tf.concat(all_scores, axis=0)  # (#lvl x BS) x K
+            proposal_scores = tf.reshape(proposal_scores, [-1])  # (#lvl x BS x 5) vector
+
+            topk = tf.minimum(tf.size(proposal_scores), fpn_nms_topk)
+            topk_scores, topk_indices = tf.nn.top_k(proposal_scores, k=topk, sorted=False)
+
+            boxes_list.append(tf.gather(proposal_boxes, topk_indices))
+            scores_list.append(tf.gather(proposal_scores, topk_indices))
+
+        #
+        #        boxes_list = []
+        #        scores_list = []
+        #
+        #        for i in range(batch_size):
+        #            batch_ind = tf.squeeze(tf.where(tf.equal(proposal_boxes[:, 0], i)), axis=1)
+        #            image_scores = tf.gather(proposal_scores, batch_ind)
+        #            image_boxes = tf.gather(proposal_boxes, batch_ind)
+        #
+        #            image_proposal_topk = tf.minimum(tf.size(image_scores), fpn_nms_topk//batch_size)
+        #            image_proposal_scores, image_topk_indices = tf.nn.top_k(image_scores, k=image_proposal_topk, sorted=False)
+        #            boxes_list.append(tf.gather(image_boxes, image_topk_indices))
+        #            scores_list.append(image_proposal_scores)
+
+        boxes = tf.concat(boxes_list, axis=0)
+        scores = tf.concat(scores_list, axis=0)
+
+        #        proposal_topk = tf.minimum(tf.size(proposal_scores), fpn_nms_topk)
+    #        proposal_scores, topk_indices = tf.nn.top_k(proposal_scores, k=proposal_topk, sorted=False)
+    #        proposal_boxes = tf.gather(proposal_boxes, topk_indices)
+
+    else:
+        raise RuntimeError("Only level-wise predictions are supported with batches")
+
+    return tf.stop_gradient(boxes, name='boxes'), \
+        tf.stop_gradient(scores, name='scores')

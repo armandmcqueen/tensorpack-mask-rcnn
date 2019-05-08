@@ -171,6 +171,7 @@ _C.RPN.TEST_POST_NMS_TOPK = 1000   # if you encounter OOM in inference, set this
 # if FPN.PROPOSAL_MODE = 'Joint', these options have no effect
 _C.RPN.TRAIN_PER_LEVEL_NMS_TOPK = 2000 
 _C.RPN.TEST_PER_LEVEL_NMS_TOPK = 1000
+_C.RPN.TOPK_PER_IMAGE = True
 
 # fastrcnn training ---------------------
 _C.FRCNN.BATCH_PER_IM = 512

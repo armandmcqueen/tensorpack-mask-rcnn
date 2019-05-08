@@ -15,7 +15,7 @@ from model.fpn import fpn_model, multilevel_roi_align
 from model.boxclass_head import boxclass_predictions, boxclass_outputs, BoxClassHead
 from model.biased_sampler import sample_fast_rcnn_targets
 from model.mask_head import maskrcnn_loss
-from model.rpn import rpn_head, multilevel_rpn_losses, generate_fpn_proposals
+from model.rpn import rpn_head, multilevel_rpn_losses, generate_fpn_proposals, generate_fpn_proposals_topk_per_image
 from performance import print_buildtime_shape, print_runtime_shape
 
 
@@ -144,11 +144,19 @@ class ResNetFPNModel(DetectionModel):
         multilevel_label_logits = [k[0] for k in rpn_outputs] # Num_level * [BS x H_feature x W_feature x NA]
         multilevel_box_logits = [k[1] for k in rpn_outputs] # Num_level * [BS x (NA * 4) x H_feature x W_feature]
         # proposal_boxes: K x 5, proposal_scores: 1-D K
-        proposal_boxes, proposal_scores = generate_fpn_proposals(all_anchors_fpn,
-                                                                 multilevel_box_logits,
-                                                                 multilevel_label_logits,
-                                                                 image_shape2d,
-                                                                 cfg.TRAIN.BATCH_SIZE_PER_GPU)
+        if cfg.RPN.TOPK_PER_IMAGE:
+            proposal_boxes, proposal_scores = generate_fpn_proposals_topk_per_image(all_anchors_fpn,
+                                                                                    multilevel_box_logits,
+                                                                                    multilevel_label_logits,
+                                                                                    image_shape2d,
+                                                                                    cfg.TRAIN.BATCH_SIZE_PER_GPU)
+        else:
+
+            proposal_boxes, proposal_scores = generate_fpn_proposals(all_anchors_fpn,
+                                                                     multilevel_box_logits,
+                                                                     multilevel_label_logits,
+                                                                     image_shape2d,
+                                                                     cfg.TRAIN.BATCH_SIZE_PER_GPU)
         if self.training:
 
             multilevel_anchor_labels = [inputs['anchor_labels_lvl{}'.format(i + 2)] for i in range(len(all_anchors_fpn))]
