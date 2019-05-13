@@ -48,7 +48,7 @@ spec:
         - python3
         - {{ .Values.maskrcnn.train_script }}
         - --logdir
-        - /{{ .Values.maskrcnn.shared_fs }}/{{ .Release.Name }}-{{ date "2006-01-02-15-04-05" .Release.Time  }}/train_log/maskrcnn
+        - /{{ .Values.maskrcnn.shared_fs }}/logs/{{ .Release.Name }}-{{ date "2006-01-02-15-04-05" .Release.Time  }}/train_log/maskrcnn
         - --fp16
         - --images_per_epoch
         - "{{ .Values.maskrcnn.images_per_epoch }}"
