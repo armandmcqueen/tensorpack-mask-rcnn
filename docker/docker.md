@@ -1,3 +1,9 @@
+# TODO
+
+Add image to dockerhub and add scripts to push to ECR.
+
+https://github.com/ajayvohra2005/tf-tp-hvd-eks/blob/master/container/build_tools/build_and_push.sh
+
 # Using Docker
 
 The ec2 instance must have the training data available at ~/data.

@@ -1,0 +1,6 @@
+mpioperator:
+  name: mpi-operator-32x1
+  image: mpioperator/mpi-operator:latest
+  deliveryimage: mpioperator/kubectl-delivery:latest
+  pullpolicy: Always
+  gpuspernode: 8
