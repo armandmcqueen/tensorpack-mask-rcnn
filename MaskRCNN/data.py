@@ -367,6 +367,9 @@ def get_train_dataflow():
     # But this filter shall not be applied for testing.
     num = len(roidbs)
     roidbs = list(filter(lambda img: len(img['boxes'][img['is_crowd'] == 0]) > 0, roidbs))
+
+    roidbs = sorted(roidbs, key=lambda x: float(x['width']) / float(x['height']))     # will shuffle it later at every rank 
+
     logger.info("Filtered {} images which contain no non-crowd groudtruth boxes. Total #images for training: {}".format(
         num - len(roidbs), len(roidbs)))
 

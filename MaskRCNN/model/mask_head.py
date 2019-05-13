@@ -55,7 +55,7 @@ def maskrcnn_loss(mask_logits, fg_labels, fg_target_masks):
 
 
 @layer_register(log_shape=True)
-def maskrcnn_upXconv_head(feature, num_category, num_convs, norm=None, fp16=False):
+def maskrcnn_upXconv_head(feature, num_category, sg, num_convs, norm=None, fp16=False):
     """
     Args:
         feature: roi feature maps, Num_boxes x NumChannel x H_roi x W_roi,
@@ -73,17 +73,17 @@ def maskrcnn_upXconv_head(feature, num_category, num_convs, norm=None, fp16=Fals
     with mixed_precision_scope(mixed=fp16):
       with argscope([Conv2D, Conv2DTranspose], data_format='channels_first',
                   kernel_initializer=tf.variance_scaling_initializer(
-                      scale=2.0, mode='fan_out',
+                      scale=2.0, mode='fan_out', seed=sg.next(),
                       distribution='untruncated_normal' if get_tf_version_tuple() >= (1, 12) else 'normal')):
         # c2's MSRAFill is fan_out
         for k in range(num_convs):
-            l = Conv2D('fcn{}'.format(k), l, cfg.MRCNN.HEAD_DIM, 3, activation=tf.nn.relu)
+            l = Conv2D('fcn{}'.format(k), l, cfg.MRCNN.HEAD_DIM, 3, activation=tf.nn.relu, seed=sg.next())
             if norm is not None:
                 if fp16: l = tf.cast(l, tf.float32)
                 l = GroupNorm('gn{}'.format(k), l)
                 if fp16: l = tf.cast(l, tf.float16)
-        l = Conv2DTranspose('deconv', l, cfg.MRCNN.HEAD_DIM, 2, strides=2, activation=tf.nn.relu) # 2x upsampling
-        l = Conv2D('conv', l, num_category, 1)
+        l = Conv2DTranspose('deconv', l, cfg.MRCNN.HEAD_DIM, 2, strides=2, activation=tf.nn.relu, seed=sg.next()) # 2x upsampling
+        l = Conv2D('conv', l, num_category, 1, seed=sg.next())
     if fp16:
         l = tf.cast(l, tf.float32)
     return l

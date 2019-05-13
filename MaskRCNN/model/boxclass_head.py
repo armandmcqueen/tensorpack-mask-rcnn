@@ -17,7 +17,7 @@ from utils.mixed_precision import mixed_precision_scope
 
 
 @layer_register(log_shape=True)
-def boxclass_outputs(feature, num_classes, class_agnostic_regression=False):
+def boxclass_outputs(feature, num_classes, sg, class_agnostic_regression=False):
     """
     Args:
         feature (any shape):
@@ -30,11 +30,11 @@ def boxclass_outputs(feature, num_classes, class_agnostic_regression=False):
     """
     classification = FullyConnected(
         'class', feature, num_classes,
-        kernel_initializer=tf.random_normal_initializer(stddev=0.01))
+        kernel_initializer=tf.random_normal_initializer(stddev=0.01, seed=sg.next()))
     num_classes_for_box = 1 if class_agnostic_regression else num_classes
     box_regression = FullyConnected(
         'box', feature, num_classes_for_box * 4,
-        kernel_initializer=tf.random_normal_initializer(stddev=0.001))
+        kernel_initializer=tf.random_normal_initializer(stddev=0.001, seed=sg.next()))
     box_regression = tf.reshape(box_regression, [-1, num_classes_for_box, 4], name='output_box')
     return classification, box_regression
 
@@ -172,7 +172,7 @@ FastRCNN heads for FPN:
 
 
 @layer_register(log_shape=True)
-def boxclass_2fc_head(feature, fp16=False):
+def boxclass_2fc_head(feature, sg, fp16=False):
     """
     Fully connected layer for the class and box branch
 
@@ -187,7 +187,7 @@ def boxclass_2fc_head(feature, fp16=False):
         feature = tf.cast(feature, tf.float16)
 
     with mixed_precision_scope(mixed=fp16):
-        init = tf.variance_scaling_initializer(dtype=tf.float16 if fp16 else tf.float32)
+        init = tf.variance_scaling_initializer(dtype=tf.float16 if fp16 else tf.float32, seed=sg.next())
         hidden = FullyConnected('fc6', feature, dim, kernel_initializer=init, activation=tf.nn.relu)
         hidden = FullyConnected('fc7', hidden, dim, kernel_initializer=init, activation=tf.nn.relu)
 
