@@ -260,6 +260,7 @@ class ResNetFPNModel(DetectionModel):
         roi_feature_fastrcnn = multilevel_roi_align(features[:4], proposal_boxes, 7) # Num_sampled_boxes x NumChannel x H_roi_box x W_roi_box
         fastrcnn_head_func = getattr(boxclass_head, cfg.FPN.BOXCLASS_HEAD_FUNC)
         head_feature = fastrcnn_head_func('fastrcnn', roi_feature_fastrcnn, fp16=self.fp16) # Num_sampled_boxes x Num_features
+        # fastrcnn_label_logits: Num_sampled_boxes x Num_classes ,fastrcnn_box_logits: Num_sampled_boxes x Num_classes x 4
         fastrcnn_label_logits, fastrcnn_box_logits = boxclass_outputs('fastrcnn/outputs', head_feature, cfg.DATA.NUM_CLASS)
         regression_weights = tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32)
 
@@ -307,9 +308,6 @@ class ResNetFPNModel(DetectionModel):
                     single_image_fg_boxes = tf.gather(proposal_fg_boxes, single_image_fg_indices)[:, 1:] # Num_fg_boxes_current_image x 4
                     single_image_fg_labels = tf.gather(proposal_fg_labels, single_image_fg_indices) # 1-D Num_fg_boxes_current_image
                     single_image_fg_inds_wrt_gt = proposal_gt_id_for_each_fg[i] # 1-D Num_fg_boxes_current_image
-
-                    if roi_head_per_image:
-
 
                     print(type(single_image_fg_inds_wrt_gt))
                     assert isinstance(single_image_fg_inds_wrt_gt, tf.Tensor)
