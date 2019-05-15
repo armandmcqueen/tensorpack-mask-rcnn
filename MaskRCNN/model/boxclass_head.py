@@ -343,6 +343,64 @@ class BoxClassHead(object):
         )
 
     @memoized_method
+    def losses_per_image(self, batch_size_per_gpu, shortcut=False):
+
+        assert self.training_info_available, "In order to calculate losses, we need to know GT info, but " \
+                                             "add_training_info was never called"
+
+        if shortcut:
+            proposal_label_loss = tf.cast(tf.reduce_mean(self.proposal_labels), dtype=tf.float32)
+            proposal_boxes_loss = tf.cast(tf.reduce_mean(self.proposal_boxes), dtype=tf.float32)
+            proposal_fg_boxes_loss = tf.cast(tf.reduce_mean(self.proposal_fg_boxes), dtype=tf.float32)
+            gt_box_loss = tf.cast(tf.reduce_mean(self.gt_boxes), dtype=tf.float32)
+
+            bbox_reg_loss = tf.cast(tf.reduce_mean(self.bbox_regression_weights), dtype=tf.float32)
+            label_logit_loss = tf.cast(tf.reduce_mean(self.label_logits), dtype=tf.float32)
+
+            total_loss = proposal_label_loss + proposal_boxes_loss + proposal_fg_boxes_loss + gt_box_loss \
+                         + bbox_reg_loss + label_logit_loss
+            return [total_loss]
+
+        all_loss_label, all_loss_box = [], []
+        for i in range(batch_size_per_gpu):
+            single_image_fg_inds_wrt_gt = self.proposal_gt_id_for_each_fg[i]
+
+            single_image_gt_boxes = self.gt_boxes[i, :self.prepadding_gt_counts[i], :]  # NumGT x 4
+            gt_for_each_fg = tf.gather(single_image_gt_boxes, single_image_fg_inds_wrt_gt)  # NumFG x 4
+            single_image_fg_boxes_indices = tf.where(tf.equal(self.proposal_fg_boxes[:, 0], i))
+            single_image_fg_boxes_indices = tf.squeeze(single_image_fg_boxes_indices, axis=1)
+
+            single_image_fg_boxes = tf.gather(self.proposal_fg_boxes, single_image_fg_boxes_indices)  # NumFG x 5
+            single_image_fg_boxes = single_image_fg_boxes[:, 1:]  # NumFG x 4
+
+            encoded_fg_gt_boxes = encode_bbox_target(gt_for_each_fg,
+                                                     single_image_fg_boxes) * self.bbox_regression_weights
+
+            single_image_box_indices = tf.squeeze(tf.where(tf.equal(self.proposal_boxes[:, 0], i)), axis=1)
+            single_image_labels = tf.gather(self.proposal_labels, single_image_box_indices)  # Vector len N
+            single_image_label_logits = tf.gather(self.label_logits, single_image_box_indices)
+
+            single_image_fg_box_logits_indices = tf.gather(self.proposal_fg_inds, single_image_fg_boxes_indices)
+            single_image_fg_box_logits = tf.gather(self.box_logits, single_image_fg_box_logits_indices)
+
+            single_image_box_loss = boxclass_losses(
+                    single_image_labels,
+                    single_image_label_logits,
+                    encoded_fg_gt_boxes,
+                    single_image_fg_box_logits
+            )
+            all_loss_label.append(single_image_box_loss[0])
+            all_loss_box.append(single_image_box_loss[1])
+
+        avg_label_loss = tf.truediv(tf.add_n(all_loss_label), tf.cast(batch_size_per_gpu, dtype=tf.float32),
+                                    name='avg_label_loss')
+        avg_box_loss = tf.truediv(tf.add_n(all_loss_box), tf.cast(batch_size_per_gpu, dtype=tf.float32),
+                                  name='avg_box_loss')
+        return [avg_label_loss, avg_box_loss]
+
+
+
+    @memoized_method
     def decoded_output_boxes_batch(self):
         """ Returns: N x #class x 4 """
         batch_ids, nobatch_proposal_boxes = tf.split(self.proposal_boxes, [1, 4], 1)

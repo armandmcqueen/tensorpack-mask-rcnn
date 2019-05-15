@@ -9,7 +9,7 @@ from six.moves import range
 
 from .base import DataFlow, RNGDataFlow
 
-__all__ = ['FakeData', 'DataFromQueue', 'DataFromList', 'DataFromGenerator', 'DataFromIterable']
+__all__ = ['FakeData', 'DataFromQueue', 'DataFromList', 'BatchDataFromList', 'DataFromGenerator', 'DataFromIterable']
 
 
 class FakeData(RNGDataFlow):
@@ -93,6 +93,41 @@ class DataFromList(RNGDataFlow):
             self.rng.shuffle(idxs)
             for k in idxs:
                 yield self.lst[k]
+
+
+
+class BatchDataFromList(RNGDataFlow):
+    """ Wrap a list of datapoints to a DataFlow"""
+
+    def __init__(self, lst, batch_size, shuffle=True):
+        """
+        Args:
+            lst (list): input list. Each element is a datapoint.
+            shuffle (bool): shuffle data.
+        """
+        super(BatchDataFromList, self).__init__()
+        self.lst = lst
+        self.shuffle = shuffle
+        self.batch_size = batch_size
+
+    def __len__(self):
+        return len(self.lst)
+
+    def __iter__(self):
+        if not self.shuffle:
+            k = 0
+            while k < len(self.lst):
+                yield self.lst[k:k+self.batch_size]
+                k += self.batch_size
+        else:
+            idxs = np.arange(len(self.lst))
+            self.rng.shuffle(idxs)
+            for k in range(0, len(self.lst), self.batch_size):
+                output = []
+                for i in range(self.batch_size):
+                    output.append(self.lst[idxs[k+i]])
+                yield output
+
 
 
 class DataFromGenerator(DataFlow):

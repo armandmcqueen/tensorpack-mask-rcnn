@@ -9,7 +9,7 @@ from tabulate import tabulate
 from termcolor import colored
 
 from tensorpack.dataflow import (
-    DataFromList, MapDataComponent, MultiProcessMapDataZMQ, MultiThreadMapData, TestDataSpeed, imgaug, MapData)
+    DataFromList, MapDataComponent, MultiProcessMapDataZMQ, MultiThreadMapData, TestDataSpeed, imgaug, MapData, BatchDataFromList)
 from tensorpack.utils import logger
 from tensorpack.utils.argtools import log_once, memoized
 
@@ -503,6 +503,9 @@ def get_batch_train_dataflow(batch_size):
                     taken[i], taken[k] = True, True
                 if not done:
                     batched_roidbs.append(batch)
+    elif cfg.PREPROC.BATCH_RANDOM:
+        real_len = (len(roidbs) // batch_size) * batch_size
+        batched_roidbs = roidbs[:real_len]
     else:
         batch = []
         for i, d in enumerate(roidbs):
@@ -733,7 +736,10 @@ def get_batch_train_dataflow(batch_size):
 
         return batched_datapoint
 
-    ds = DataFromList(batched_roidbs, shuffle=True)
+    if cfg.PREPROC.BATCH_RANDOM:
+        ds = BatchDataFromList(batched_roidbs, batch_size, shuffle=True)
+    else:
+        ds = DataFromList(batched_roidbs, shuffle=True)
 
     #################################################################################################################
     # Test preprocess on a given batch

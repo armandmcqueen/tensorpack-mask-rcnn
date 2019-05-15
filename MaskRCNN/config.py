@@ -114,6 +114,7 @@ _C.TRAIN.BASE_LR = 1e-2  / 8. # defined for total batch size=1. It will be adjus
 _C.TRAIN.WARMUP_STEPS = 1000   # in terms of iterations. This is not affected by #GPUs
 _C.TRAIN.WARMUP_INIT_LR = 1e-2 * 0.33 / 8. # defined for total batch size=1. It will be adjusted automatically
 _C.TRAIN.STARTING_EPOCH = 1  # the first epoch to start with, useful to continue a training
+_C.TRAIN.PER_IMAGE_ROI_HEAD = False
 
 # LR_SCHEDULE means equivalent steps when the total batch size is 8.
 # When the total bs!=8, the actual iterations to decrease learning rate, and
@@ -140,6 +141,7 @@ _C.PREPROC.MAX_SIZE = 1333
 _C.PREPROC.PIXEL_MEAN = [123.675, 116.28, 103.53]
 _C.PREPROC.PIXEL_STD = [58.395, 57.12, 57.375]
 _C.PREPROC.PREDEFINED_PADDING = True
+_C.PREPROC.BATCH_RANDOM = False
 _C.PREPROC.PADDING_SHAPES = [(800, 1000), (800, 1200), (800, 1350)]    # only add landscape shapes in decreasing h/w aspect ratio order - the corresponding portrait shape will be automatically created
 
 # anchors -------------------------
