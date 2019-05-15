@@ -281,9 +281,7 @@ class ResNetFPNModel(DetectionModel):
                                             proposal_fg_labels,
                                             proposal_gt_id_for_each_fg)
 
-
             all_losses = fastrcnn_head.losses(cfg.TRAIN.BATCH_SIZE_PER_GPU, per_image_losses=cfg.PER_IMAGE_ROI_HEAD)
-
 
             if cfg.MODE_MASK:
                 gt_masks = targets[2]
@@ -295,30 +293,23 @@ class ResNetFPNModel(DetectionModel):
                         features[:4], proposal_fg_boxes, 14,
                         name_scope='multilevel_roi_align_mask')
 
-                if not roi_head_per_image:
-                    mask_logits = maskrcnn_head_func('maskrcnn',
-                                                     roi_feature_maskrcnn,
-                                                     cfg.DATA.NUM_CATEGORY,
-                                                     fp16=self.fp16)   # Num_fg_boxes x num_category x (H_roi_mask*2) x (W_roi_mask*2)
-                    per_image_target_masks_for_fg = []
-                    per_image_fg_labels = []
+
                 if roi_head_per_image:
                     all_mask_losses = []
+                else:
+                    per_image_target_masks_for_fg = []
+                    per_image_fg_labels = []
                 for i in range(cfg.TRAIN.BATCH_SIZE_PER_GPU):
 
-                    single_image_gt_count = prepadding_gt_counts[i]
-                    single_image_gt_masks = gt_masks[i, :single_image_gt_count, :, :]
-                    single_image_fg_indices = tf.squeeze(tf.where(tf.equal(proposal_fg_boxes[:, 0], i)), axis=1)
-                    single_image_fg_boxes = tf.gather(proposal_fg_boxes, single_image_fg_indices)[:, 1:]
-                    single_image_fg_labels = tf.gather(proposal_fg_labels, single_image_fg_indices)
-                    single_image_fg_inds_wrt_gt = proposal_gt_id_for_each_fg[i]
+                    single_image_gt_count = prepadding_gt_counts[i] # 1-D Num_GT_boxes_current_image
+                    single_image_gt_masks = gt_masks[i, :single_image_gt_count, :, :] # Num_GT_boxes_current_image x H_gtmask x W_gtmask (maybe? might have length 1 dim at beginning)
+                    single_image_fg_indices = tf.squeeze(tf.where(tf.equal(proposal_fg_boxes[:, 0], i)), axis=1) # 1-D Num_fg_boxes_current_image
+                    single_image_fg_boxes = tf.gather(proposal_fg_boxes, single_image_fg_indices)[:, 1:] # Num_fg_boxes_current_image x 4
+                    single_image_fg_labels = tf.gather(proposal_fg_labels, single_image_fg_indices) # 1-D Num_fg_boxes_current_image
+                    single_image_fg_inds_wrt_gt = proposal_gt_id_for_each_fg[i] # 1-D Num_fg_boxes_current_image
 
                     if roi_head_per_image:
-                        single_image_roi_feature_maskrcnn = tf.gather(roi_feature_maskrcnn, single_image_fg_indices)
-                        single_image_mask_logits = maskrcnn_head_func('maskrcnn',
-                                                                      single_image_roi_feature_maskrcnn,
-                                                                      cfg.DATA.NUM_CATEGORY,
-                                                                      fp16=self.fp16)
+
 
                     print(type(single_image_fg_inds_wrt_gt))
                     assert isinstance(single_image_fg_inds_wrt_gt, tf.Tensor)
@@ -333,9 +324,15 @@ class ResNetFPNModel(DetectionModel):
                                                                        pad_border=False,
                                                                        verbose_batch_index=i)
                     if roi_head_per_image:
+                        single_image_roi_feature_maskrcnn = tf.gather(roi_feature_maskrcnn, single_image_fg_indices)
+                        single_image_mask_logits = maskrcnn_head_func('maskrcnn',
+                                                                      single_image_roi_feature_maskrcnn,
+                                                                      cfg.DATA.NUM_CATEGORY,
+                                                                      fp16=self.fp16)
                         single_image_target_masks_for_fg = tf.squeeze(single_image_target_masks_for_fg, 1,
                                                                       'single_image_target_masks_for_fg_{}'.format(i))
-                        single_image_mask_loss = maskrcnn_loss(single_image_mask_logits, single_image_fg_labels,
+                        single_image_mask_loss = maskrcnn_loss(single_image_mask_logits,
+                                                               single_image_fg_labels,
                                                                single_image_target_masks_for_fg)
                         all_mask_losses.append(single_image_mask_loss)
                     else:
@@ -347,6 +344,11 @@ class ResNetFPNModel(DetectionModel):
                                            tf.cast(cfg.TRAIN.BATCH_SIZE_PER_GPU, dtype=tf.float32),
                                            name='avg_mask_loss')
                 else:
+                    mask_logits = maskrcnn_head_func('maskrcnn',
+                                                     roi_feature_maskrcnn,
+                                                     cfg.DATA.NUM_CATEGORY,
+                                                     fp16=self.fp16)  # Num_fg_boxes x num_category x (H_roi_mask*2) x (W_roi_mask*2)
+
                     target_masks_for_fg = tf.concat(per_image_target_masks_for_fg, axis=0) # Num_fg_boxes x 1 x (H_roi_mask*2) x (W_roi_mask*2)
 
                     proposal_fg_labels = tf.concat(per_image_fg_labels, axis=0) # 1-D Num_fg_boxes
