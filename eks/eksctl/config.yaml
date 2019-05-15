@@ -35,3 +35,11 @@ nodeGroups:
         efs: true
     allowSSH: true
     sshPublicKeyPath: 'us-east-1-benchmark-tf'
+
+
+
+# Never eksctl version require:
+#
+#ssh:
+#  allows: true
+#  publicKeyName: 'us-east-1-benchmark-tf'
