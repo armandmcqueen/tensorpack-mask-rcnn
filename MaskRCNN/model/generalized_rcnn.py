@@ -67,10 +67,13 @@ class DetectionModel(ModelDesc):
 
         targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
 
-        if cfg.TRAIN.PER_IMAGE_ROI_HEAD:
-            head_losses = self.roi_heads_per_image(image, features, proposal_boxes, targets, inputs)
-        else:
-            head_losses = self.roi_heads(image, features, proposal_boxes, targets, inputs)
+        head_losses = self.roi_heads(image,
+                                     features,
+                                     proposal_boxes,
+                                     targets,
+                                     inputs,
+                                     roi_head_per_image=cfg.TRAIN.PER_IMAGE_ROI_HEAD)
+
 
         if self.training:
             wd_cost = regularize_cost(
@@ -218,8 +221,7 @@ class ResNetFPNModel(DetectionModel):
 
         return proposal_boxes, losses
 
-    def roi_heads(self, image, features, proposal_boxes, targets, inputs):
-        ROI_HEAD_PER_IMAGE = False
+    def roi_heads(self, image, features, proposal_boxes, targets, inputs, roi_head_per_image=False):
         """
         Implement the RoI Align and construct the RoI head (box and mask branches) of the graph
 
@@ -279,7 +281,9 @@ class ResNetFPNModel(DetectionModel):
                                             proposal_fg_labels,
                                             proposal_gt_id_for_each_fg)
 
-            all_losses = fastrcnn_head.losses(cfg.TRAIN.BATCH_SIZE_PER_GPU)
+
+            all_losses = fastrcnn_head.losses(cfg.TRAIN.BATCH_SIZE_PER_GPU, per_image_losses=cfg.PER_IMAGE_ROI_HEAD)
+
 
             if cfg.MODE_MASK:
                 gt_masks = targets[2]
@@ -291,14 +295,14 @@ class ResNetFPNModel(DetectionModel):
                         features[:4], proposal_fg_boxes, 14,
                         name_scope='multilevel_roi_align_mask')
 
-                if not ROI_HEAD_PER_IMAGE:
+                if not roi_head_per_image:
                     mask_logits = maskrcnn_head_func('maskrcnn',
                                                      roi_feature_maskrcnn,
                                                      cfg.DATA.NUM_CATEGORY,
                                                      fp16=self.fp16)   # Num_fg_boxes x num_category x (H_roi_mask*2) x (W_roi_mask*2)
                     per_image_target_masks_for_fg = []
                     per_image_fg_labels = []
-                if ROI_HEAD_PER_IMAGE:
+                if roi_head_per_image:
                     all_mask_losses = []
                 for i in range(cfg.TRAIN.BATCH_SIZE_PER_GPU):
 
@@ -309,7 +313,7 @@ class ResNetFPNModel(DetectionModel):
                     single_image_fg_labels = tf.gather(proposal_fg_labels, single_image_fg_indices)
                     single_image_fg_inds_wrt_gt = proposal_gt_id_for_each_fg[i]
 
-                    if ROI_HEAD_PER_IMAGE:
+                    if roi_head_per_image:
                         single_image_roi_feature_maskrcnn = tf.gather(roi_feature_maskrcnn, single_image_fg_indices)
                         single_image_mask_logits = maskrcnn_head_func('maskrcnn',
                                                                       single_image_roi_feature_maskrcnn,
@@ -328,7 +332,7 @@ class ResNetFPNModel(DetectionModel):
                                                                        image_shape2d[i],
                                                                        pad_border=False,
                                                                        verbose_batch_index=i)
-                    if ROI_HEAD_PER_IMAGE:
+                    if roi_head_per_image:
                         single_image_target_masks_for_fg = tf.squeeze(single_image_target_masks_for_fg, 1,
                                                                       'single_image_target_masks_for_fg_{}'.format(i))
                         single_image_mask_loss = maskrcnn_loss(single_image_mask_logits, single_image_fg_labels,
@@ -338,7 +342,7 @@ class ResNetFPNModel(DetectionModel):
                         per_image_fg_labels.append(single_image_fg_labels)
                         per_image_target_masks_for_fg.append(single_image_target_masks_for_fg)
 
-                if ROI_HEAD_PER_IMAGE:
+                if roi_head_per_image:
                     mask_loss = tf.truediv(tf.add_n(all_mask_losses),
                                            tf.cast(cfg.TRAIN.BATCH_SIZE_PER_GPU, dtype=tf.float32),
                                            name='avg_mask_loss')
