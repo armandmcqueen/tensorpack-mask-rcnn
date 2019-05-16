@@ -12,7 +12,7 @@ from tensorpack.tfutils.varreplace import custom_getter_scope, freeze_variables
 
 from config import config as cfg
 from utils.mixed_precision import mixed_precision_scope
-
+from performance import print_runtime_tensor_loose_branch
 
 @layer_register(log_shape=True)
 def GroupNorm(x, group=32, gamma_initializer=tf.constant_initializer(1.)):
@@ -154,6 +154,7 @@ def resnet_bottleneck(l, ch_out, stride, sg):
             l = Conv2D('conv2', l, ch_out, 3, strides=2, padding='VALID', seed=sg.next())
         else:
             l = Conv2D('conv2', l, ch_out, 3, strides=stride, seed=sg.next())
+            l = print_runtime_tensor_loose_branch('ell_bot', tf.reduce_sum(l*1e-3), trigger_tensor=l)
     if cfg.BACKBONE.NORM != 'None':
         l = Conv2D('conv3', l, ch_out * 4, 1, activation=get_norm(zero_init=True), seed=sg.next())
     else:
@@ -218,14 +219,20 @@ def resnet_fpn_backbone(image, num_blocks, sg, fp16=False):
                 [pad_base[0], pad_base[1] + pad_shape2d[1]]]))
             l.set_shape([None, chan, None, None])
             l = Conv2D('conv0', l, 64, 7, strides=2, padding='VALID', seed=sg.next())
+            l = print_runtime_tensor_loose_branch('first_ell', tf.reduce_sum(l[:,:,:425,:425]*1e-3), trigger_tensor=l)
             l = tf.pad(l, [[0, 0], [0, 0], maybe_reverse_pad(0, 1), maybe_reverse_pad(0, 1)])
             l = MaxPooling('pool0', l, 3, strides=2, padding='VALID')
+            l = print_runtime_tensor_loose_branch('ell', tf.reduce_sum(l*1e-3), trigger_tensor=l)
         with backbone_scope(freeze=freeze_at > 1):
             c2 = resnet_group('group0', l, resnet_bottleneck, 64, num_blocks[0], 1, sg=sg)
+            c2 = print_runtime_tensor_loose_branch('c2', tf.reduce_sum(c2*1e-3), trigger_tensor=c2)
         with backbone_scope(freeze=False):
             c3 = resnet_group('group1', c2, resnet_bottleneck, 128, num_blocks[1], 2, sg=sg)
+            c3 = print_runtime_tensor_loose_branch('c3', tf.reduce_sum(c3*1e-3), trigger_tensor=c3)
             c4 = resnet_group('group2', c3, resnet_bottleneck, 256, num_blocks[2], 2, sg=sg)
+            c4 = print_runtime_tensor_loose_branch('c4', tf.reduce_sum(c4*1e-3), trigger_tensor=c4)
             c5 = resnet_group('group3', c4, resnet_bottleneck, 512, num_blocks[3], 2, sg=sg)
+            c5 = print_runtime_tensor_loose_branch('c5', tf.reduce_sum(c5*1e-3), trigger_tensor=c5)
 
     # 32x downsampling up to now
     # size of c5: ceil(input/32)

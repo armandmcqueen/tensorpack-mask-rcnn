@@ -210,6 +210,7 @@ def get_anchor_labels(anchors, gt_boxes, crowd_boxes):
     def filter_box_label(labels, value, max_num):
         curr_inds = np.where(labels == value)[0]
         if len(curr_inds) > max_num:
+            np.random.seed(cfg.TRAIN.SEED)
             disable_inds = np.random.choice(
                 curr_inds, size=(len(curr_inds) - max_num),
                 replace=False)
@@ -368,16 +369,14 @@ def get_train_dataflow():
     num = len(roidbs)
     roidbs = list(filter(lambda img: len(img['boxes'][img['is_crowd'] == 0]) > 0, roidbs))
 
-    roidbs = sorted(roidbs, key=lambda x: float(x['width']) / float(x['height']))     # will shuffle it later at every rank 
-
     logger.info("Filtered {} images which contain no non-crowd groudtruth boxes. Total #images for training: {}".format(
         num - len(roidbs), len(roidbs)))
 
     ds = DataFromList(roidbs, shuffle=True)
 
     aug = imgaug.AugmentorList(
-        [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
-         imgaug.Flip(horiz=True)])
+        [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)]) #,
+#         imgaug.Flip(horiz=True)])
 
     def preprocess(roidb):
         fname, boxes, klass, is_crowd = roidb['file_name'], roidb['boxes'], roidb['class'], roidb['is_crowd']
@@ -448,7 +447,10 @@ def get_train_dataflow():
         return ret
 
     if cfg.TRAINER == 'horovod':
-        ds = MultiThreadMapData(ds, 5, preprocess)
+        if cfg.TRAIN.SEED:
+            ds = MapData(ds, preprocess)
+        else:
+            ds = MultiThreadMapData(ds, 5, preprocess)
         # MPI does not like fork()
     else:
         ds = MultiProcessMapDataZMQ(ds, 10, preprocess)
@@ -484,6 +486,8 @@ def get_batch_train_dataflow(batch_size):
     roidbs = list(filter(lambda img: len(img['boxes'][img['is_crowd'] == 0]) > 0, roidbs))
     logger.info("Filtered {} images which contain no non-crowd groudtruth boxes. Total #images for training: {}".format(
         num - len(roidbs), len(roidbs)))
+
+    roidbs = sorted(roidbs, key=lambda x: float(x['width']) / float(x['height']), reverse=True)     # will shuffle it later at every rank 
 
     print("Batching roidbs")
     batched_roidbs = []
@@ -526,12 +530,9 @@ def get_batch_train_dataflow(batch_size):
     #   - TODO: Fix lack of batch contents shuffling
 
 
-
-
-
     aug = imgaug.AugmentorList(
-         [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
-          imgaug.Flip(horiz=True)])
+         [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)]) #,
+#          imgaug.Flip(horiz=True)])
 
     # aug = imgaug.AugmentorList([CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)])
 
@@ -539,7 +540,6 @@ def get_batch_train_dataflow(batch_size):
         datapoint_list = []
         for roidb in roidb_batch:
             fname, boxes, klass, is_crowd = roidb['file_name'], roidb['boxes'], roidb['class'], roidb['is_crowd']
-            # print(fname)
             boxes = np.copy(boxes)
             im = cv2.imread(fname, cv2.IMREAD_COLOR)
             assert im is not None, fname
@@ -762,7 +762,10 @@ def get_batch_train_dataflow(batch_size):
 
     if cfg.TRAINER == 'horovod':
         # ds = MapData(ds, preprocess)
-        ds = MultiThreadMapData(ds, 5, preprocess)
+        if cfg.TRAIN.SEED:
+            ds = MapData(ds, preprocess)
+        else:
+            ds = MultiThreadMapData(ds, 5, preprocess)
         # MPI does not like fork()
     else:
         ds = MultiProcessMapDataZMQ(ds, 10, preprocess)
