@@ -210,9 +210,10 @@ if __name__ == '__main__':
 
         finalize_configs(is_training=True)
 
-        tf.set_random_seed(cfg.TRAIN.SEED)
-        fix_rng_seed(cfg.TRAIN.SEED+41*hvd.rank())
-        np.random.seed(cfg.TRAIN.SEED)
+        if cfg.TRAIN.SEED:
+            tf.set_random_seed(cfg.TRAIN.SEED)
+            fix_rng_seed(cfg.TRAIN.SEED+41*hvd.rank())
+            np.random.seed(cfg.TRAIN.SEED)
 
         images_per_step = cfg.TRAIN.NUM_GPUS * cfg.TRAIN.BATCH_SIZE_PER_GPU
         steps_per_epoch = args.images_per_epoch // images_per_step

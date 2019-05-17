@@ -129,7 +129,7 @@ _C.TRAIN.STARTING_EPOCH = 1  # the first epoch to start with, useful to continue
 _C.TRAIN.LR_EPOCH_SCHEDULE = [(8, 0.1), (10, 0.01), (12, None)] # "1x" schedule in detectron
 _C.TRAIN.EVAL_PERIOD = 25  # period (epochs) to run evaluation
 _C.TRAIN.BATCH_SIZE_PER_GPU = 1
-_C.TRAIN.SEED = 1234
+_C.TRAIN.SEED = 1234 
 
 # preprocessing --------------------
 # Alternative old (worse & faster) setting: 600
