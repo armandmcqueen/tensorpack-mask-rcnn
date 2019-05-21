@@ -18,7 +18,6 @@ from model.mask_head import maskrcnn_loss
 from model.rpn import rpn_head, multilevel_rpn_losses, generate_fpn_proposals, generate_fpn_proposals_topk_per_image
 from performance import print_buildtime_shape, print_runtime_shape, print_runtime_tensor, print_runtime_tensor_loose_branch
 
-
 class SeedGenerator:
     def __init__(self, seed):
         self.seed = seed
@@ -35,7 +34,45 @@ class SeedGenerator:
             self.counters[key] += 1
             return self.counters[key]
 
+class LarcOptimizer(tf.train.Optimizer):
 
+    def __init__(self, opt, lr, eta):
+        self.opt = opt 
+        self.lr = lr
+        self.eta = float(eta)
+        self.epsilon = 1.0
+
+    def compute_gradients(self, *args, **kwargs): 
+        gradvars = self.opt.compute_gradients(*args, **kwargs)
+
+        v_norms = tf.stack([tf.norm(tensor=v, ord=2) for _, v in gradvars])
+        g_norms = tf.stack([tf.norm(tensor=g, ord=2) if g is not None else 0.0
+                          for g, _ in gradvars ])
+        zeds = tf.zeros_like(v_norms)
+        cond = tf.logical_and(tf.not_equal(v_norms, zeds), tf.not_equal(g_norms, zeds))
+        true_vals = tf.scalar_mul(self.eta, tf.div(v_norms, g_norms))
+        false_vals = tf.fill(tf.shape(v_norms), self.epsilon)
+        larc_local_lr = tf.where(cond, true_vals, false_vals)
+
+        larc_local_lr = tf.minimum(larc_local_lr/self.lr, tf.ones_like(v_norms))
+
+        return [(larc_local_lr[i]*g, v)
+                            if g is not None else (None, v)
+                            for i, (g, v) in enumerate(gradvars) ]
+
+
+
+    def apply_gradients(self, *args, **kwargs):
+        return self.opt.apply_gradients(*args, **kwargs)
+
+    def get_slot(self, *args, **kwargs):
+        return self.opt.get_slot(*args, **kwargs)
+
+    def get_slot_names(self, *args, **kwargs):
+        return self.opt.get_slot_names(*args, **kwargs)
+
+    def variables(self, *args, **kwargs):
+        return self.opt.variables(*args, **kwargs)
 
 class DetectionModel(ModelDesc):
     def __init__(self, fp16):
@@ -53,11 +90,15 @@ class DetectionModel(ModelDesc):
         lr = tf.get_variable('learning_rate', initializer=0.003, trainable=False)
         tf.summary.scalar('learning_rate-summary', lr)
 
-
         opt = tf.train.MomentumOptimizer(lr, 0.9)
+
+#        if cfg.TRAIN.LARC_ETA:
+#            opt = LarcOptimizer(opt, lr, cfg.TRAIN.LARC_ETA)
+
         if cfg.TRAIN.NUM_GPUS < 8:
             opt = optimizer.AccumGradOptimizer(opt, 8 // cfg.TRAIN.NUM_GPUS)
         return opt
+
 
     def get_inference_tensor_names(self):
         """
