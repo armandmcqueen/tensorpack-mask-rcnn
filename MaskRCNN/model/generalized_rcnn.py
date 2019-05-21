@@ -40,7 +40,7 @@ class LarcOptimizer(tf.train.Optimizer):
         self.opt = opt 
         self.lr = lr
         self.eta = float(eta)
-        self.epsilon = 1.0
+        self.epsilon = 0.0
 
     def compute_gradients(self, *args, **kwargs): 
         gradvars = self.opt.compute_gradients(*args, **kwargs)
@@ -92,8 +92,8 @@ class DetectionModel(ModelDesc):
 
         opt = tf.train.MomentumOptimizer(lr, 0.9)
 
-#        if cfg.TRAIN.LARC_ETA:
-#            opt = LarcOptimizer(opt, lr, cfg.TRAIN.LARC_ETA)
+        if cfg.TRAIN.LARC_ETA:
+            opt = LarcOptimizer(opt, lr, cfg.TRAIN.LARC_ETA)
 
         if cfg.TRAIN.NUM_GPUS < 8:
             opt = optimizer.AccumGradOptimizer(opt, 8 // cfg.TRAIN.NUM_GPUS)

@@ -114,7 +114,7 @@ _C.TRAIN.BASE_LR = 1e-2  / 8. # defined for total batch size=1. It will be adjus
 _C.TRAIN.WARMUP_STEPS = 1000   # in terms of iterations. This is not affected by #GPUs
 _C.TRAIN.WARMUP_INIT_LR = 1e-2 * 0.33 / 8. # defined for total batch size=1. It will be adjusted automatically
 _C.TRAIN.STARTING_EPOCH = 1  # the first epoch to start with, useful to continue a training
-_C.TRAIN.LARC_ETA = 0.003
+_C.TRAIN.LARC_ETA = 0.001
 
 # LR_SCHEDULE means equivalent steps when the total batch size is 8.
 # When the total bs!=8, the actual iterations to decrease learning rate, and
