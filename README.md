@@ -4,7 +4,7 @@ Performance focused implementation of Mask RCNN based on the [Tensorpack impleme
 
 ### Overview
 
-Mask RCNN code with a batch dimension for training, FP16 training, custom TF ops. Some features of the original Tensorpack have been stripped away:
+Mask RCNN code that supports training with a batch size > 1 per GPU, FP16 training, custom TF ops. Some features of the original Tensorpack have been stripped away:
 
 - We only support FPN-based training
 - We do not have support for Cascade RCNN
