@@ -215,7 +215,7 @@ if __name__ == '__main__':
         # Warmup LR schedule is step based
         warmup_start_step = 0
         warmup_end_step = cfg.TRAIN.WARMUP_STEPS
-        warmup_start_lr = max(cfg.TRAIN.WARMUP_INIT_LR*8, cfg.TRAIN.WARMUP_INIT_LR * batch_size_lr_factor) # If the batch size is very small, don't shrink the lr too much
+        warmup_start_lr = cfg.TRAIN.WARMUP_INIT_LR*8
         warmup_end_lr = base_lr_adjusted_for_bs
         warmup_schedule = [(warmup_start_step, warmup_start_lr), (warmup_end_step, warmup_end_lr)]
 
