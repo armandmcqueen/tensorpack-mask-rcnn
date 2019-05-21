@@ -4,12 +4,23 @@ Performance focused implementation of Mask RCNN based on the [Tensorpack impleme
 
 ### Overview
 
-Code with a batch dimension for training. Converges with batch size = 1. Convergence issue with bs > 1.
+Mask RCNN code with a batch dimension for training, FP16 training, custom TF ops. Some features of the original Tensorpack have been stripped away:
 
-Requires a custom TF binary - available under GitHub releases.
+- We only support FPN-based training
+- We do not have support for Cascade RCNN
+
+### Status
+
+Training on N GPUs (V100s) with a per-gpu batch size of M = NxM training
+
+Training converges to target accuracy for configurations from 8x1 up to 32x4 training. 32x4 training is unreliable, with NaN losses ~50% of the experiments. 
+
+Training throughput is substantially improved from original Tensorpack code.
 
 
+### Notes
 
+- Requires a custom TF binary - available under GitHub releases (custom ops and fix for bug introduced in TF 1.13
 
 ### Tensorpack todo
 
