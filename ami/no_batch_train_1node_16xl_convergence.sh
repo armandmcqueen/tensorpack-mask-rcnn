@@ -37,7 +37,7 @@ HOROVOD_CYCLE_TIME=0.5 \
 HOROVOD_FUSION_THRESHOLD=67108864 \
 HOROVOD_LOG_LEVEL=INFO \
 TENSORPACK_FP16=1 \
-/home/ubuntu/anaconda3/envs/${VENV}/bin/mpirun -np 8 -H localhost:8 \
+/home/ubuntu/anaconda3/envs/${VENV}/bin/mpirun -np 32 -hostfile hosts \
 --mca plm_rsh_no_tree_spawn 1 -bind-to none -map-by slot -mca pml ob1 -mca btl ^openib \
 -mca btl_tcp_if_exclude lo,docker0 \
 -mca btl_vader_single_copy_mechanism none \
@@ -57,7 +57,7 @@ MODE_FPN=True \
 DATA.BASEDIR=/home/ubuntu/data \
 DATA.TRAIN='["train2017"]' \
 DATA.VAL='("val2017",)' \
-TRAIN.BATCH_SIZE_PER_GPU=1 \
+TRAIN.BATCH_SIZE_PER_GPU=4 \
 TRAIN.LR_EPOCH_SCHEDULE='[(8, 0.1), (10, 0.01), (12, None)]' \
 BACKBONE.WEIGHTS=/home/ubuntu/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
 BACKBONE.NORM=FreezeBN \
