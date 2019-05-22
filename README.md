@@ -4,10 +4,7 @@ Performance focused implementation of Mask RCNN based on the [Tensorpack impleme
 
 ### Overview
 
-Mask RCNN code that supports training with a batch size > 1 per GPU, FP16 training, custom TF ops. Some features of the original Tensorpack have been stripped away:
-
-- We only support FPN-based training
-- We do not have support for Cascade RCNN
+Mask RCNN code that supports training with a batch size > 1 per GPU, FP16 training, custom TF ops. Training throughput is substantially improved from original Tensorpack code.
 
 ### Status
 
@@ -15,8 +12,10 @@ Training on N GPUs (V100s) with a per-gpu batch size of M = NxM training
 
 Training converges to target accuracy for configurations from 8x1 up to 32x4 training. 32x4 training is unreliable, with NaN losses ~50% of the experiments. 
 
-Training throughput is substantially improved from original Tensorpack code.
+Some features of the original Tensorpack have been stripped away:
 
+- We only support FPN-based training
+- We do not have support for Cascade RCNN
 
 ### Notes
 
