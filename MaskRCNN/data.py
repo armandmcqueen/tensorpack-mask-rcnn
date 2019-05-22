@@ -7,6 +7,8 @@ import numpy as np
 import cv2
 from tabulate import tabulate
 from termcolor import colored
+import horovod.tensorflow as hvd
+import random
 
 from tensorpack.dataflow import (
     DataFromList, MapDataComponent, MultiProcessMapDataZMQ, MultiThreadMapData, TestDataSpeed, imgaug, MapData)
