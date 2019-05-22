@@ -18,8 +18,8 @@
     - Make sure the nodes live in a single AZ
     - Make sure the nodes have the NVIDIA GPU daemonset
 
-- The commands in `eksctl/create.sh` handles those requirements.
-    - You should update `eksctl/config.yaml` to match your needs (name/region/vpc-id/subnets/instance-type/az/capacity/ssh-public-key)
+- The commands in `eksctl/p3_create.sh` handles those requirements.
+    - You should update `eksctl/p3_config.yaml` to match your needs (name/region/vpc-id/subnets/instance-type/az/capacity/ssh-public-key)
         - sshPublicKeyPath is the name of an EC2 KeyPair.
         - some examples can be found at https://github.com/weaveworks/eksctl/tree/master/examples
     - Run the commands individually, not via script
@@ -72,40 +72,15 @@
 - See `eksctl/delete.sh` for commands to delete cluster
 - If you attached a policy to the EKS worker IAM role (e.g. to download data from S3, you will need to manually remove that policy from the role in order for CloudFormation to be able to delete all resources for your cluster)
 
-### To run multiple jobs at the same time
 
-* (1) Add more nodes, the node number should be enough for all you jobs
+### Multiple Training Jobs
+
+Scale the nodegroup to the desired number of nodes. We do not have an autoscaling solution yet (may investigate Escalator).
+
     - either by scaling up the existing nodegroup
         - `eksctl scale nodegroup --cluster CLUSTER_NAME --name ng-1 --nodes 4`
     - or by creating a new nodegroup based on `eksctl/additional_nodegroup.yaml`
-        - `eksctl create nodegroup -f eks/eksctl/additional_nodegroup.yaml`
-
-* (2) Launch new jobs
-    - IMPORTANT: You can run into name collisions with multiple jobs.
-        - You can either create multiple maskrcnn folders with different names. Rename both the `maskrcnn` chart (`maskrcnn/values.yaml`) and the dependent `mpi-operator` chart (`maskrcnn/charts/mpi-operator/values.yaml`) in the folders and run `helm install —name maskrcnn_jobX ./maskrcnn_foldername_jobX/` to avoid naming collisions.
-        - Or you can create a new namespace, add FSx PV and PVC to that namespace and then update the namespace fields in the charts.
-            - More instructions will be added for this approach as we start using it more.
-
-
-### Tensorboard 
-
-`kubectl apply -f eks/tensorboard/tensorboard.yaml`
-
-`kubectl port-forward tensorboard 6006:6006`
-
-Shortcut is `./tboard.sh`
-
-### Examine fsx
-
-`kubectl apply -f fsx/apply-pvc-2`
-
-`./ssh.sh`
-
-We use `apply-pvc-2` because it uses the tensorboard-mask-rcnn image, which has useful tools like the AWS CLI
-
-# Multiple Training Jobs
-
-Scale the nodegroup to the desired number of nodes. We do not have an autoscaling solution yet (may investigate Escalator).
+        - `eksctl create nodegroup -f eks/eksctl/p3_additional_nodegroup.yaml`
 
 `maskrcnn/values.yaml` holds the default training params for 1 node, 8 GPU training. To launch a training job with a different configuration, we suggest you create a new yaml file with the desired params. 
 
@@ -124,7 +99,7 @@ Then we use helm to launch training, telling it to use the newly created values 
 helm install --name maskrcnn-determinism-32x4-24epoch ./maskrcnn/ -f maskrcnn/values/determinism-32x4-24epoch.yaml
 ```
 
-### Multiple jobs
+#### Multiple identical jobs
 
 If you need to run multiple identical jobs without naming conflict, we have the runX overlays to help.
 
@@ -136,3 +111,22 @@ export OVERLAY_DIR=maskrcnn/overlays
 helm install --name maskrcnn-determinism-32x4-24epoch-run1 ./maskrcnn/ -f maskrcnn/values/determinism-32x4-24epoch-run1.yaml
 helm install --name maskrcnn-determinism-32x4-24epoch-run2 ./maskrcnn/ -f maskrcnn/values/determinism-32x4-24epoch-run2.yaml
 ```
+       
+
+
+### Tensorboard 
+
+`kubectl apply -f eks/tensorboard/tensorboard.yaml`
+
+`kubectl port-forward tensorboard 6006:6006`
+
+Shortcut is `./tboard.sh`
+
+### Examine fsx
+
+`kubectl apply -f fsx/apply-pvc-2`
+
+`./ssh.sh`
+
+We use `apply-pvc-2` because it uses the tensorboard-mask-rcnn image, which has useful tools like the AWS CLI
+
