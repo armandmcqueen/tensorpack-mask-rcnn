@@ -1,0 +1,9 @@
+append:
+  global:
+    name: -dbg-predefpad
+
+set:
+  maskrcnn:
+    predefined_padding: 'True'
+    image: armandmcqueen/tensorpack-mask-rcnn:dev-debug_predefined_padding
+
