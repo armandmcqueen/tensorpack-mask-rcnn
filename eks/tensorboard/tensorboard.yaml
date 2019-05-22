@@ -5,7 +5,7 @@ metadata:
 spec:
   containers:
   - name: tensorboard
-    image: tensorflow/tensorflow:1.13.1-gpu
+    image: armandmcqueen/tensorpack-mask-rcnn:dev-master
     command: ["tensorboard"]
     args: ["--logdir=/fsx"]
     securityContext:

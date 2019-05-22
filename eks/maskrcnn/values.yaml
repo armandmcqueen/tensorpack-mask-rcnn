@@ -1,13 +1,13 @@
 global:
   namespace: default
+  name: maskrcnn
 maskrcnn:
-  name: maskrcnn-optimized
-  gpus: 32
-  gpus_per_node: 8
-  image: armandmcqueen/tensorpack-mask-rcnn:dev-eksctl # image URL from ECR or DockerHub
-  train_script: /tensorpack-mask-rcnn/MaskRCNN/train.py
-  fp_16: 1
+  experiment_group: default # For organizing result dirs.
+  gpus: 8
   batch_size_per_gpu: 1
+  image: armandmcqueen/tensorpack-mask-rcnn:dev-master # image URL from ECR or DockerHub
+  train_script: /tensorpack-mask-rcnn/MaskRCNN/train.py
+  fp_16: 1 # TODO: Setting this to 0 does not disable FP16, it just disables loss scaling
   base_lr: 0.0015
   warmup_lr: 0.000416667
   shared_fs: fsx
@@ -32,3 +32,6 @@ maskrcnn:
   nccl_socket_ifname: ^lo,docker0
   nccl_min_rings: 8
   nccl_debug: INFO
+  bbox_reg_weights: '[10., 10., 5., 5.]'
+  result_score_thresh: 0.05
+  gpus_per_node: 8

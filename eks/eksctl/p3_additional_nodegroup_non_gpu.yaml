@@ -1,14 +1,14 @@
 ---
-apiVersion: eksctl.io/v1alpha4
+apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: tensorpack-mask-rcnn
+  name: armand-tensorpack-mask-rcnn-p3
   region: us-east-1
 
 nodeGroups:
-  - name: ng-2
-    instanceType: p3.16xlarge
+  - name: ng-c5
+    instanceType: c5.2xlarge
     availabilityZones: ["us-east-1f"]
     desiredCapacity: 1
     iam:
@@ -17,6 +17,7 @@ nodeGroups:
         ebs: true
         fsx: true
         efs: true
-    allowSSH: true
-    sshPublicKeyPath: 'us-east-1-benchmark-tf'
+    ssh:
+      allow: true
+      publicKeyName: 'us-east-1-benchmark-tf'
 

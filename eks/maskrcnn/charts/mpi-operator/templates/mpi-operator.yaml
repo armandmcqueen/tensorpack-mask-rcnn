@@ -1,9 +1,9 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: {{ .Values.mpioperator.name }}
+  name: {{ .Values.mpioperator.name }}-{{ .Values.global.name }}
   labels:
-    app.kubernetes.io/name: {{ .Values.mpioperator.name }}
+    app.kubernetes.io/name: {{ .Values.mpioperator.name }}-{{ .Values.global.name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 rules:
@@ -79,49 +79,49 @@ rules:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ .Values.mpioperator.name }}
+  name: {{ .Values.mpioperator.name }}-{{ .Values.global.name }}
   namespace: {{ .Values.global.namespace }}
   labels:
-    app.kubernetes.io/name: {{ .Values.mpioperator.name }}
+    app.kubernetes.io/name: {{ .Values.mpioperator.name }}-{{ .Values.global.name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ .Values.mpioperator.name }}
+  name: {{ .Values.mpioperator.name }}-{{ .Values.global.name }}
   namespace: {{ .Values.global.namespace }}
   labels:
-    app.kubernetes.io/name: {{ .Values.mpioperator.name }}
+    app.kubernetes.io/name: {{ .Values.mpioperator.name }}-{{ .Values.global.name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: {{ .Values.mpioperator.name }}
+  name: {{ .Values.mpioperator.name }}-{{ .Values.global.name }}
 subjects:
 - kind: ServiceAccount
-  name: {{ .Values.mpioperator.name }}
+  name: {{ .Values.mpioperator.name }}-{{ .Values.global.name }}
   namespace: {{ .Values.global.namespace }}
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.mpioperator.name }}
+  name: {{ .Values.mpioperator.name }}-{{ .Values.global.name }}
   namespace: {{ .Values.global.namespace }}
   labels:
-    app.kubernetes.io/name: {{ .Values.mpioperator.name }}
+    app.kubernetes.io/name: {{ .Values.mpioperator.name }}-{{ .Values.global.name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-     app.kubernetes.io/name: {{ .Values.mpioperator.name }}
+     app.kubernetes.io/name: {{ .Values.mpioperator.name }}-{{ .Values.global.name }}
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: {{ .Values.mpioperator.name }}
+        app.kubernetes.io/name: {{ .Values.mpioperator.name }}-{{ .Values.global.name }}
         app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/managed-by: {{ .Release.Service }}
     spec:
@@ -133,6 +133,6 @@ spec:
         - {{ .Values.mpioperator.deliveryimage }}
         image: {{ .Values.mpioperator.image }}
         imagePullPolicy: {{ .Values.mpioperator.pullpolicy }}
-        name: {{ .Values.mpioperator.name }}
-      serviceAccountName: {{ .Values.mpioperator.name }}
+        name: {{ .Values.mpioperator.name }}-{{ .Values.global.name }}
+      serviceAccountName: {{ .Values.mpioperator.name }}-{{ .Values.global.name }}
 ---

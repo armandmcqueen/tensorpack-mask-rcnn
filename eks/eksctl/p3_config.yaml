@@ -1,10 +1,10 @@
 # An example of ClusterConfig object with access to CSI drivers:
 ---
-apiVersion: eksctl.io/v1alpha4
+apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: tensorpack-mask-rcnn
+  name: armand-tensorpack-mask-rcnn-p3
   region: us-east-1
 
 
@@ -23,7 +23,7 @@ vpc:
         id: "subnet-21ac2f2e"
 
 nodeGroups:
-  - name: ng-1
+  - name: ng-p3
     instanceType: p3.16xlarge
     availabilityZones: ["us-east-1f"]
     desiredCapacity: 1
@@ -33,13 +33,8 @@ nodeGroups:
         ebs: true
         fsx: true
         efs: true
-    allowSSH: true
-    sshPublicKeyPath: 'us-east-1-benchmark-tf'
+    ssh:
+      allow: true
+      publicKeyName: 'us-east-1-benchmark-tf'
 
 
-
-# Never eksctl version require:
-#
-#ssh:
-#  allows: true
-#  publicKeyName: 'us-east-1-benchmark-tf'

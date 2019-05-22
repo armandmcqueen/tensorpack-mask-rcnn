@@ -101,4 +101,38 @@ Shortcut is `./tboard.sh`
 
 `./ssh.sh`
 
-We use `apply-pvc-2` because it uses the tensorborad-mask-rcnn image, which has useful tools like the AWS CLI
+We use `apply-pvc-2` because it uses the tensorboard-mask-rcnn image, which has useful tools like the AWS CLI
+
+# Multiple Training Jobs
+
+Scale the nodegroup to the desired number of nodes. We do not have an autoscaling solution yet (may investigate Escalator).
+
+`maskrcnn/values.yaml` holds the default training params for 1 node, 8 GPU training. To launch a training job with a different configuration, we suggest you create a new yaml file with the desired params. 
+
+To make that easier, we use a the `overyaml.py` utlity, which takes in a base yaml, applies a list of changes (overlays) to it and prints the new yaml to stdout. See `overyaml.md` for details.
+
+To run 4 node training (32x4) with the 24 epoch schedule, we do the following
+
+```
+export OVERLAY_DIR=maskrcnn/overlays
+./overyaml.py maskrcnn/values.yaml 32x4 24epoch > maskrcnn/values/determinism-32x4-24epoch.yaml
+```
+
+Then we use helm to launch training, telling it to use the newly created values yaml instead of the deafult `maskrcnn/values.yaml`
+
+```
+helm install --name maskrcnn-determinism-32x4-24epoch ./maskrcnn/ -f maskrcnn/values/determinism-32x4-24epoch.yaml
+```
+
+### Multiple jobs
+
+If you need to run multiple identical jobs without naming conflict, we have the runX overlays to help.
+
+```
+export OVERLAY_DIR=maskrcnn/overlays
+./overyaml.py maskrcnn/values.yaml 32x4 24epoch run1 > maskrcnn/values/determinism-32x4-24epoch-run1.yaml
+./overyaml.py maskrcnn/values.yaml 32x4 24epoch run2 > maskrcnn/values/determinism-32x4-24epoch-run2.yaml
+
+helm install --name maskrcnn-determinism-32x4-24epoch-run1 ./maskrcnn/ -f maskrcnn/values/determinism-32x4-24epoch-run1.yaml
+helm install --name maskrcnn-determinism-32x4-24epoch-run2 ./maskrcnn/ -f maskrcnn/values/determinism-32x4-24epoch-run2.yaml
+```

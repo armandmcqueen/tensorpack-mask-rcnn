@@ -1,0 +1,23 @@
+---
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: armand-tensorpack-mask-rcnn
+  region: us-east-1
+
+nodeGroups:
+  - name: ng-c5
+    instanceType: c5.2xlarge
+    availabilityZones: ["us-east-1f"]
+    desiredCapacity: 1
+    iam:
+      withAddonPolicies:
+        imageBuilder: true
+        ebs: true
+        fsx: true
+        efs: true
+    ssh:
+      allow: true
+      publicKeyName: 'us-east-1-benchmark-tf'
+
