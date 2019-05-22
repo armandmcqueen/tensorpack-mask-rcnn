@@ -77,10 +77,10 @@
 
 Scale the nodegroup to the desired number of nodes. We do not have an autoscaling solution yet (may investigate Escalator).
 
-    - either by scaling up the existing nodegroup
-        - `eksctl scale nodegroup --cluster CLUSTER_NAME --name ng-1 --nodes 4`
-    - or by creating a new nodegroup based on `eksctl/additional_nodegroup.yaml`
-        - `eksctl create nodegroup -f eks/eksctl/p3_additional_nodegroup.yaml`
+- either by scaling up the existing nodegroup
+    - `eksctl scale nodegroup --cluster CLUSTER_NAME --name ng-1 --nodes 4`
+- or by creating a new nodegroup based on `eksctl/additional_nodegroup.yaml`
+    - `eksctl create nodegroup -f eks/eksctl/p3_additional_nodegroup.yaml`
 
 `maskrcnn/values.yaml` holds the default training params for 1 node, 8 GPU training. To launch a training job with a different configuration, we suggest you create a new yaml file with the desired params. 
 
