@@ -241,8 +241,8 @@ class ResNetFPNModel(DetectionModel):
 
         if self.training:
             input_proposal_boxes = proposal_boxes # K x 5
-            input_gt_boxes = gt_boxes # BS x Num_GT_boxes x 4
-            input_gt_labels = gt_labels # BS x Num_GT_boxes
+            input_gt_boxes = gt_boxes # BS x Num_gt_boxes x 4
+            input_gt_labels = gt_labels # BS x Num_gt_boxes
 
             # Sample the input_proposal_boxes to make the foreground(fg) box and background(bg) boxes
             # ratio close to configuration. proposal_boxes: Num_sampled_boxs x 5, proposal_labels: 1-D Num_sampled_boxes
@@ -298,8 +298,8 @@ class ResNetFPNModel(DetectionModel):
                 per_image_fg_labels = []
                 for i in range(cfg.TRAIN.BATCH_SIZE_PER_GPU):
 
-                    single_image_gt_count = prepadding_gt_counts[i] # 1-D Num_GT_boxes_current_image
-                    single_image_gt_masks = gt_masks[i, :single_image_gt_count, :, :] # Num_GT_boxes_current_image x H_gtmask x W_gtmask (maybe? might have length 1 dim at beginning)
+                    single_image_gt_count = prepadding_gt_counts[i] # 1-D Num_gt_boxes_current_image
+                    single_image_gt_masks = gt_masks[i, :single_image_gt_count, :, :] # Num_gt_boxes_current_image x H_gtmask x W_gtmask
                     single_image_fg_indices = tf.squeeze(tf.where(tf.equal(proposal_fg_boxes[:, 0], i)), axis=1) # 1-D Num_fg_boxes_current_image
                     single_image_fg_boxes = tf.gather(proposal_fg_boxes, single_image_fg_indices)[:, 1:] # Num_fg_boxes_current_image x 4
                     single_image_fg_labels = tf.gather(proposal_fg_labels, single_image_fg_indices) # 1-D Num_fg_boxes_current_image
@@ -307,7 +307,7 @@ class ResNetFPNModel(DetectionModel):
 
                     assert isinstance(single_image_fg_inds_wrt_gt, tf.Tensor)
 
-                    single_image_gt_masks = tf.expand_dims(single_image_gt_masks, axis=1) # Num_GT_boxes_current_image x 1 x H_gtmask x W_gtmask
+                    single_image_gt_masks = tf.expand_dims(single_image_gt_masks, axis=1) # Num_gt_boxes_current_image x 1 x H_gtmask x W_gtmask
                     # single_image_target_masks_for_fg: Num_fg_boxes_current_image x 1 x (H_roi_mask*2) x (W_roi_mask*2)
                     single_image_target_masks_for_fg = crop_and_resize(single_image_gt_masks,
                                                                        single_image_fg_boxes,

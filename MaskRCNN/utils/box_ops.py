@@ -73,8 +73,8 @@ def pairwise_iou(boxlist1, boxlist2):
 def pairwise_iou_batch(proposal_boxes, gt_boxes, orig_gt_counts, batch_size):
     """Computes pairwise intersection-over-union between box collections.
     Args:
-      boxlist1: Nx5                             (batch_index, x1, y1, x2, t2)
-      boxlist2: BS x MaxNumGTs x 4
+      proposal_boxes: K x 5  (batch_index, x1, y1, x2, y2)
+      gt_boxes: BS x MaxNumGTs x 4
       orig_gt_counts: BS
     Returns:
         list of length BS, each element is output of pairwise_iou: N x M

@@ -9,21 +9,21 @@ from utils.box_ops import pairwise_iou_batch
 @under_name_scope()
 def sample_fast_rcnn_targets(boxes, gt_boxes, gt_labels, orig_gt_counts, batch_size, seed_gen):
     """
-    Sample some boxes from all proposals for training.
+    Sample boxes according to the predefined fg(foreground) boxes and bg(background) boxes ratio
     #fg(foreground) is guaranteed to be > 0, because ground truth boxes will be added as proposals.
     Args:
-        boxes: (#lvl x BS x K) x 5 region proposals. [batch_index, floatbox] aka Nx5
-        gt_boxes: BS x MaxGT x 4, floatbox
+        boxes: K x 5 region proposals. [batch_index, x1, y1, x2, y2]
+        gt_boxes: Groundtruth boxes, BS x MaxGT x 4(x1, y1, x2, y2)
         gt_labels: BS x MaxGT, int32
-        orig_gt_counts: BS   # The number of ground truths in the data. Use to unpad gt_labels and gt_boxes
+        orig_gt_counts: BS # The number of ground truths in the data. Use to unpad gt_labels and gt_boxes
     Returns:
-        sampled_boxes: tx5 floatbox, the rois
+        sampled_boxes: tx5, the rois
         sampled_labels: t int64 labels, in [0, #class). Positive means foreground.
-        fg_inds_wrt_gt: #fg indices, each in range [0, m-1].
-            It contains the matching GT of each foreground roi.
+        fg_inds_wrt_gt: #fg indices, each in range [0, m-1]. It contains the matching GT of each foreground roi.
     """
 
-    per_image_ious = pairwise_iou_batch(boxes, gt_boxes, orig_gt_counts, batch_size=batch_size) # list of len BS [N x M]
+    # per_image_ious: list of len BS [N x M] -- N is Num_rpn_boxes and M is Num_gt_boxes, for one image
+    per_image_ious = pairwise_iou_batch(boxes, gt_boxes, orig_gt_counts, batch_size=batch_size)
 
     proposal_metrics_batch(per_image_ious)
 
@@ -134,7 +134,8 @@ def proposal_metrics_batch(per_image_ious):
     """
     Add summaries for RPN proposals.
     Args:
-        per_image_ios: list of len batch_size: nxm, #proposal x #gt
+         per_image_ious: pairwise intersection-over-union between rpn boxes and gt boxes
+                        list of len BS [Num_rpn_boxes x Num_gt_boxes]
     """
     prefix="proposal_metrics_batch"
 
