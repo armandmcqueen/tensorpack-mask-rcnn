@@ -490,23 +490,32 @@ def get_batch_train_dataflow(batch_size):
     batched_roidbs = []
 
     if cfg.PREPROC.PREDEFINED_PADDING:
-        taken = [False for _ in roidbs]
-        done = False
+        # classify roidbs based on their mapped padding shapes 
+        padding_classes = dict()
 
+        for roidb in roidbs:
+            shp = get_padding_shape(roidb['height'], roidb['width'])
+            if shp in padding_classes:
+                padding_classes[shp].append(roidb)
+            else:
+                padding_classes[shp] = [roidb]
+
+        # shuffle each class internally and flatten into single list
+        random.seed(cfg.TRAIN.SEED+41*hvd.rank())
+        roidbs = []
+        for shp in padding_classes.keys():
+            random.shuffle(padding_classes[shp]) 
+            roidbs.extend(padding_classes[shp])
+
+        # batch the flattened list (will be shuffled later)
+        batch = []
         for i, d in enumerate(roidbs):
-            batch = []
-            if not taken[i]:
-                batch.append(d)
-                padding_shape = get_padding_shape(d['height'], d['width'])
-                while len(batch) < batch_size:
-                    k = get_next_roidb(roidbs, i, padding_shape, taken)
-                    if k == None:
-                        done = True
-                        break
-                    batch.append(roidbs[k])
-                    taken[i], taken[k] = True, True
-                if not done:
+            if i % batch_size == 0:
+                if len(batch) == batch_size:
                     batched_roidbs.append(batch)
+                batch = []
+            batch.append(d)
+
     else:
         batch = []
         for i, d in enumerate(roidbs):
