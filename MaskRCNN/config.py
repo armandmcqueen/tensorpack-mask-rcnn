@@ -129,6 +129,7 @@ _C.TRAIN.STARTING_EPOCH = 1  # the first epoch to start with, useful to continue
 _C.TRAIN.LR_EPOCH_SCHEDULE = [(8, 0.1), (10, 0.01), (12, None)] # "1x" schedule in detectron
 _C.TRAIN.EVAL_PERIOD = 25  # period (epochs) to run evaluation
 _C.TRAIN.BATCH_SIZE_PER_GPU = 1
+_C.TRAIN.SEED = 1234
 
 # preprocessing --------------------
 # Alternative old (worse & faster) setting: 600
@@ -139,7 +140,7 @@ _C.PREPROC.MAX_SIZE = 1333
 # Un-scaled version: [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 _C.PREPROC.PIXEL_MEAN = [123.675, 116.28, 103.53]
 _C.PREPROC.PIXEL_STD = [58.395, 57.12, 57.375]
-_C.PREPROC.PREDEFINED_PADDING = True
+_C.PREPROC.PREDEFINED_PADDING = False
 _C.PREPROC.PADDING_SHAPES = [(800, 1000), (800, 1200), (800, 1350)]    # only add landscape shapes in decreasing h/w aspect ratio order - the corresponding portrait shape will be automatically created
 
 # anchors -------------------------
@@ -169,7 +170,7 @@ _C.RPN.TEST_PRE_NMS_TOPK = 6000
 _C.RPN.TEST_POST_NMS_TOPK = 1000   # if you encounter OOM in inference, set this to a smaller number
 # for FPN, #proposals per-level and #proposals after merging are (for now) the same
 # if FPN.PROPOSAL_MODE = 'Joint', these options have no effect
-_C.RPN.TRAIN_PER_LEVEL_NMS_TOPK = 2000 
+_C.RPN.TRAIN_PER_LEVEL_NMS_TOPK = 2000
 _C.RPN.TEST_PER_LEVEL_NMS_TOPK = 1000
 _C.RPN.TOPK_PER_IMAGE = True
 

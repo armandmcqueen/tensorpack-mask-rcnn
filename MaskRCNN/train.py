@@ -26,6 +26,8 @@ from eval import DetectionResult, predict_image, multithread_predict_dataflow, E
 from viz import draw_annotation, draw_final_outputs, draw_predictions, draw_proposal_recall
 from performance import ThroughputTracker, humanize_float
 from model.generalized_rcnn import ResNetFPNModel
+from tensorpack.utils import fix_rng_seed
+
 
 try:
     import horovod.tensorflow as hvd
@@ -196,6 +198,7 @@ if __name__ == '__main__':
 
 
     else:
+
         is_horovod = cfg.TRAINER == 'horovod'
         if is_horovod:
             hvd.init()
@@ -206,6 +209,11 @@ if __name__ == '__main__':
             log_launch_config(args.log_full_git_diff)
 
         finalize_configs(is_training=True)
+
+        if cfg.TRAIN.SEED:
+            tf.set_random_seed(cfg.TRAIN.SEED)
+            fix_rng_seed(cfg.TRAIN.SEED*hvd.rank())
+            np.random.seed(cfg.TRAIN.SEED)
 
         images_per_step = cfg.TRAIN.NUM_GPUS * cfg.TRAIN.BATCH_SIZE_PER_GPU
         steps_per_epoch = args.images_per_epoch // images_per_step

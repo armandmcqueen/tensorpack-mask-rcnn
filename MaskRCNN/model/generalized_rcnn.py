@@ -16,7 +16,10 @@ from model.boxclass_head import boxclass_predictions, boxclass_outputs, BoxClass
 from model.biased_sampler import sample_fast_rcnn_targets
 from model.mask_head import maskrcnn_loss
 from model.rpn import rpn_head, multilevel_rpn_losses, generate_fpn_proposals, generate_fpn_proposals_topk_per_image
-from performance import print_buildtime_shape, print_runtime_shape
+from utils.randomnness import  SeedGenerator
+
+
+
 
 
 class DetectionModel(ModelDesc):
@@ -61,18 +64,19 @@ class DetectionModel(ModelDesc):
 
         image = self.preprocess(inputs['images'])     # NCHW
 
-        features = self.backbone(image)
+        seed_gen = SeedGenerator(cfg.TRAIN.SEED)
+
+        features = self.backbone(image, seed_gen)
+
         anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
-        proposal_boxes, rpn_losses = self.rpn(image, features, anchor_inputs, inputs['orig_image_dims'])  # inputs?
+        proposal_boxes, rpn_losses = self.rpn(image, features, anchor_inputs, inputs['orig_image_dims'], seed_gen)  # inputs?
 
         targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
-        head_losses = self.roi_heads(image, features, proposal_boxes, targets, inputs)
+        head_losses = self.roi_heads(image, features, proposal_boxes, targets, inputs, seed_gen)
 
         if self.training:
-            wd_cost = regularize_cost(
-                    '.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
-            total_cost = tf.add_n(
-                    rpn_losses + head_losses + [wd_cost], 'total_cost')
+            wd_cost = regularize_cost('.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
+            total_cost = tf.add_n(rpn_losses + head_losses + [wd_cost], 'total_cost')
             add_moving_summary(total_cost, wd_cost)
             return total_cost
 
@@ -109,14 +113,14 @@ class ResNetFPNModel(DetectionModel):
         return ret
 
 
-    def backbone(self, image):
-        c2345 = resnet_fpn_backbone(image, cfg.BACKBONE.RESNET_NUM_BLOCKS, fp16=self.fp16)
+    def backbone(self, image, seed_gen):
+        c2345 = resnet_fpn_backbone(image, cfg.BACKBONE.RESNET_NUM_BLOCKS, seed_gen=seed_gen, fp16=self.fp16)
         print("c2345", c2345)
-        p23456 = fpn_model('fpn', c2345, fp16=self.fp16)
+        p23456 = fpn_model('fpn', c2345, seed_gen=seed_gen, fp16=self.fp16)
         return p23456
 
 
-    def rpn(self, image, features, inputs, orig_image_dims):
+    def rpn(self, image, features, inputs, orig_image_dims, seed_gen):
         """
         The RPN part of the graph that generate the RPN proposal and losses
 
@@ -138,11 +142,12 @@ class ResNetFPNModel(DetectionModel):
         rpn_outputs = []
         for pi in features:
             # label_logits: BS x H_feaure x W_feature x NA, box_logits: BS x (NA * 4) x H_feature x W_feature
-            label_logits, box_logits = rpn_head('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS), fp16=self.fp16)
+            label_logits, box_logits = rpn_head('rpn', pi, cfg.FPN.NUM_CHANNEL, len(cfg.RPN.ANCHOR_RATIOS), seed_gen=seed_gen, fp16=self.fp16)
             rpn_outputs.append((label_logits, box_logits))
 
         multilevel_label_logits = [k[0] for k in rpn_outputs] # Num_level * [BS x H_feature x W_feature x NA]
         multilevel_box_logits = [k[1] for k in rpn_outputs] # Num_level * [BS x (NA * 4) x H_feature x W_feature]
+
         # proposal_boxes: K x 5, proposal_scores: 1-D K
         if cfg.RPN.TOPK_PER_IMAGE:
             proposal_boxes, proposal_scores = generate_fpn_proposals_topk_per_image(all_anchors_fpn,
@@ -214,7 +219,7 @@ class ResNetFPNModel(DetectionModel):
 
         return proposal_boxes, losses
 
-    def roi_heads(self, image, features, proposal_boxes, targets, inputs):
+    def roi_heads(self, image, features, proposal_boxes, targets, inputs, seed_gen):
         """
         Implement the RoI Align and construct the RoI head (box and mask branches) of the graph
 
@@ -247,14 +252,14 @@ class ResNetFPNModel(DetectionModel):
                     input_gt_boxes,
                     input_gt_labels,
                     prepadding_gt_counts,
-                    batch_size=cfg.TRAIN.BATCH_SIZE_PER_GPU)
+                    batch_size=cfg.TRAIN.BATCH_SIZE_PER_GPU, seed_gen=seed_gen)
 
         # For the box/class branch
         roi_feature_fastrcnn = multilevel_roi_align(features[:4], proposal_boxes, 7) # Num_sampled_boxes x NumChannel x H_roi_box x W_roi_box
         fastrcnn_head_func = getattr(boxclass_head, cfg.FPN.BOXCLASS_HEAD_FUNC)
-        head_feature = fastrcnn_head_func('fastrcnn', roi_feature_fastrcnn, fp16=self.fp16) # Num_sampled_boxes x Num_features
+        head_feature = fastrcnn_head_func('fastrcnn', roi_feature_fastrcnn, seed_gen=seed_gen, fp16=self.fp16) # Num_sampled_boxes x Num_features
         # fastrcnn_label_logits: Num_sampled_boxes x Num_classes ,fastrcnn_box_logits: Num_sampled_boxes x Num_classes x 4
-        fastrcnn_label_logits, fastrcnn_box_logits = boxclass_outputs('fastrcnn/outputs', head_feature, cfg.DATA.NUM_CLASS)
+        fastrcnn_label_logits, fastrcnn_box_logits = boxclass_outputs('fastrcnn/outputs', head_feature, cfg.DATA.NUM_CLASS, seed_gen=seed_gen)
         regression_weights = tf.constant(cfg.FRCNN.BBOX_REG_WEIGHTS, dtype=tf.float32)
 
         fastrcnn_head = BoxClassHead(fastrcnn_box_logits,
@@ -288,7 +293,7 @@ class ResNetFPNModel(DetectionModel):
                         name_scope='multilevel_roi_align_mask')
 
                 mask_logits = maskrcnn_head_func(
-                        'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY, fp16=self.fp16)   # Num_fg_boxes x num_category x (H_roi_mask*2) x (W_roi_mask*2)
+                        'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY, seed_gen=seed_gen, fp16=self.fp16)   # Num_fg_boxes x num_category x (H_roi_mask*2) x (W_roi_mask*2)
                 per_image_target_masks_for_fg = []
                 per_image_fg_labels = []
                 for i in range(cfg.TRAIN.BATCH_SIZE_PER_GPU):
@@ -300,7 +305,6 @@ class ResNetFPNModel(DetectionModel):
                     single_image_fg_labels = tf.gather(proposal_fg_labels, single_image_fg_indices) # 1-D Num_fg_boxes_current_image
                     single_image_fg_inds_wrt_gt = proposal_gt_id_for_each_fg[i] # 1-D Num_fg_boxes_current_image
 
-                    print(type(single_image_fg_inds_wrt_gt))
                     assert isinstance(single_image_fg_inds_wrt_gt, tf.Tensor)
 
                     single_image_gt_masks = tf.expand_dims(single_image_gt_masks, axis=1) # Num_GT_boxes_current_image x 1 x H_gtmask x W_gtmask
@@ -340,7 +344,7 @@ class ResNetFPNModel(DetectionModel):
                 roi_feature_maskrcnn = multilevel_roi_align(features[:4], batch_ind_boxes, 14)
                 maskrcnn_head_func = getattr(mask_head, cfg.FPN.MRCNN_HEAD_FUNC)
                 mask_logits = maskrcnn_head_func(
-                        'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY, fp16=self.fp16)   # #fg x #cat x 28 x 28
+                        'maskrcnn', roi_feature_maskrcnn, cfg.DATA.NUM_CATEGORY, seed_gen=seed_gen, fp16=self.fp16)   # #fg x #cat x 28 x 28
                 indices = tf.stack([tf.range(tf.size(final_labels)), tf.cast(final_labels, tf.int32) - 1], axis=1)
                 final_mask_logits = tf.gather_nd(mask_logits, indices)   # #resultx28x28
                 tf.sigmoid(final_mask_logits, name='output/masks')

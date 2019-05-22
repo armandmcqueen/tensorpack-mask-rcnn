@@ -17,7 +17,7 @@ from performance import print_buildtime_shape, print_runtime_shape
 
 
 @layer_register(log_shape=True)
-def fpn_model(features, fp16=False):
+def fpn_model(features, seed_gen, fp16=False):
     """
     Args:
         features ([tf.Tensor]): ResNet features c2-c5
@@ -47,8 +47,8 @@ def fpn_model(features, fp16=False):
     with mixed_precision_scope(mixed=fp16):
       with argscope(Conv2D, data_format='channels_first',
                   activation=tf.identity, use_bias=True,
-                  kernel_initializer=tf.variance_scaling_initializer(scale=1.)):
-        lat_2345 = [Conv2D('lateral_1x1_c{}'.format(i + 2), c, num_channel, 1)
+                  kernel_initializer=tf.variance_scaling_initializer(scale=1., seed=seed_gen.next())):
+        lat_2345 = [Conv2D('lateral_1x1_c{}'.format(i + 2), c, num_channel, 1, seed=seed_gen.next())
                     for i, c in enumerate(features)]
         if use_gn:
             lat_2345 = [GroupNorm('gn_c{}'.format(i + 2), c) for i, c in enumerate(lat_2345)]
@@ -59,7 +59,7 @@ def fpn_model(features, fp16=False):
             else:
                 lat = lat + upsample2x('upsample_lat{}'.format(6 - idx), lat_sum_5432[-1])
                 lat_sum_5432.append(lat)
-        p2345 = [Conv2D('posthoc_3x3_p{}'.format(i + 2), c, num_channel, 3)
+        p2345 = [Conv2D('posthoc_3x3_p{}'.format(i + 2), c, num_channel, 3, seed=seed_gen.next())
                  for i, c in enumerate(lat_sum_5432[::-1])]
         if use_gn:
             p2345 = [GroupNorm('gn_p{}'.format(i + 2), c) for i, c in enumerate(p2345)]

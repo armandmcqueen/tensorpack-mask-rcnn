@@ -29,7 +29,7 @@ def _get_padding_shape(aspect_ratio):
     for shape in cfg.PREPROC.PADDING_SHAPES:
         if aspect_ratio >= float(shape[0])/float(shape[1]):
             return shape
-        
+
     return cfg.PREPROC.PADDING_SHAPES[-1]
 
 def get_padding_shape(h, w):
@@ -52,21 +52,21 @@ def get_next_roidb(roidbs, i, shp, taken):
         return None
 
     for k in range(i+1, len(roidbs)):
-        if get_padding_shape(roidbs[k]['height'], roidbs[k]['width']) == shp and not taken[k]: 
-            return k 
+        if get_padding_shape(roidbs[k]['height'], roidbs[k]['width']) == shp and not taken[k]:
+            return k
         if k - i > 40:    # don't try too hard
             break
 
     # at least try to get one dimension the same
     for k in range(i, len(roidbs)):
         padding_shape = get_padding_shape(roidbs[k]['height'], roidbs[k]['width'])
-        if (padding_shape[0] == shp[0] or padding_shape[1] == shp[1]) and not taken[k]: 
-            return k 
+        if (padding_shape[0] == shp[0] or padding_shape[1] == shp[1]) and not taken[k]:
+            return k
         if k - i > 40:    # don't try too hard
             break
 
     for k in range(i, len(roidbs)):
-        if not taken[k]: 
+        if not taken[k]:
             return k
 
     return None
@@ -157,7 +157,7 @@ def get_all_anchors(stride=None, sizes=None, tile=True):
         shifts = np.vstack((shift_x, shift_y, shift_x, shift_y)).transpose()
         # Kx4, K = field_size * field_size
         K = shifts.shape[0]
-    
+
         A = cell_anchors.shape[0]
         field_of_anchors = (
             cell_anchors.reshape((1, A, 4)) +
@@ -172,7 +172,7 @@ def get_all_anchors(stride=None, sizes=None, tile=True):
     else:
         cell_anchors = cell_anchors.astype('float32')
         cell_anchors[:, [2, 3]] += 1
-        return cell_anchors 
+        return cell_anchors
 
 
 
@@ -210,6 +210,7 @@ def get_anchor_labels(anchors, gt_boxes, crowd_boxes):
     def filter_box_label(labels, value, max_num):
         curr_inds = np.where(labels == value)[0]
         if len(curr_inds) > max_num:
+            np.random.seed(cfg.TRAIN.SEED)
             disable_inds = np.random.choice(
                 curr_inds, size=(len(curr_inds) - max_num),
                 replace=False)
@@ -445,6 +446,7 @@ def get_train_dataflow():
         return ret
 
     if cfg.TRAINER == 'horovod':
+        #ds = MapData(ds, preprocess)
         ds = MultiThreadMapData(ds, 5, preprocess)
         # MPI does not like fork()
     else:
@@ -482,19 +484,21 @@ def get_batch_train_dataflow(batch_size):
     logger.info("Filtered {} images which contain no non-crowd groudtruth boxes. Total #images for training: {}".format(
         num - len(roidbs), len(roidbs)))
 
+    roidbs = sorted(roidbs, key=lambda x: float(x['width']) / float(x['height']), reverse=True)     # will shuffle it later at every rank
+
     print("Batching roidbs")
     batched_roidbs = []
 
     if cfg.PREPROC.PREDEFINED_PADDING:
         taken = [False for _ in roidbs]
         done = False
-    
-        for i, d in enumerate(roidbs): 
+
+        for i, d in enumerate(roidbs):
             batch = []
             if not taken[i]:
                 batch.append(d)
-                padding_shape = get_padding_shape(d['height'], d['width']) 
-                while len(batch) < batch_size: 
+                padding_shape = get_padding_shape(d['height'], d['width'])
+                while len(batch) < batch_size:
                     k = get_next_roidb(roidbs, i, padding_shape, taken)
                     if k == None:
                         done = True
@@ -523,9 +527,6 @@ def get_batch_train_dataflow(batch_size):
     #   - TODO: Fix lack of batch contents shuffling
 
 
-
-
-
     aug = imgaug.AugmentorList(
          [CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE),
           imgaug.Flip(horiz=True)])
@@ -536,7 +537,6 @@ def get_batch_train_dataflow(batch_size):
         datapoint_list = []
         for roidb in roidb_batch:
             fname, boxes, klass, is_crowd = roidb['file_name'], roidb['boxes'], roidb['class'], roidb['is_crowd']
-            # print(fname)
             boxes = np.copy(boxes)
             im = cv2.imread(fname, cv2.IMREAD_COLOR)
             assert im is not None, fname
@@ -637,14 +637,13 @@ def get_batch_train_dataflow(batch_size):
 
         if cfg.PREPROC.PREDEFINED_PADDING:
             padding_shapes = [get_padding_shape(*(d["images"].shape[:2])) for d in datapoint_list]
-            max_height = max([shp[0] for shp in padding_shapes])       
-            max_width = max([shp[1] for shp in padding_shapes])       
- 
+            max_height = max([shp[0] for shp in padding_shapes])
+            max_width = max([shp[1] for shp in padding_shapes])
         else:
             image_dims = [d["images"].shape for d in datapoint_list]
             heights = [dim[0] for dim in image_dims]
             widths = [dim[1] for dim in image_dims]
-    
+
             max_height = max(heights)
             max_width = max(widths)
 
@@ -814,13 +813,13 @@ def get_batched_eval_dataflow(name, shard=0, num_shards=1, batch_size=1):
         org_shapes = [inp[0].shape for inp in inputs]
         scales = [np.sqrt(rimg.shape[0] * 1.0 / org_shape[0] * rimg.shape[1] / org_shape[1]) for rimg, org_shape in zip(resized_imgs, org_shapes)]
 
-        return [[resized_imgs[i], inp[1], scales[i], org_shapes[i][:2]] for i, inp in enumerate(inputs)] 
+        return [[resized_imgs[i], inp[1], scales[i], org_shapes[i][:2]] for i, inp in enumerate(inputs)]
 
     def pad_and_batch(inputs):
         heights, widths, _ = zip(*[inp[0].shape for inp in inputs])
         max_h, max_w = max(heights), max(widths)
         padded_images = np.stack([np.pad(inp[0], [[0, max_h-inp[0].shape[0]], [0, max_w-inp[0].shape[1]], [0,0]], 'constant') for inp in inputs])
-        return [padded_images, [inp[1] for inp in inputs], list(zip(heights, widths)), [inp[2] for inp in inputs], [inp[3] for inp in inputs]] 
+        return [padded_images, [inp[1] for inp in inputs], list(zip(heights, widths)), [inp[2] for inp in inputs], [inp[3] for inp in inputs]]
 
     ds = MapData(ds, decode_images)
     ds = MapData(ds, resize_images)
@@ -836,5 +835,5 @@ if __name__ == '__main__':
     ds.reset_state()
     cnt = 0
     for k in ds:
-        print(k) 
+        print(k)
         cnt += 1

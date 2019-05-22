@@ -13,7 +13,6 @@ from tensorpack.tfutils.varreplace import custom_getter_scope, freeze_variables
 from config import config as cfg
 from utils.mixed_precision import mixed_precision_scope
 
-
 @layer_register(log_shape=True)
 def GroupNorm(x, group=32, gamma_initializer=tf.constant_initializer(1.)):
     shape = x.get_shape().as_list()
@@ -127,7 +126,7 @@ def get_norm(zero_init=False):
     #return lambda x: Norm(layer_name, x, gamma_initializer=tf.zeros_initializer() if zero_init else None)
 
 
-def resnet_shortcut(l, n_out, stride, activation=tf.identity):
+def resnet_shortcut(l, n_out, stride, seed_gen, activation=tf.identity):
     n_in = l.shape[1]
     if n_in != n_out:   # change dimension when channel is not the same
         # TF's SAME mode output ceil(x/stride), which is NOT what we want when x is odd and stride is 2
@@ -135,43 +134,43 @@ def resnet_shortcut(l, n_out, stride, activation=tf.identity):
         if not cfg.MODE_FPN and stride == 2:
             l = l[:, :, :-1, :-1]
         return Conv2D('convshortcut', l, n_out, 1,
-                      strides=stride, activation=activation)
+                      strides=stride, activation=activation, seed=seed_gen.next())
     else:
         return l
 
 
-def resnet_bottleneck(l, ch_out, stride):
+def resnet_bottleneck(l, ch_out, stride, seed_gen):
     shortcut = l
     if cfg.BACKBONE.STRIDE_1X1:
         if stride == 2:
             l = l[:, :, :-1, :-1]
-        l = Conv2D('conv1', l, ch_out, 1, strides=stride)
-        l = Conv2D('conv2', l, ch_out, 3, strides=1)
+        l = Conv2D('conv1', l, ch_out, 1, strides=stride, seed=seed_gen.next())
+        l = Conv2D('conv2', l, ch_out, 3, strides=1, seed=seed_gen.next())
     else:
-        l = Conv2D('conv1', l, ch_out, 1, strides=1)
+        l = Conv2D('conv1', l, ch_out, 1, strides=1, seed=seed_gen.next())
         if stride == 2:
             l = tf.pad(l, [[0, 0], [0, 0], maybe_reverse_pad(0, 1), maybe_reverse_pad(0, 1)])
-            l = Conv2D('conv2', l, ch_out, 3, strides=2, padding='VALID')
+            l = Conv2D('conv2', l, ch_out, 3, strides=2, padding='VALID', seed=seed_gen.next())
         else:
-            l = Conv2D('conv2', l, ch_out, 3, strides=stride)
+            l = Conv2D('conv2', l, ch_out, 3, strides=stride, seed=seed_gen.next())
     if cfg.BACKBONE.NORM != 'None':
-        l = Conv2D('conv3', l, ch_out * 4, 1, activation=get_norm(zero_init=True))
+        l = Conv2D('conv3', l, ch_out * 4, 1, activation=get_norm(zero_init=True), seed=seed_gen.next())
     else:
         l = Conv2D('conv3', l, ch_out * 4, 1, activation=tf.identity,
-                   kernel_initializer=tf.constant_initializer())
-    ret = l + resnet_shortcut(shortcut, ch_out * 4, stride, activation=get_norm(zero_init=False))
+                   kernel_initializer=tf.constant_initializer(), seed=seed_gen.next())
+    ret = l + resnet_shortcut(shortcut, ch_out * 4, stride, seed_gen=seed_gen, activation=get_norm(zero_init=False))
     return tf.nn.relu(ret, name='output')
 
 
-def resnet_group(name, l, block_func, features, count, stride):
+def resnet_group(name, l, block_func, features, count, stride, seed_gen):
     with tf.variable_scope(name):
         for i in range(0, count):
             with tf.variable_scope('block{}'.format(i)):
-                l = block_func(l, features, stride if i == 0 else 1)
+                l = block_func(l, features, stride if i == 0 else 1, seed_gen)
     return l
 
 
-def resnet_c4_backbone(image, num_blocks):
+def resnet_c4_backbone(image, num_blocks, seed_gen):
     assert len(num_blocks) == 3
     freeze_at = cfg.BACKBONE.FREEZE_AT
     with backbone_scope(freeze=freeze_at > 0):
@@ -181,10 +180,10 @@ def resnet_c4_backbone(image, num_blocks):
         l = MaxPooling('pool0', l, 3, strides=2, padding='VALID')
 
     with backbone_scope(freeze=freeze_at > 1):
-        c2 = resnet_group('group0', l, resnet_bottleneck, 64, num_blocks[0], 1)
+        c2 = resnet_group('group0', l, resnet_bottleneck, 64, num_blocks[0], 1, seed_gen=seed_gen)
     with backbone_scope(freeze=False):
-        c3 = resnet_group('group1', c2, resnet_bottleneck, 128, num_blocks[1], 2)
-        c4 = resnet_group('group2', c3, resnet_bottleneck, 256, num_blocks[2], 2)
+        c3 = resnet_group('group1', c2, resnet_bottleneck, 128, num_blocks[1], 2, seed_gen=seed_gen)
+        c4 = resnet_group('group2', c3, resnet_bottleneck, 256, num_blocks[2], 2, seed_gen=seed_gen)
     # 16x downsampling up to now
     return c4
 
@@ -196,7 +195,7 @@ def resnet_conv5(image, num_block):
         return l
 
 
-def resnet_fpn_backbone(image, num_blocks, fp16=False):
+def resnet_fpn_backbone(image, num_blocks, seed_gen, fp16=False):
     freeze_at = cfg.BACKBONE.FREEZE_AT
     shape2d = tf.shape(image)[2:]
     mult = float(cfg.FPN.RESOLUTION_REQUIREMENT)
@@ -217,15 +216,15 @@ def resnet_fpn_backbone(image, num_blocks, fp16=False):
                 [pad_base[0], pad_base[1] + pad_shape2d[0]],
                 [pad_base[0], pad_base[1] + pad_shape2d[1]]]))
             l.set_shape([None, chan, None, None])
-            l = Conv2D('conv0', l, 64, 7, strides=2, padding='VALID')
+            l = Conv2D('conv0', l, 64, 7, strides=2, padding='VALID', seed=seed_gen.next())
             l = tf.pad(l, [[0, 0], [0, 0], maybe_reverse_pad(0, 1), maybe_reverse_pad(0, 1)])
             l = MaxPooling('pool0', l, 3, strides=2, padding='VALID')
         with backbone_scope(freeze=freeze_at > 1):
-            c2 = resnet_group('group0', l, resnet_bottleneck, 64, num_blocks[0], 1)
+            c2 = resnet_group('group0', l, resnet_bottleneck, 64, num_blocks[0], 1, seed_gen=seed_gen)
         with backbone_scope(freeze=False):
-            c3 = resnet_group('group1', c2, resnet_bottleneck, 128, num_blocks[1], 2)
-            c4 = resnet_group('group2', c3, resnet_bottleneck, 256, num_blocks[2], 2)
-            c5 = resnet_group('group3', c4, resnet_bottleneck, 512, num_blocks[3], 2)
+            c3 = resnet_group('group1', c2, resnet_bottleneck, 128, num_blocks[1], 2, seed_gen=seed_gen)
+            c4 = resnet_group('group2', c3, resnet_bottleneck, 256, num_blocks[2], 2, seed_gen=seed_gen)
+            c5 = resnet_group('group3', c4, resnet_bottleneck, 512, num_blocks[3], 2, seed_gen=seed_gen)
 
     # 32x downsampling up to now
     # size of c5: ceil(input/32)

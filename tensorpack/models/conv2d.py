@@ -35,7 +35,8 @@ def Conv2D(
         kernel_regularizer=None,
         bias_regularizer=None,
         activity_regularizer=None,
-        split=1):
+        split=1,
+        seed=None):
     """
     A wrapper around `tf.layers.Conv2D`.
     Some differences to maintain backward-compatibility:
@@ -51,9 +52,9 @@ def Conv2D(
     """
     if kernel_initializer is None:
         if get_tf_version_tuple() <= (1, 12):
-            kernel_initializer = tf.contrib.layers.variance_scaling_initializer(2.0)
+            kernel_initializer = tf.contrib.layers.variance_scaling_initializer(2.0, seed=seed)
         else:
-            kernel_initializer = tf.keras.initializers.VarianceScaling(2.0, distribution='untruncated_normal')
+            kernel_initializer = tf.keras.initializers.VarianceScaling(2.0, distribution='untruncated_normal', seed=seed)
     if split == 1:
         with rename_get_variable({'kernel': 'W', 'bias': 'b'}):
             layer = tf.layers.Conv2D(
@@ -144,7 +145,8 @@ def Conv2DTranspose(
         bias_initializer=tf.zeros_initializer(),
         kernel_regularizer=None,
         bias_regularizer=None,
-        activity_regularizer=None):
+        activity_regularizer=None,
+        seed=None):
     """
     A wrapper around `tf.layers.Conv2DTranspose`.
     Some differences to maintain backward-compatibility:
@@ -159,9 +161,9 @@ def Conv2DTranspose(
     """
     if kernel_initializer is None:
         if get_tf_version_tuple() <= (1, 12):
-            kernel_initializer = tf.contrib.layers.variance_scaling_initializer(2.0)
+            kernel_initializer = tf.contrib.layers.variance_scaling_initializer(2.0, seed=seed)
         else:
-            kernel_initializer = tf.keras.initializers.VarianceScaling(2.0, distribution='untruncated_normal')
+            kernel_initializer = tf.keras.initializers.VarianceScaling(2.0, distribution='untruncated_normal', seed=seed)
 
     with rename_get_variable({'kernel': 'W', 'bias': 'b'}):
         layer = tf.layers.Conv2DTranspose(
