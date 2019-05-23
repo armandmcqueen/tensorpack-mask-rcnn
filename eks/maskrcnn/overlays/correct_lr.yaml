@@ -1,0 +1,8 @@
+set:
+  maskrcnn:
+    base_lr: 0.00125
+
+append:
+  global:
+    name: -correctlr
+
