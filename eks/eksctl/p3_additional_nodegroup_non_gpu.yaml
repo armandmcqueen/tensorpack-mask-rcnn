@@ -7,10 +7,10 @@ metadata:
   region: us-east-1
 
 nodeGroups:
-  - name: ng-c5
-    instanceType: c5.2xlarge
-    availabilityZones: ["us-east-1f"]
-    desiredCapacity: 1
+  - name: ng-c5-1b
+    instanceType: c5.4xlarge
+    availabilityZones: ["us-east-1b"]
+    desiredCapacity: 3
     iam:
       withAddonPolicies:
         imageBuilder: true
