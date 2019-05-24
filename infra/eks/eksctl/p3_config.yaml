@@ -23,7 +23,7 @@ vpc:
         id: "subnet-21ac2f2e"
 
 nodeGroups:
-  - name: ng-p3
+  - name: ng-p3-1f
     instanceType: p3.16xlarge
     availabilityZones: ["us-east-1f"]
     desiredCapacity: 1
