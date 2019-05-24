@@ -7,7 +7,7 @@ metadata:
   region: us-east-1
 
 nodeGroups:
-  - name: ng-c5
+  - name: ng-c5-1f
     instanceType: c5.2xlarge
     availabilityZones: ["us-east-1f"]
     desiredCapacity: 1
