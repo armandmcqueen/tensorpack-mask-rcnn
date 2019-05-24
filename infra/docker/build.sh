@@ -8,4 +8,4 @@ echo ""
 
 
 
-docker build -t tensorpack-mask-rcnn:dev-${BRANCH_NAME} .. --build-arg CACHEBUST=$(date +%s) --build-arg BRANCH_NAME=${BRANCH_NAME}
+docker build -t tensorpack-mask-rcnn:dev-${BRANCH_NAME} ../.. --build-arg CACHEBUST=$(date +%s) --build-arg BRANCH_NAME=${BRANCH_NAME}
