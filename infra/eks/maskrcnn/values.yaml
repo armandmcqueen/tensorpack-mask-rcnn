@@ -8,7 +8,7 @@ maskrcnn:
   image: armandmcqueen/tensorpack-mask-rcnn:master-latest # image URL from ECR or DockerHub
   train_script: /tensorpack-mask-rcnn/MaskRCNN/train.py
   fp_16: 1 # TODO: Setting this to 0 does not disable FP16, it just disables loss scaling
-  base_lr: 0.0015
+  base_lr: 0.00125
   warmup_lr: 0.000416667
   shared_fs: fsx
   data_fs: fsx
