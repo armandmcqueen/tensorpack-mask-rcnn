@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import sys
 import yaml
 import yamlloader
 
@@ -63,9 +64,9 @@ def apply_overlay(base, overlay, append=False):
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description='Process some integers.')
+    parser = argparse.ArgumentParser(description='Create a variant of a yaml by applying overlays which describe changes')
     parser.add_argument('base_yaml_path',
-                        help='Yaml to use as base')
+                        help="Yaml to use as base. If '-' is given, will read from stdin instead.")
     parser.add_argument('overlays', metavar='N', type=str, nargs='+',
                         help='Overlays to apply in sequential order')
     parser.add_argument('--overlay_dir', type=str,
@@ -80,8 +81,12 @@ if __name__ == '__main__':
     if args.overlay_dir is not None:
         overlay_base_dir = args.overlay_dir
 
-    with open(args.base_yaml_path, 'r') as f:
-        values = yaml.load(f, Loader=yamlloader.ordereddict.CLoader)
+    if args.base_yaml_path == '-':
+        s = "".join([l for l in sys.stdin])
+        values = yaml.load(s, Loader=yamlloader.ordereddict.CLoader)
+    else:
+        with open(args.base_yaml_path, 'r') as f:
+            values = yaml.load(f, Loader=yamlloader.ordereddict.CLoader)
 
     overlay_dicts = []
     for overlay in args.overlays:
@@ -101,6 +106,5 @@ if __name__ == '__main__':
     print(yaml.dump(values,
                     Dumper=yamlloader.ordereddict.CDumper,
                     default_flow_style=False))
-
 
 

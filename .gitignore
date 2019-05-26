@@ -6,7 +6,7 @@ tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl
 
 
 # EKS configs
-eks/maskrcnn/values/
+infra/eks/maskrcnn/values/
 
 
 # tensorpack-specific stuff

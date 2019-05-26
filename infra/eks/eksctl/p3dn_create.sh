@@ -4,7 +4,7 @@
 
 eksctl create cluster -f p3dn_config.yaml --auto-kubeconfig
 
-export KUBECONFIG=/Users/armanmcq/.kube/eksctl/clusters/armand-tensorpack-mask-rcnn
+export KUBECONFIG=/Users/armanmcq/.kube/eksctl/clusters/armand-tensorpack-mask-rcnn-p3dn
 # aws eks --region $AWS_REGION update-kubeconfig --name $EKS_CLUSTER
 
 kubectl create -f https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/1.0.0-beta/nvidia-device-plugin.yml
