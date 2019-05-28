@@ -24,7 +24,7 @@ maskrcnn:
   mode_mask: 'True'
   backbone_norm: FreezeBN
   backbone_weights: pretrained-models/ImageNet-R50-AlignPadding.npz
-  predefined_padding: 'False'
+  predefined_padding: 'True'
   topk_per_image: 'True'
   image_pull_policy: Always
   horovod_cycle_time: "0.5"
