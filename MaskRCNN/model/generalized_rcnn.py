@@ -1,6 +1,7 @@
 import six
 assert six.PY3, "FasterRCNN requires Python 3!"
 import tensorflow as tf
+import math
 
 from tensorpack import *
 from tensorpack.tfutils import optimizer
@@ -20,6 +21,31 @@ from utils.randomnness import  SeedGenerator
 
 
 
+class GradientClipOptimizer(tf.train.Optimizer):
+    def __init__(self, opt, clip_norm):
+        self.opt = opt
+        self.clip_norm = clip_norm
+
+    def compute_gradients(self, *args, **kwargs):
+        gradvars = self.opt.compute_gradients(*args, **kwargs)
+        old_grads, v = zip(*gradvars)
+        num_weights = sum(
+            g.shape.num_elements() for g in old_grads if g is not None)
+        clip_norm = self.clip_norm * math.sqrt(num_weights)
+        g, norm = tf.clip_by_global_norm(old_grads, clip_norm, name='clip_by_global_norm')
+        return list(zip(g, v))
+
+    def apply_gradients(self, *args, **kwargs):
+        return self.opt.apply_gradients(*args, **kwargs)
+
+    def get_slot(self, *args, **kwargs):
+        return self.opt.get_slot(*args, **kwargs)
+
+    def get_slot_names(self, *args, **kwargs):
+        return self.opt.get_slot_names(*args, **kwargs)
+
+    def variables(self, *args, **kwargs):
+        return self.opt.variables(*args, **kwargs)
 
 
 class DetectionModel(ModelDesc):
@@ -42,6 +68,8 @@ class DetectionModel(ModelDesc):
         opt = tf.train.MomentumOptimizer(lr, 0.9)
         if cfg.TRAIN.NUM_GPUS < 8:
             opt = optimizer.AccumGradOptimizer(opt, 8 // cfg.TRAIN.NUM_GPUS)
+        if cfg.TRAIN.GRADIENT_CLIP != 0:
+            opt = GradientClipOptimizer(opt, cfg.TRAIN.GRADIENT_CLIP)
         return opt
 
     def get_inference_tensor_names(self):

@@ -44,3 +44,6 @@ PREPROC.PREDEFINED_PADDING=True \
 BACKBONE.WEIGHTS=/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
 BACKBONE.NORM=FreezeBN \
 TRAINER=horovod
+#For 32x4
+#TRAIN.GRADIENT_CLIP=0.36
+#TRAIN.BASE_LR=0.0015

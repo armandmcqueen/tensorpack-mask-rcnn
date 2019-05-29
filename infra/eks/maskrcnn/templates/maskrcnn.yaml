@@ -58,6 +58,7 @@ spec:
         - DATA.BASEDIR=/{{ .Values.maskrcnn.data_fs }}/{{ .Values.maskrcnn.data_dir }}
         - DATA.TRAIN={{ .Values.maskrcnn.data_train }}
         - DATA.VAL={{ .Values.maskrcnn.data_val }}
+        - TRAIN.GRADIENT_CLIP={{ .Values.maskrcnn.gradient_clip }}
         - TRAIN.BATCH_SIZE_PER_GPU={{ .Values.maskrcnn.batch_size_per_gpu }}
         - TRAIN.EVAL_PERIOD={{ .Values.maskrcnn.eval_period_in_epochs }}
         - TRAIN.BASE_LR={{ .Values.maskrcnn.base_lr }}

@@ -130,6 +130,7 @@ _C.TRAIN.LR_EPOCH_SCHEDULE = [(8, 0.1), (10, 0.01), (12, None)] # "1x" schedule 
 _C.TRAIN.EVAL_PERIOD = 25  # period (epochs) to run evaluation
 _C.TRAIN.BATCH_SIZE_PER_GPU = 1
 _C.TRAIN.SEED = 1234
+_C.TRAIN.GRADIENT_CLIP = 0 # set non-zero value to enable gradient clip, 0.36 is recommended for 32x4
 
 # preprocessing --------------------
 # Alternative old (worse & faster) setting: 600
