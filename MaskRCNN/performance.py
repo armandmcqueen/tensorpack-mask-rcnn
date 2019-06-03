@@ -92,7 +92,7 @@ def print_runtime_tensor(name, tensor, prefix=None, summarize=-1):
 
 """
 trigger_tensor = print_runtime_tensor_loose_branch("tensor_to_examine", tensor_to_examine, prefix="example_fn", trigger_tensor=trigger_tensor)
-Print a tensor, even if the tensor is not used by the graph. Useful when you want to transform and print a tensor to 
+Print a tensor, even if the tensor is not used by the graph. Useful when you want to transform and print a tensor to
 examine it, but the transformed tensor is not used in the actual graph so the transform+print is not executed.
 """
 def print_runtime_tensor_loose_branch(name, tensor, prefix=None, summarize=-1, trigger_tensor=None):

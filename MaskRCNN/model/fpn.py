@@ -13,8 +13,6 @@ from model.backbone import GroupNorm
 from config import config as cfg
 from utils.box_ops import area as tf_area
 from utils.mixed_precision import mixed_precision_scope
-from performance import print_buildtime_shape, print_runtime_shape
-
 
 @layer_register(log_shape=True)
 def fpn_model(features, seed_gen, fp16=False):

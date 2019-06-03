@@ -11,7 +11,6 @@ from tensorpack.tfutils.summary import add_moving_summary
 from config import config as cfg
 from model_box import clip_boxes
 from utils.mixed_precision import mixed_precision_scope
-from performance import print_buildtime_shape, print_runtime_shape
 
 @layer_register(log_shape=True)
 @auto_reuse_variable_scope

@@ -20,13 +20,13 @@ from utils.mixed_precision import mixed_precision_scope
 def boxclass_outputs(feature, num_classes, seed_gen, class_agnostic_regression=False):
     """
     Args:
-        feature (any shape):
+        feature: features generated from FasterRCNN head function, Num_boxes x Num_features
         num_classes(int): num_category + 1
-        class_agnostic_regression (bool): if True, regression to N x 1 x 4
+        class_agnostic_regression (bool): if True, regression to Num_boxes x 1 x 4
 
     Returns:
-        cls_logits: N x num_class classification logits
-        reg_logits: N x num_classx4 or Nx2x4 if class agnostic
+        cls_logits: Num_boxes x Num_classes classification logits
+        reg_logits: Num_boxes x num_classes x 4 or Num_boxes x 2 x 4 if class agnostic
     """
     classification = FullyConnected(
         'class', feature, num_classes,
@@ -44,10 +44,10 @@ def boxclass_outputs(feature, num_classes, seed_gen, class_agnostic_regression=F
 def boxclass_losses(labels, label_logits, fg_boxes, fg_box_logits):
     """
     Args:
-        labels: n,
-        label_logits: nxC
-        fg_boxes: nfgx4, encoded
-        fg_box_logits: nfgxCx4 or nfgx1x4 if class agnostic
+        labels: Num_boxes
+        label_logits:  Num_boxes x Num_classes
+        fg_boxes: Num_fg_boxes x 4, encoded
+        fg_box_logits: Num_boxes x Num_classes x 4 (default) or Num_boxes x 1 x 4 (class agnostic)
 
     Returns:
         label_loss, box_loss
@@ -246,11 +246,11 @@ class BoxClassHead(object):
                  proposal_boxes):
         """
         Args:
-            proposals: BoxProposalsBatch (boxes=Nx5)
-            box_logits: Nx#classx4 or Nx1x4, the output of the head
-            label_logits: Nx#class, the output of the head
-            gt_boxes: BS x MaxGTs x 4
+            box_logits: Num_boxes x Num_classes x 4 (default) or Num_boxes x 1 x 4 (class agnostic), the output of the head
+            label_logits: Num_boxes x Num_classes, the output of the head
             bbox_regression_weights: a 4 element tensor
+            prepadding_gt_counts: The original gt box number before padding for each image
+            proposal_boxes: Num_boxs x 5
         """
         self.box_logits = box_logits
         self.label_logits = label_logits
@@ -272,6 +272,15 @@ class BoxClassHead(object):
                           proposal_fg_boxes,
                           proposal_fg_labels,
                           proposal_gt_id_for_each_fg):
+        """
+        Args:
+            gt_boxes: BS x Num_gt_boxes x 4
+            proposal_labels: 1-D Num_boxes
+            proposal_fg_inds: 1-D Num_fg_boxes
+            proposal_fg_boxes: Num_fg_boxs x 5
+            proposal_fg_labels: 1-D Num_fg_boxes
+            proposal_gt_id_for_each_fg: indices for matching GT of each foreground box, BS x [Num_fg_boxes_per_image]
+        """
 
         self.gt_boxes = gt_boxes
         self.proposal_labels = proposal_labels

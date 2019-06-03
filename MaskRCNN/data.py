@@ -22,9 +22,17 @@ from utils.generate_anchors import generate_anchors
 from utils.np_box_ops import area as np_area, ioa as np_ioa
 
 import math
-
 # import tensorpack.utils.viz as tpviz
 
+"""
+Predefined padding:
+Pad all images into one of the 4 predefined padding shapes in cfg.PREPROC.PADDING_SHAPES. Try to batch the images
+with same padding shape into the same batch. This can accelerate the data pipeline process.
+
+Functions:
+get_padding_shape & _get_padding_shape: Find the closest padding shape to current image according to its aspect ratio
+get_next_roidb: Try to get the next image that has the same shape
+"""
 def _get_padding_shape(aspect_ratio):
     for shape in cfg.PREPROC.PADDING_SHAPES:
         if aspect_ratio >= float(shape[0])/float(shape[1]):
@@ -180,7 +188,8 @@ def get_all_anchors(stride=None, sizes=None, tile=True):
 def get_all_anchors_fpn(strides=None, sizes=None, tile=True):
     """
     Returns:
-        [anchors]: each anchors is a SxSx NUM_ANCHOR_RATIOS x4 array.
+        foas: anchors for FPN layers p2-p6, each with size S x S x NUM_ANCHOR_RATIOS x 4
+        where S == ceil(MAX_SIZE/STRIDE)
     """
     if strides is None:
         strides = cfg.FPN.ANCHOR_STRIDES
@@ -198,13 +207,13 @@ def get_anchor_labels(anchors, gt_boxes, crowd_boxes):
     """
     Label each anchor as fg/bg/ignore.
     Args:
-        anchors: Ax4 float
-        gt_boxes: Bx4 float, non-crowd
-        crowd_boxes: Cx4 float
+        anchors: A x 4 float
+        gt_boxes: B x 4 float, non-crowd
+        crowd_boxes: C x 4 float
 
     Returns:
         anchor_labels: (A,) int. Each element is {-1, 0, 1}
-        anchor_boxes: Ax4. Contains the target gt_box for each anchor when the anchor is fg.
+        anchor_boxes: A x 4. Contains the target gt_box for each anchor when the anchor is fg.
     """
     # This function will modify labels and return the filtered inds
     def filter_box_label(labels, value, max_num):
@@ -303,16 +312,16 @@ def get_rpn_anchor_input(im, boxes, is_crowd):
 def get_multilevel_rpn_anchor_input(im, boxes, is_crowd):
     """
     Args:
-        im: an image
-        boxes: nx4, floatbox, gt. shoudn't be changed
-        is_crowd: n,
+        im: a single image, H_image x W_image x NumChannel
+        boxes: n x 4, floatbox, gt. shoudn't be changed
+        is_crowd: (n,), for each box, is it crowd
 
     Returns:
         [(fm_labels, fm_boxes)]: Returns a tuple for each FPN level.
         Each tuple contains the anchor labels and target boxes for each pixel in the featuremap.
 
-        fm_labels: fHxfWx NUM_ANCHOR_RATIOS
-        fm_boxes: fHxfWx NUM_ANCHOR_RATIOS x4
+        fm_labels: H_feature x W_feature x NUM_ANCHOR_RATIOS
+        fm_boxes: H_feature x W_feature x NUM_ANCHOR_RATIOS x4
     """
     boxes = boxes.copy()
     anchors_per_level = get_all_anchors_fpn()

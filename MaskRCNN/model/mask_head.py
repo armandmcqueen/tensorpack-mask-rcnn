@@ -11,7 +11,6 @@ from tensorpack.tfutils.summary import add_moving_summary
 from model.backbone import GroupNorm
 from config import config as cfg
 from utils.mixed_precision import mixed_precision_scope
-from performance import print_buildtime_shape, print_runtime_shape
 
 @under_name_scope()
 def maskrcnn_loss(mask_logits, fg_labels, fg_target_masks):
