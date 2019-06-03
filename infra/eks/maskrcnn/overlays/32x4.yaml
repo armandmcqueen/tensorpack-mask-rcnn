@@ -2,8 +2,7 @@ set:
   maskrcnn:
     gpus: 32
     batch_size_per_gpu: 4
-    base_lr: 0.0015
-    gradient_clip: 0.36
+    gradient_clip: 1.5 # set it to zero to disable gradient clipping
 
 append:
   global:

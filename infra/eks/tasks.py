@@ -88,6 +88,17 @@ def run_experiment_yamls(c,
     c.run(repeated_cmd)
 
 @task
+def delete_experiment(c,
+                      csv,
+                      runs=5,
+                      name_prefix="maskrcnn"):
+    csv += f',run|N|'  # `inv repeat` will replace run|N| with {run1,run2,run3,run4,run5}
+    name, _ = build_names(csv)
+    helm_cmd = f'helm del --purge {name_prefix}-{name}'
+    repeated_cmd = f'invoke repeat "{helm_cmd}" --verbose --repeat={runs}'
+    c.run(repeated_cmd)
+
+@task
 def kubex(c, cmd, pod="attach-pvc-2"):
     c.run(f'kubectl exec {pod} -- {cmd}')
 

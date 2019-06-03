@@ -17,8 +17,7 @@ from model.boxclass_head import boxclass_predictions, boxclass_outputs, BoxClass
 from model.biased_sampler import sample_fast_rcnn_targets
 from model.mask_head import maskrcnn_loss
 from model.rpn import rpn_head, multilevel_rpn_losses, generate_fpn_proposals, generate_fpn_proposals_topk_per_image
-from utils.randomnness import  SeedGenerator
-
+from utils.randomnness import SeedGenerator
 
 
 class GradientClipOptimizer(tf.train.Optimizer):
@@ -27,16 +26,22 @@ class GradientClipOptimizer(tf.train.Optimizer):
         self.clip_norm = clip_norm
 
     def compute_gradients(self, *args, **kwargs):
-        gradvars = self.opt.compute_gradients(*args, **kwargs)
-        old_grads, v = zip(*gradvars)
-        num_weights = sum(
-            g.shape.num_elements() for g in old_grads if g is not None)
-        clip_norm = self.clip_norm * math.sqrt(num_weights)
-        g, norm = tf.clip_by_global_norm(old_grads, clip_norm, name='clip_by_global_norm')
-        return list(zip(g, v))
-
+        return self.opt.compute_gradients(*args, **kwargs)
+    """
     def apply_gradients(self, *args, **kwargs):
         return self.opt.apply_gradients(*args, **kwargs)
+    """
+    def apply_gradients(self, gradvars, global_step=None, name=None):
+        old_grads, v = zip(*gradvars)
+        all_are_finite = tf.reduce_all([tf.reduce_all(tf.is_finite(g)) for g in old_grads])
+        clipped_grads, _ = tf.clip_by_global_norm(old_grads, self.clip_norm,
+                                         use_norm=tf.cond(
+                                         all_are_finite,
+                                         lambda: tf.global_norm(old_grads),
+                                         lambda: tf.constant(self.clip_norm, dtype=tf.float32)), name='clip_by_global_norm')
+        gradvars = list(zip(clipped_grads, v))
+        #gradvars[0] = (print_runtime_tensor_loose_branch('NORM ', norm, prefix=f'rank{hvd.rank()}', trigger_tensor=gradvars[0][0]), gradvars[0][1])
+        return self.opt.apply_gradients(gradvars, global_step, name)
 
     def get_slot(self, *args, **kwargs):
         return self.opt.get_slot(*args, **kwargs)
@@ -105,6 +110,7 @@ class DetectionModel(ModelDesc):
         if self.training:
             wd_cost = regularize_cost('.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
             total_cost = tf.add_n(rpn_losses + head_losses + [wd_cost], 'total_cost')
+            #total_cost = print_runtime_tensor('COST ', total_cost, prefix=f'rank{hvd.rank()}')
             add_moving_summary(total_cost, wd_cost)
             return total_cost
 
