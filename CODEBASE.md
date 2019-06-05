@@ -18,7 +18,7 @@ The core model has two components - the Tensorflow graph and the non-Tensorflow 
 
 We added the ability have a per-GPU batch size greater than 1. Below are some implementation details of what that means.
 
-- In the data pipeline, we took the existing outputs (image, gt_label, gt_boxes, gt_masks) and added a batch dimension, padding when different images have different shapes. Do account for this padding in the model, we added two new inputs, `orig_image_dims` and `orig_gt_counts` which are used to slice away padding when necessary.
+- In the data pipeline, we took the existing outputs (image, gt_label, gt_boxes, gt_masks) and added a batch dimension, padding when different images have different shapes. To account for this padding in the model, we added two new inputs, `orig_image_dims` and `orig_gt_counts` which are used to slice away padding when necessary.
 - Most of the core convolutional and fully connected layers used tf.Layers which already supports a batch dimension, so we didn't need to make substantial changes there. We did add FP16 support for most layers that use matrix multiplications, so take advantage of NVIDIA's tensor cores.
 - In some cases, such as calculating losses, batchification meant looping over each image in the per-GPU batch, calculating the loss for a single image and then averaging the losses over the per-GPU batch.
     - This may be an area to improve performance in the future, but we are unsure how impactful optimizing that code would be as the operations where we do this seem to be fairly computationally lightweight.
