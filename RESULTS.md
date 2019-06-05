@@ -17,3 +17,7 @@ You can use a improved bounding box regression weight (`cfg.FRCNN.BBOX_REG_WEIGH
 ### SyncBN
 
 You can use SyncBN to train with very large batch sizes without getting NaN losses. However, currently the accuracy is generally lower than when using FreezeBN and the throughput is significantly worse.
+
+### Large batch size
+
+When training in the 32x4 configuration, you will get NaN ~5% of the time if you do not use gradient clipping. To enable gradient clipping, you need to add `TRAIN.GRADIENT_CLIP=1.5` to the config. This has a minor throughput impact, but eliminates NaN runs.
