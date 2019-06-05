@@ -126,6 +126,7 @@ def multilevel_roi_align(features, rcnn_boxes, resolution):
             # coordinate system fix for boxes
             boxes = tf.concat((boxes[:,:1], boxes[:,1:] - 0.5*cfg.FPN.ANCHOR_STRIDES[i]), axis=1)
 
+            # This is a custom tensorflow op for doing ROI align. See CODEBASE.md for more info
             roi_feature_maps = tf.roi_align(featuremap,
                                             boxes,
                                             pooled_height=resolution,
