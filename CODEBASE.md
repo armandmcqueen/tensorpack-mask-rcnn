@@ -56,8 +56,12 @@ These ops is being upstreamed to TF (with some minor differences) and we will mo
 - ROIAlign PR - https://github.com/tensorflow/tensorflow/pull/28746
 - Generate Bounding Box PR - https://github.com/tensorflow/tensorflow/pull/28754
 
-# FP16
+## FP16
 
 We offer mixed precision training, which substantially improves throughput on NVIDIA tensor cores. It is important to note that you need to both pass in the `--fp16` flag to `train.py` AND set the `TENSORPACK_FP16` environmental variable to 1. `--fp16` tells the model to use FP16, while the `TENSORPACK_FP16` envvar enables loss scaling. 
 
 Loss scaling occurs inside of the Tensorpack library, not in the MaskRCNN model code, which is why you need to set both. This should probably be addressed in the future.
+
+## Tensorpack changes since fork we may want to port
+
+- Port TensorSpec changes, replacing tf.placeholder
