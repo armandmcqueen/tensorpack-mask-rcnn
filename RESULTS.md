@@ -16,4 +16,4 @@ You can use a improved bounding box regression weight (`cfg.FRCNN.BBOX_REG_WEIGH
 
 ### SyncBN
 
-You can use SyncBN to train with very large batch sizes without getting NaN losses. However, curretnly the accuracy is generally lower than when using FreezeBN and the throughput is significantly worse.
+You can use SyncBN to train with very large batch sizes without getting NaN losses. However, currently the accuracy is generally lower than when using FreezeBN and the throughput is significantly worse.

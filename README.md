@@ -12,6 +12,8 @@ Training on N GPUs (V100s) with a per-gpu batch size of M = NxM training
 
 Training converges to target accuracy for configurations from 8x1 up to 32x4 training. Training throughput is substantially improved from original Tensorpack code.
 
+A pre-built dockerfile is available in DockerHub under `armandmcqueen/tensorpack-mask-rcnn:master-latest`. It is automatically built on each commit to master.
+
 ### Notes
 
 - Running this codebase requires a custom TF binary - available under GitHub releases (custom ops and fix for bug introduced in TF 1.13
