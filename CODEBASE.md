@@ -34,10 +34,16 @@ The best execution is dependent on the shape of the tensor, so the more differen
 
 You can avoid this problem by reducing the number of tensor shapes, which for this codebase means reducing the number of shapes that the input image can take. We added the `predefined padding` optimization, which defines a small number of acceptable shapes and each input image is matched with an acceptable shape based on aspect ration and padded so that the input `image` exactly matches that shape. For COCO, this is a fairly large performance improvement, as we now reach the steady state throughput much faster (3-4 epoch with 32 GPUs).
 
+### Removed Features
+
+To enable our focus on throughput, we have removed some unused features from the original Tensorpack code:
+
+- We only support FPN-based training
+- We do not have support for Cascade RCNN
 
 ## Custom TF ops
 
-We have used two custom Tensorflow ops to get improved throughput. This is why you need to use a custom Tensorflow binary.
+We have used two custom Tensorflow ops to get improved throughput. This is the main reason you need to use a custom Tensorflow binary (this is also a bug introduced in TF 1.13 that we needed to fix, see `patch/`).
 
 In the RPN, we use `tf.generate_bounding_box_proposals` which is a function that takes in the RPN logits, converts the regression logits into bounding box coordinates and then applies NMS. 
 
