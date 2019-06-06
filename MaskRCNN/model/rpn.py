@@ -192,7 +192,11 @@ def generate_fpn_proposals(multilevel_anchor_boxes,
 
                 single_level_anchor_boxes = multilevel_anchor_boxes[lvl]
                 single_level_anchor_boxes = tf.reshape(single_level_anchor_boxes, (-1, 4))
-                # https://caffe2.ai/docs/operators-catalogue.html#generateproposals
+
+
+                # # This is a custom tensorflow op that translates the bbox deltas into bounding box coordinates
+                # and then runs NMS. See CODEBASE.md for more info
+                #
                 # roi: (# boxes for a single level) x 5, the 5 colunms arranged as: batch_index, x_1, y_1, x_2, y_2
                 # rois_probs: 1-D, # boxes for a single level
                 rois, rois_probs = tf.generate_bounding_box_proposals(scores,

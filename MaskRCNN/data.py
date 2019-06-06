@@ -542,6 +542,7 @@ def get_batch_train_dataflow(batch_size):
 
     # aug = imgaug.AugmentorList([CustomResize(cfg.PREPROC.TRAIN_SHORT_EDGE_SIZE, cfg.PREPROC.MAX_SIZE)])
 
+
     def preprocess(roidb_batch):
         datapoint_list = []
         for roidb in roidb_batch:
@@ -727,43 +728,13 @@ def get_batch_train_dataflow(batch_size):
         if cfg.MODE_MASK:
             batched_datapoint["gt_masks"] = np.stack(padded_gt_masks)
 
-        #################################################################################################################
-        # print("BATCHED DATAPOINT")
-        # print(batched_datapoint)
-        # print("END BATCHED DATAPOINT")
 
-        # for k, v in batched_datapoint.items():
-        #    print("key", k)
-        #    if type(v) == np.ndarray:
-        #        print("val", v.shape)
-        #    else:
-        #        print("val", v)
 
         return batched_datapoint
 
     ds = DataFromList(batched_roidbs, shuffle=True)
 
-    #################################################################################################################
-    # Test preprocess on a given batch
-    #################################################################################################################
-    #
-    # test_batch = batched_roidbs[5]
-    #
-    # print("Running preprocess on test_batch")
-    # out = preprocess(test_batch)
-    # for k in ['images', 'orig_image_dims', 'anchor_labels_lvl2', 'anchor_boxes_lvl2', 'anchor_labels_lvl3', 'anchor_boxes_lvl3',
-    #           'anchor_labels_lvl4', 'anchor_boxes_lvl4', 'anchor_labels_lvl5', 'anchor_boxes_lvl5', 'anchor_labels_lvl6',
-    #           'anchor_boxes_lvl6', 'gt_boxes', 'gt_labels', 'gt_masks', 'orig_gt_counts']:
-    #     try:
-    #         print("\nInspecting k: "+k)
-    #         print(out[k].shape)
-    #     except Exception:
-    #         pass
-    #
-    # print("complete")
 
-
-    #################################################################################################################
 
     if cfg.TRAINER == 'horovod':
         # ds = MapData(ds, preprocess)
