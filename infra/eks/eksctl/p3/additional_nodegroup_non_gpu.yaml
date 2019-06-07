@@ -7,9 +7,9 @@ metadata:
   region: us-east-1
 
 nodeGroups:
-  - name: ng-p3-1c
-    instanceType: p3.16xlarge
-    availabilityZones: ["us-east-1c"]
+  - name: ng-c5-1b
+    instanceType: c5.4xlarge
+    availabilityZones: ["us-east-1b"]
     desiredCapacity: 1
     iam:
       withAddonPolicies:
@@ -19,5 +19,5 @@ nodeGroups:
         efs: true
     ssh:
       allow: true
-      publicKeyName: 'us-east-1-benchmark-tf'
+      publicKeyName: 'maskrcnn'
 

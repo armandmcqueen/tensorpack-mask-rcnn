@@ -38,14 +38,14 @@
     - Install FSx CSI driver with `kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/aws-fsx-csi-driver/master/deploy/kubernetes/manifest.yaml`
 - Add FSx as a persistant volume and claim
     - Customize `fsx/pv-fsx.yaml` for your FSx file-system id and AWS region
-    - Execute: `kubectl apply -f fsx/pv-fsx.yaml`
+    - Execute: `kubectl apply -f fsx/p3/pv-fsx.yaml`
     - Check to see the persistent-volume was successfully created by executing: `kubectl get pv`
-    - Execute: `kubectl apply -f fsx/pvc-fsx.yaml` to create an EKS persistent-volume-claim
+    - Execute: `kubectl apply -f fsx/p3/pvc-fsx.yaml` to create an EKS persistent-volume-claim
 - Stage data on fsx
     - Customize `fsx/stage-data.yaml` with image name and location of data on s3
-    - Run `kubectl apply -f fsx/stage-data.yaml`
-    - Confirm that it worked with  `kubectl apply -f fsx/attach-pvc.yaml` and `kubectl exec attach-pvc -it -- /bin/bash`
-    - To clean up: `kubectl delete pod attach-pvc`
+    - Run `kubectl apply -f fsx/p3/stage-data.yaml`
+    - Confirm that it worked with  `kubectl apply -f fsx/attach-pvc-2.yaml` and `kubectl exec attach-pvc-2 -it -- /bin/bash`
+    - To clean up: `kubectl delete pod stage-data`. It can be helpful to leave the `attach-pvc-2` pod running to view the fsx contents (e.g. experiment results) later.
 
 ### (3) Install Helm and Tiller
 

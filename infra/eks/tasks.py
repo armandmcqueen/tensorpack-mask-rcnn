@@ -1,5 +1,6 @@
 from invoke import task
 import yaml
+import json
 
 
 
@@ -134,3 +135,57 @@ def collect_results(c, log_prefix, runs=5, verbose=False, extra_maskrcnn_dir=Fal
     if verbose:
         print("Avgs")
     print(",".join([str(a) for a in avgs]))
+
+# def parse_pods(pod_lines):
+#     output_lines = []
+#     for line in pod_lines.split("\n"):
+#         if line.strip() == "":
+#             continue
+#
+#         line = line.strip()
+#         # print(line.split(" "))
+#         cols = [c for c in line.split(" ") if c != ""]
+#         _, pod_name, *_ = cols
+#         output_lines.append(pod_name)
+#     return output_lines
+#
+# def get_kubectl_nodes_and_pods(c, instance_type_prefix="p3", namespace="default"):
+#     """
+#
+#     :param c:
+#     :param instance_type_prefix:
+#     :param namespace:
+#     :return:
+#     """
+#     out = c.run('kubectl get nodes -o=json', hide=True)
+#     node_dicts = json.loads(out.stdout)['items']
+#
+#     nodes = []
+#
+#     for node_dict in node_dicts:
+#
+#         node = {
+#             'instance_type':    node_dict["metadata"]["labels"]["beta.kubernetes.io/instance-type"],
+#             'name':             node_dict["metadata"]["name"],
+#             'cluster':          node_dict["metadata"]["labels"]["alpha.eksctl.io/nodegroup-name"],
+#             'nodegroup':        node_dict["metadata"]["labels"]["alpha.eksctl.io/cluster-name"]
+#         }
+#
+#         if node['instance_type'].startswith(instance_type_prefix):
+#             nodes.append(node)
+#
+#     raw_descriptions = []
+#     for i, node in enumerate(nodes):
+#         node_name = node['name']
+#         raw_running_pod_lines = c.run(f'kubectl describe node {node_name} | grep {namespace}', hide=True, warn=True)
+#         node['pods'] = parse_pods(raw_running_pod_lines.stdout)
+#         print(node)
+#     return nodes
+#
+#
+#
+# @task
+# def kubep2n(c):
+#     # kubep2n = KUBEctl Pod 2 Node
+#     get_kubectl_nodes_and_pods(c, instance_type_prefix="p3", namespace="default")
+#

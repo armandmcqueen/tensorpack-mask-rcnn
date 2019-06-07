@@ -35,6 +35,6 @@ nodeGroups:
         efs: true
     ssh:
       allow: true
-      publicKeyName: 'us-east-1-benchmark-tf'
+      publicKeyName: 'maskrcnn'
 
 

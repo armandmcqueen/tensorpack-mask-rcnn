@@ -8,7 +8,7 @@ metadata:
 
 nodeGroups:
   - name: ng-c5-1f
-    instanceType: c5.2xlarge
+    instanceType: c5.4xlarge
     availabilityZones: ["us-east-1f"]
     desiredCapacity: 1
     iam:
@@ -19,5 +19,5 @@ nodeGroups:
         efs: true
     ssh:
       allow: true
-      publicKeyName: 'us-east-1-benchmark-tf'
+      publicKeyName: 'maskrcnn'
 

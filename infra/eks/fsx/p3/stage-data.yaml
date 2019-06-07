@@ -33,11 +33,11 @@ spec:
     - name: S3_PREFIX
       value: mask-rcnn/sagemaker/input/train
     - name: STAGE_DIR
-      value: /fsx # /efs or /fsx
+      value: /fsx
     command:
     -  sh
     - /etc/config/stage-data.sh
-    image: armandmcqueen/tensorpack-mask-rcnn:dev
+    image: armandmcqueen/tensorpack-mask-rcnn:master-latest
     imagePullPolicy: IfNotPresent
     volumeMounts:
     - mountPath: /etc/config
