@@ -174,6 +174,8 @@ _C.RPN.TEST_POST_NMS_TOPK = 1000   # if you encounter OOM in inference, set this
 _C.RPN.TRAIN_PER_LEVEL_NMS_TOPK = 2000
 _C.RPN.TEST_PER_LEVEL_NMS_TOPK = 1000
 _C.RPN.TOPK_PER_IMAGE = True
+_C.RPN.UNQUANTIZED_ANCHOR = True # From tensorpack https://github.com/tensorpack/tensorpack/commit/141ab53cc37dce728802803747584fc0fb82863b
+_C.RPN.SLOW_ACCURATE_MASK = True # If on, mask calculation will be slower but more accurate. From tensorpack https://github.com/tensorpack/tensorpack/commit/141ab53cc37dce728802803747584fc0fb82863b
 
 # fastrcnn training ---------------------
 _C.FRCNN.BATCH_PER_IM = 512

@@ -148,17 +148,28 @@ def get_all_anchors(stride=None, sizes=None, tile=True):
     # Generates a NAx4 matrix of anchor boxes in (x1, y1, x2, y2) format. Anchors
     # are centered on stride / 2, have (approximate) sqrt areas of the specified
     # sizes, and aspect ratios as given.
-    cell_anchors = generate_anchors(
-        stride,
-        scales=np.array(sizes, dtype=np.float) / stride,
-        ratios=np.array(cfg.RPN.ANCHOR_RATIOS, dtype=np.float))
+    if not cfg.RPN.UNQUANTIZED_ANCHOR:
+        cell_anchors = generate_anchors(
+            stride,
+            scales=np.array(sizes, dtype=np.float) / stride,
+            ratios=np.array(cfg.RPN.ANCHOR_RATIOS, dtype=np.float))
+    else:
+        anchors = []
+        ratios=np.array(cfg.RPN.ANCHOR_RATIOS, dtype=np.float)
+        for sz in sizes:
+            for ratio in ratios:
+                w = np.sqrt(sz * sz / ratio)
+                h = ratio * w
+                anchors.append([-w, -h, w, h])
+        cell_anchors = np.asarray(anchors) * 0.5
     # anchors are intbox here.
     # anchors at featuremap [0,0] are centered at fpcoor (8,8) (half of stride)
 
     if tile:
         max_size = cfg.PREPROC.MAX_SIZE
         field_size = int(np.ceil(max_size / stride))
-        shifts = np.arange(0, field_size) * stride
+        if not cfg.RPN.UNQUANTIZED_ANCHOR: shifts = np.arange(0, field_size) * stride
+        else: shifts = (np.arange(0, field_size) * stride).astype("float32")
         shift_x, shift_y = np.meshgrid(shifts, shifts)
         shift_x = shift_x.flatten()
         shift_y = shift_y.flatten()
@@ -167,15 +178,17 @@ def get_all_anchors(stride=None, sizes=None, tile=True):
         K = shifts.shape[0]
 
         A = cell_anchors.shape[0]
-        field_of_anchors = (
-            cell_anchors.reshape((1, A, 4)) +
-            shifts.reshape((1, K, 4)).transpose((1, 0, 2)))
+        if not cfg.RPN.UNQUANTIZED_ANCHOR:
+            field_of_anchors = (
+                cell_anchors.reshape((1, A, 4)) +
+                shifts.reshape((1, K, 4)).transpose((1, 0, 2)))
+        else: field_of_anchors = cell_anchors.reshape((1, A, 4)) + shifts.reshape((1, K, 4)).transpose((1, 0, 2))
         field_of_anchors = field_of_anchors.reshape((field_size, field_size, A, 4))
         # FSxFSxAx4
         # Many rounding happens inside the anchor code anyway
         # assert np.all(field_of_anchors == field_of_anchors.astype('int32'))
         field_of_anchors = field_of_anchors.astype('float32')
-        field_of_anchors[:, :, :, [2, 3]] += 1
+        if not cfg.RPN.UNQUANTIZED_ANCHOR: field_of_anchors[:, :, :, [2, 3]] += 1
         return field_of_anchors
     else:
         cell_anchors = cell_anchors.astype('float32')

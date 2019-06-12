@@ -13,6 +13,7 @@ import cv2
 import pycocotools.mask as cocomask
 import tqdm
 import tensorflow as tf
+from scipy import interpolate
 
 from tensorpack.callbacks import Callback
 from tensorpack.tfutils.common import get_tf_version_tuple
@@ -40,6 +41,22 @@ class_id: int, 1~NUM_CLASS
 mask: None, or a binary image of the original image shape
 """
 
+def _scale_box(box, scale):
+    w_half = (box[2] - box[0]) * 0.5
+    h_half = (box[3] - box[1]) * 0.5
+    x_c = (box[2] + box[0]) * 0.5
+    y_c = (box[3] + box[1]) * 0.5
+
+    w_half *= scale
+    h_half *= scale
+
+    scaled_box = np.zeros_like(box)
+    scaled_box[0] = x_c - w_half
+    scaled_box[2] = x_c + w_half
+    scaled_box[1] = y_c - h_half
+    scaled_box[3] = y_c + h_half
+    return scaled_box
+
 
 def _paste_mask(box, mask, shape):
     """
@@ -50,23 +67,40 @@ def _paste_mask(box, mask, shape):
     Returns:
         A uint8 binary image of hxw.
     """
-    # int() is floor
-    # box fpcoor=0.0 -> intcoor=0.0
-    x0, y0 = list(map(int, box[:2] + 0.5))
-    # box fpcoor=h -> intcoor=h-1, inclusive
-    x1, y1 = list(map(int, box[2:] - 0.5))    # inclusive
-    x1 = max(x0, x1)    # require at least 1x1
-    y1 = max(y0, y1)
+    assert mask.shape[0] == mask.shape[1], mask.shape
+    if not cfg.RPN.SLOW_ACCURATE_MASK:
+        # This method (inspired by Detectron) is less accurate but fast.
+        # int() is floor
+        # box fpcoor=0.0 -> intcoor=0.0
+        x0, y0 = list(map(int, box[:2] + 0.5))
+        # box fpcoor=h -> intcoor=h-1, inclusive
+        x1, y1 = list(map(int, box[2:] - 0.5))    # inclusive
+        x1 = max(x0, x1)    # require at least 1x1
+        y1 = max(y0, y1)
 
-    w = x1 + 1 - x0
-    h = y1 + 1 - y0
+        w = x1 + 1 - x0
+        h = y1 + 1 - y0
 
-    # rounding errors could happen here, because masks were not originally computed for this shape.
-    # but it's hard to do better, because the network does not know the "original" scale
-    mask = (cv2.resize(mask, (w, h)) > 0.5).astype('uint8')
-    ret = np.zeros(shape, dtype='uint8')
-    ret[y0:y1 + 1, x0:x1 + 1] = mask
-    return ret
+        # rounding errors could happen here, because masks were not originally computed for this shape.
+        # but it's hard to do better, because the network does not know the "original" scale
+        mask = (cv2.resize(mask, (w, h)) > 0.5).astype('uint8')
+        ret = np.zeros(shape, dtype='uint8')
+        ret[y0:y1 + 1, x0:x1 + 1] = mask
+        return ret
+    else:
+        # This method is accurate but much slower.
+        mask = np.pad(mask, [(1, 1), (1, 1)], mode='constant')
+        box = _scale_box(box, float(mask.shape[0]) / (mask.shape[0] - 2))
+
+        mask_pixels = np.arange(0.0, mask.shape[0]) + 0.5
+        mask_continuous = interpolate.interp2d(mask_pixels, mask_pixels, mask, fill_value=0.0)
+        h, w = shape
+        ys = np.arange(0.0, h) + 0.5
+        xs = np.arange(0.0, w) + 0.5
+        ys = (ys - box[1]) / (box[3] - box[1]) * mask.shape[0]
+        xs = (xs - box[0]) / (box[2] - box[0]) * mask.shape[1]
+        res = mask_continuous(xs, ys)
+        return (res >= 0.5).astype('uint8')
 
 
 def predict_image(img, model_func):
@@ -119,13 +153,13 @@ def predict_image_batch(img_batch, model_func, resized_sizes, scales, orig_sizes
     """
 
     resized_sizes = np.stack(resized_sizes)
-    resized_sizes_in = np.concatenate((resized_sizes, 3*np.ones((resized_sizes.shape[0], 1))), axis=1) 
+    resized_sizes_in = np.concatenate((resized_sizes, 3*np.ones((resized_sizes.shape[0], 1))), axis=1)
 
     indices, boxes, probs, labels, *masks = model_func(img_batch, resized_sizes_in)
 
     results = []
-    for i in range(len(scales)): 
-        ind = np.where(indices.astype(np.int32) == i)[0] 
+    for i in range(len(scales)):
+        ind = np.where(indices.astype(np.int32) == i)[0]
 
         if len(ind) > 0:
             boxes[ind, :] = boxes[ind, :]/scales[i]
@@ -293,7 +327,7 @@ class EvalCallback(Callback):
         self._eval_dataset = eval_dataset
         self._in_names, self._out_names = in_names, out_names
         self._output_dir = output_dir
-        self.batched = batch_size > 0 
+        self.batched = batch_size > 0
         self.batch_size = batch_size
 
     def _setup_graph(self):
