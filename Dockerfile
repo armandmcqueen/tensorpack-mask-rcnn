@@ -9,6 +9,7 @@ RUN pip uninstall -y tensorflow tensorboard tensorflow-estimator keras h5py horo
 # Download and install custom Tensorflow binary
 RUN wget https://github.com/armandmcqueen/tensorpack-mask-rcnn/releases/download/v0.0.0-WIP/tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl && \
     pip install tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl && \
+    pip install tensorflow-estimator==1.13.0 && \
     rm tensorflow-1.13.0-cp36-cp36m-linux_x86_64.whl
 
 RUN pip install keras h5py
@@ -39,8 +40,3 @@ RUN git clone https://github.com/armandmcqueen/tensorpack-mask-rcnn -b $BRANCH_N
 
 RUN chmod -R +w /tensorpack-mask-rcnn
 RUN pip install --ignore-installed -e /tensorpack-mask-rcnn/
-
-
-
-
-

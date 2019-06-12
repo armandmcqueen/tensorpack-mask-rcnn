@@ -82,7 +82,7 @@ Scale the nodegroup to the desired number of nodes. We do not have an autoscalin
 - or by creating a new nodegroup based on `eksctl/additional_nodegroup.yaml`
     - `eksctl create nodegroup -f eks/eksctl/p3_additional_nodegroup.yaml`
 
-`maskrcnn/values.yaml` holds the default training params for 1 node, 8 GPU training. To launch a training job with a different configuration, we suggest you create a new yaml file with the desired params. 
+`maskrcnn/values.yaml` holds the default training params for 1 node, 8 GPU training. To launch a training job with a different configuration, we suggest you create a new yaml file with the desired params.
 
 To make that easier, we use a the `overyaml.py` utlity, which takes in a base yaml, applies a list of changes (overlays) to it and prints the new yaml to stdout. See `overyaml.md` for details.
 
@@ -105,16 +105,16 @@ If you need to run multiple identical jobs without naming conflict, we have the 
 
 ```
 export OVERLAY_DIR=maskrcnn/overlays
-./overyaml.py maskrcnn/values.yaml 32x4 24epoch run1 > maskrcnn/values/determinism-32x4-24epoch-run1.yaml
-./overyaml.py maskrcnn/values.yaml 32x4 24epoch run2 > maskrcnn/values/determinism-32x4-24epoch-run2.yaml
+./yaml_overlay maskrcnn/values.yaml 32x4 24epoch run1 > maskrcnn/values/determinism-32x4-24epoch-run1.yaml
+./yaml_overlay maskrcnn/values.yaml 32x4 24epoch run2 > maskrcnn/values/determinism-32x4-24epoch-run2.yaml
 
 helm install --name maskrcnn-determinism-32x4-24epoch-run1 ./maskrcnn/ -f maskrcnn/values/determinism-32x4-24epoch-run1.yaml
 helm install --name maskrcnn-determinism-32x4-24epoch-run2 ./maskrcnn/ -f maskrcnn/values/determinism-32x4-24epoch-run2.yaml
 ```
-       
 
 
-### Tensorboard 
+
+### Tensorboard
 
 `kubectl apply -f eks/tensorboard/tensorboard.yaml`
 
@@ -129,4 +129,3 @@ Shortcut is `./tboard.sh`
 `./ssh.sh`
 
 We use `apply-pvc-2` because it uses the tensorboard-mask-rcnn image, which has useful tools like the AWS CLI
-

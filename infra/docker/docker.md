@@ -24,11 +24,11 @@ cd docker
 
 ```
 cd tensorpack-mask-rcnn
-docker/train.sh 8 250
+infra/docker/train.sh 8 1 250
 ```
 
 
-This is 8 GPUs, 1 img per GPU, summary writer logs every 250 steps. 
+This is 8 GPUs, 1 img per GPU, summary writer logs every 250 steps.
 
 Logs will be exposed to the ec2 instance at ~/logs.
 

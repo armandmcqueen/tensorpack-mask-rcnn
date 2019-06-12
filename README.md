@@ -1,10 +1,10 @@
 # Mask RCNN
 
 Performance focused implementation of Mask RCNN based on the [Tensorpack implementation](https://github.com/tensorpack/tensorpack/tree/master/examples/FasterRCNN).
-
+The original paper: [Mask R-CNN](https://arxiv.org/abs/1703.06870)
 ### Overview
 
-This implementation of Mask RCNN is focused on increasing training throughput without sacrificing any accuracy. We do this by training with a batch size > 1 per GPU using FP16 and two custom TF ops. 
+This implementation of Mask RCNN is focused on increasing training throughput without sacrificing any accuracy. We do this by training with a batch size > 1 per GPU using FP16 and two custom TF ops.
 
 ### Status
 
@@ -19,7 +19,28 @@ A pre-built dockerfile is available in DockerHub under `armandmcqueen/tensorpack
 - Running this codebase requires a custom TF binary - available under GitHub releases (custom ops and fix for bug introduced in TF 1.13
 - We give some details the codebase and optimizations in `CODEBASE.md`
 
+### To launch training
+Container is recommended for training
+- To train with docker, refer to [Docker](https://github.com/armandmcqueen/tensorpack-mask-rcnn/tree/master/infra/docker)
+- To train with Amazon EKS, refer to [EKS](https://github.com/armandmcqueen/tensorpack-mask-rcnn/tree/master/infra/eks)
 
+### Training results
+The result was running on P3dn.24xl instances using EKS.
+12 epochs training:
+
+| Num_GPUs x Images_Per_GPU | Training time | Box mAP | Mask mAP |
+| ------------- | ------------- | ------------- | ------------- |
+| 8x4 | 5.09h | 37.47% | 34.45% |
+| 16x4 | 3.11h | 37.41% | 34.47% |
+| 32x4 | 1.94h | 37.20% | 34.25% |
+
+24 epochs training:
+
+| Num_GPUs x Images_Per_GPU | Training time | Box mAP | Mask mAP |
+| ------------- | ------------- | ------------- | ------------- |
+| 8x4 | 9.78h | 38.25% | 35.08% |
+| 16x4 | 5.60h | 38.44% | 35.18% |
+| 32x4 | 3.33h | 38.33% | 35.12% |
 
 ### Tensorpack fork point
 
