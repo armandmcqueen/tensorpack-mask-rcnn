@@ -23,6 +23,7 @@ A pre-built dockerfile is available in DockerHub under `armandmcqueen/tensorpack
 Container is recommended for training
 - To train with docker, refer to [Docker](https://github.com/armandmcqueen/tensorpack-mask-rcnn/tree/master/infra/docker)
 - To train with Amazon EKS, refer to [EKS](https://github.com/armandmcqueen/tensorpack-mask-rcnn/tree/master/infra/eks)
+- To train with Amazon SageMaker, refer to [SageMaker](https://github.com/armandmcqueen/tensorpack-mask-rcnn/tree/master/infra/sm)
 
 ### Training results
 The result was running on P3dn.24xl instances using EKS.
