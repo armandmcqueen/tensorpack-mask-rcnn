@@ -67,3 +67,4 @@ Loss scaling occurs inside of the Tensorpack library, not in the MaskRCNN model 
 - Port TensorSpec changes, replacing tf.placeholder
 - Change to L1 loss? - https://github.com/tensorpack/tensorpack/commit/d263818b8fe8d8e096c4826dc5f2432901c5a894#diff-75814de28422d125213d581d1a36d92a
 - Improved accuracy via better anchor generation - https://github.com/tensorpack/tensorpack/commit/141ab53cc37dce728802803747584fc0fb82863b
+- Faster COCO loading - https://github.com/tensorpack/tensorpack/commit/8c8de86c46cadebb1860feae832347e423f5942b
