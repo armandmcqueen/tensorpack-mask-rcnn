@@ -34,6 +34,10 @@ The best execution is dependent on the shape of the tensor, so the more differen
 
 You can avoid this problem by reducing the number of tensor shapes, which for this codebase means reducing the number of shapes that the input image can take. We added the `predefined padding` optimization, which defines a small number of acceptable shapes and each input image is matched with an acceptable shape based on aspect ration and padded so that the input `image` exactly matches that shape. For COCO, this is a fairly large performance improvement, as we now reach the steady state throughput much faster (3-4 epoch with 32 GPUs).
 
+For COCO, most images fall into a small set of aspect ratios.
+
+![COCO aspect ratio distribution](COCO_image_aspect_ratio_histogram.png)
+
 ### Removed Features
 
 To enable our focus on throughput, we have removed some unused features from the original Tensorpack code:
