@@ -1,3 +1,5 @@
+# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 #!/usr/bin/env bash
 
 # A script to download old tensorboard event files to compare against. Downloads an example of successful convergence,

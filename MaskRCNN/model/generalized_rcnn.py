@@ -1,3 +1,5 @@
+# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 import six
 assert six.PY3, "FasterRCNN requires Python 3!"
 import tensorflow as tf

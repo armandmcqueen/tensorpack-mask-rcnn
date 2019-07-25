@@ -1,3 +1,5 @@
+# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 # -*- coding: utf-8 -*-
 # File: data.py
 
@@ -583,7 +585,7 @@ def get_batch_train_dataflow(batch_size):
                         ret['anchor_labels_lvl{}'.format(i + 2)] = anchor_labels
                         ret['anchor_boxes_lvl{}'.format(i + 2)] = anchor_boxes
                 else:
-                    raise NotImplementedError("[armand] Batch mode only available for FPN")
+                    raise NotImplementedError("Batch mode only available for FPN")
 
                 boxes = boxes[is_crowd == 0]    # skip crowd boxes in training target
                 klass = klass[is_crowd == 0]

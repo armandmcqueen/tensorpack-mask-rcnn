@@ -3,7 +3,7 @@ apiVersion: eksctl.io/v1alpha5
 kind: ClusterConfig
 
 metadata:
-  name: armand-tensorpack-mask-rcnn-p3
+  name: tensorpack-mask-rcnn-p3
   region: us-east-1
 
 nodeGroups:
@@ -20,4 +20,3 @@ nodeGroups:
     ssh:
       allow: true
       publicKeyName: 'maskrcnn'
-

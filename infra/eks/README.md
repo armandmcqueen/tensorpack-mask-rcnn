@@ -23,6 +23,7 @@
         - sshPublicKeyPath is the name of an EC2 KeyPair.
         - some examples can be found at https://github.com/weaveworks/eksctl/tree/master/examples
     - Run the commands individually, not via script
+        - you need to update the `KUBECONFIG` to match your path
 
 
 

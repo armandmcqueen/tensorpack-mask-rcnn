@@ -1,3 +1,5 @@
+# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # File: train.py

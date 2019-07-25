@@ -1,3 +1,5 @@
+# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 #!/usr/bin/env python
 
 from tensorflow.python.training.monitored_session import _HookedSession as HookedSession

@@ -1,3 +1,5 @@
+# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 # https://github.com/rbgirshick/py-faster-rcnn/blob/master/lib/rpn/generate_anchors.py
 
 # --------------------------------------------------------

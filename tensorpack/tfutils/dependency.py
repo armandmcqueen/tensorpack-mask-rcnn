@@ -1,3 +1,5 @@
+# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 import tensorflow as tf
 from tensorflow.contrib.graph_editor import get_backward_walk_ops

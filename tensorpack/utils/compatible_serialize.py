@@ -1,3 +1,5 @@
+# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 import os
 
 from .serialize import dumps_msgpack, dumps_pyarrow, loads_msgpack, loads_pyarrow

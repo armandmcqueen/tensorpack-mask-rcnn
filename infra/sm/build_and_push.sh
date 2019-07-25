@@ -1,3 +1,5 @@
+# Copyright 2019 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 #!/usr/bin/env bash
 
 # This script shows how to build the Docker image and push it to ECR to be ready for use
