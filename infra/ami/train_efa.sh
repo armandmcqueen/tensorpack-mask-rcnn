@@ -36,6 +36,9 @@ mpirun -np ${NUM_GPU} \
 python3 /home/ec2-user/tensorpack-mask-rcnn/MaskRCNN/train.py \
 --fp16 \
 --throughput_log_freq ${THROUGHPUT_LOG_FREQ} \
+--tfprof \
+--tfprof_start_step 3 \
+--tfprof_end_step 5 \
 --config \
 MODE_MASK=True \
 MODE_FPN=True \
