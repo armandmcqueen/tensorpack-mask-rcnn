@@ -37,8 +37,8 @@ python3 /home/ec2-user/tensorpack-mask-rcnn/MaskRCNN/train.py \
 --fp16 \
 --throughput_log_freq ${THROUGHPUT_LOG_FREQ} \
 --tfprof \
---tfprof_start_step 3 \
---tfprof_end_step 5 \
+--tfprof_start_step 1 \
+--tfprof_end_step 3 \
 --config \
 MODE_MASK=True \
 MODE_FPN=True \
