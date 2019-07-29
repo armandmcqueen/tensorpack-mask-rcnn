@@ -10,7 +10,7 @@ echo "BATCH_SIZE_PER_GPU: ${BATCH_SIZE_PER_GPU}"
 echo "THROUGHPUT_LOG_FREQ: ${THROUGHPUT_LOG_FREQ}"
 echo ""
 
-
+export LD_LIBRARY_PATH=/usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH
 
 mpirun -np ${NUM_GPU} \
 --hostfile hosts \
