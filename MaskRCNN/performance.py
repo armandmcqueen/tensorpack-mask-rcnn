@@ -146,6 +146,8 @@ class ThroughputTracker(tensorpack.Callback):
 
 
     def _trigger_step(self):
+        print("triggered.....")
+        time.sleep(360)
         self._step_end_time = time.time()
         step_duration = self._step_end_time - self._step_start_time
         self._epoch_step_durations.append(step_duration)
