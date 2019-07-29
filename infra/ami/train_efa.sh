@@ -32,6 +32,7 @@ mpirun -np ${NUM_GPU} \
 -x TENSORPACK_FP16=1 \
 -x HOROVOD_CYCLE_TIME=0.5 \
 -x HOROVOD_FUSION_THRESHOLD=67108864 \
+-x HOROVOD_TIMELINE=~/timeline.json \
 python3 /home/ec2-user/tensorpack-mask-rcnn/MaskRCNN/train.py \
 --fp16 \
 --throughput_log_freq ${THROUGHPUT_LOG_FREQ} \
