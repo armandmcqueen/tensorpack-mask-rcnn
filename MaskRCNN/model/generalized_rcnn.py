@@ -62,7 +62,7 @@ class TestOptimizer(tf.train.Optimizer):
         gradvars = self.opt.compute_gradients(*args, **kwargs)
         type = None
         for grad, var in gradvars:
-            if grad is not none:
+            if grad is not None:
                 if not type:
                     type = grad.dtype
                 else:
