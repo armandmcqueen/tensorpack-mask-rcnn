@@ -59,6 +59,7 @@ class TestOptimizer(tf.train.Optimizer):
 
     def compute_gradients(self, *args, **kwargs):
         from performance import print_runtime_tensor_loose_branch
+        import horovod.tensorflow as hvd
         gradvars = self.opt.compute_gradients(*args, **kwargs)
         type = None
         for grad, var in gradvars:
