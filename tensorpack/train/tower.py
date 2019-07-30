@@ -264,8 +264,9 @@ class SingleCostTrainer(TowerTrainer):
                         loss_scale = float(os.getenv("CUSTOM_LOSS_SCALE"))
 
                     print(f'TENSORPACK_FP16 set. Using FP16 loss scaling of {loss_scale}')
-                    cost *= loss_scale
-                    #cost = tf.cast(cost, tf.float16)
+                    #cost *= loss_scale
+                    print("Cost was casted into fp16")
+                    cost = tf.cast(cost, tf.float16)
 
                 opt = get_opt_fn()
                 grads = opt.compute_gradients(
@@ -276,8 +277,8 @@ class SingleCostTrainer(TowerTrainer):
                 grads = FilterNoneGrad().process(grads)
 
                 if os.getenv("TENSORPACK_FP16"):
-                    grads = [(g * 1.0 / loss_scale, v) for g, v in grads]
-                    #grads = [(tf.cast(g, tf.float32) * 1.0 / loss_scale, v) for g, v in grads]
+                    #grads = [(g * 1.0 / loss_scale, v) for g, v in grads]
+                    grads = [(tf.cast(g, tf.float32) * 1.0 / loss_scale, v) for g, v in grads]
 
                 if os.getenv("TENSORPACK_SUMMARY_GRADIENT"):
                     grads = SummaryGradient().process(grads)
