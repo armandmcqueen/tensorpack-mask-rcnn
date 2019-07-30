@@ -53,6 +53,36 @@ class GradientClipOptimizer(tf.train.Optimizer):
         return self.opt.variables(*args, **kwargs)
 
 
+class TestOptimizer(tf.train.Optimizer):
+    def __init__(self, opt):
+        self.opt = opt
+
+    def compute_gradients(self, *args, **kwargs):
+        from performance import print_runtime_tensor_loose_branch
+        gradvars = self.opt.compute_gradients(*args, **kwargs)
+        type = None
+        for grad, var in gradvars:
+            if grad is not none:
+                if not type:
+                    type = grad.dtype
+                else:
+                    assert grad.dtype == type
+        gradvars[0] = (print_runtime_tensor_loose_branch('grad type ', type, prefix=f'[fewu]rank{hvd.rank()}', trigger_tensor=gradvars[0][0]), gradvars[0][1])
+        return gradvars
+
+    def apply_gradients(self, *args, **kwargs):
+        return self.opt.apply_gradients(*args, **kwargs)
+
+    def get_slot(self, *args, **kwargs):
+        return self.opt.get_slot(*args, **kwargs)
+
+    def get_slot_names(self, *args, **kwargs):
+        return self.opt.get_slot_names(*args, **kwargs)
+
+    def variables(self, *args, **kwargs):
+        return self.opt.variables(*args, **kwargs)
+
+
 class DetectionModel(ModelDesc):
     def __init__(self, fp16):
         self.fp16 = fp16
@@ -71,6 +101,7 @@ class DetectionModel(ModelDesc):
 
 
         opt = tf.train.MomentumOptimizer(lr, 0.9)
+        opt = TestOptimizer(opt)
         #if cfg.TRAIN.NUM_GPUS < 8:
         #    opt = optimizer.AccumGradOptimizer(opt, 8 // cfg.TRAIN.NUM_GPUS)
         if cfg.TRAIN.GRADIENT_CLIP != 0:
