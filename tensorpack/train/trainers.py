@@ -397,9 +397,12 @@ class HorovodTrainer(SingleCostTrainer):
         # copied from https://github.com/uber/horovod/blob/master/horovod/tensorflow/__init__.py
         averaged_gradients = []
         with tf.name_scope("HVDAllReduce"):
+            compression = hvd.Compression.none
+            if os.getenv("TENSORPACK_COMPRESSION"):
+                compression = hvd.Compression.fp16
             for grad, var in grads:
                 if grad is not None:
-                    avg_grad = hvd.allreduce(grad, average=self._average, compression=hvd.Compression.fp16)
+                    avg_grad = hvd.allreduce(grad, average=self._average, compression=compression)
                     averaged_gradients.append((avg_grad, var))
                 else:
                     averaged_gradients.append((None, var))

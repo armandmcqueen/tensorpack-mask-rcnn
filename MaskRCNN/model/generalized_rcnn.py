@@ -126,25 +126,39 @@ class DetectionModel(ModelDesc):
 
     def build_graph(self, *inputs):
         inputs = dict(zip(self.input_names, inputs))
-
         image = self.preprocess(inputs['images'])     # NCHW
-
         seed_gen = SeedGenerator(cfg.TRAIN.SEED)
+        if cfg.TRAIN.XLA:
+            with jit_scope():
+                features = self.backbone(image, seed_gen)
 
-        features = self.backbone(image, seed_gen)
+                anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
+                proposal_boxes, rpn_losses = self.rpn(image, features, anchor_inputs, inputs['orig_image_dims'], seed_gen)  # inputs?
 
-        anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
-        proposal_boxes, rpn_losses = self.rpn(image, features, anchor_inputs, inputs['orig_image_dims'], seed_gen)  # inputs?
+                targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
+                head_losses = self.roi_heads(image, features, proposal_boxes, targets, inputs, seed_gen)
 
-        targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
-        head_losses = self.roi_heads(image, features, proposal_boxes, targets, inputs, seed_gen)
+                if self.training:
+                    wd_cost = regularize_cost('.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
+                    total_cost = tf.add_n(rpn_losses + head_losses + [wd_cost], 'total_cost')
+                    #total_cost = print_runtime_tensor('COST ', total_cost, prefix=f'rank{hvd.rank()}')
+                    add_moving_summary(total_cost, wd_cost)
+                    return total_cost
+        else:
+            features = self.backbone(image, seed_gen)
 
-        if self.training:
-            wd_cost = regularize_cost('.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
-            total_cost = tf.add_n(rpn_losses + head_losses + [wd_cost], 'total_cost')
-            #total_cost = print_runtime_tensor('COST ', total_cost, prefix=f'rank{hvd.rank()}')
-            add_moving_summary(total_cost, wd_cost)
-            return total_cost
+            anchor_inputs = {k: v for k, v in inputs.items() if k.startswith('anchor_')}
+            proposal_boxes, rpn_losses = self.rpn(image, features, anchor_inputs, inputs['orig_image_dims'], seed_gen)  # inputs?
+
+            targets = [inputs[k] for k in ['gt_boxes', 'gt_labels', 'gt_masks'] if k in inputs]
+            head_losses = self.roi_heads(image, features, proposal_boxes, targets, inputs, seed_gen)
+
+            if self.training:
+                wd_cost = regularize_cost('.*/W', l2_regularizer(cfg.TRAIN.WEIGHT_DECAY), name='wd_cost')
+                total_cost = tf.add_n(rpn_losses + head_losses + [wd_cost], 'total_cost')
+                #total_cost = print_runtime_tensor('COST ', total_cost, prefix=f'rank{hvd.rank()}')
+                add_moving_summary(total_cost, wd_cost)
+                return total_cost
 
 
 class ResNetFPNModel(DetectionModel):
