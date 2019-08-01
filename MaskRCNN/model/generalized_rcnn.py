@@ -19,6 +19,7 @@ from model.mask_head import maskrcnn_loss
 from model.rpn import rpn_head, multilevel_rpn_losses, generate_fpn_proposals, generate_fpn_proposals_topk_per_image
 from utils.randomnness import SeedGenerator
 
+jit_scope = tf.contrib.compiler.jit.experimental_jit_scope
 
 class GradientClipOptimizer(tf.train.Optimizer):
     def __init__(self, opt, clip_norm):
