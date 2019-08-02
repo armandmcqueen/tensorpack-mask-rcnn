@@ -35,7 +35,6 @@ mpirun -np ${NUM_GPU} \
 -x HOROVOD_TIMELINE=~/timeline.json \
 python3 /home/ec2-user/tensorpack-mask-rcnn/MaskRCNN/train.py \
 --fp16 \
---xla \
 --throughput_log_freq ${THROUGHPUT_LOG_FREQ} \
 --tfprof \
 --tfprof_start_step 10000 \
