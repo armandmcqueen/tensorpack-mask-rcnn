@@ -16,7 +16,7 @@ sess = sage.Session()
 image_name=f"{account}.dkr.ecr.{region}.amazonaws.com/{image}"
 sagemaker_iam_role = str(sys.argv[2]) #get_execution_role()
 num_gpus = 8
-num_nodes = 4
+num_nodes = 1
 instance_type = 'ml.p3.16xlarge'
 custom_mpi_cmds = []
 
