@@ -400,6 +400,7 @@ class HorovodTrainer(SingleCostTrainer):
             compression = hvd.Compression.none
             if os.getenv("TENSORPACK_COMPRESSION"):
                 compression = hvd.Compression.fp16
+                print("Compression enabled....")
             for grad, var in grads:
                 if grad is not None:
                     avg_grad = hvd.allreduce(grad, average=self._average, compression=compression)

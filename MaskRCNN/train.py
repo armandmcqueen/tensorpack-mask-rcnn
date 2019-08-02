@@ -154,7 +154,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--log_full_git_diff', help="Log the full git diff", action="store_false")
 
-
+    parser.add_argument('--xla', help="Enable xla", action="store_true")
     #################################################################################################################
 
 
@@ -289,6 +289,10 @@ if __name__ == '__main__':
             else:
                 session_init = get_model_loader(cfg.BACKBONE.WEIGHTS) if cfg.BACKBONE.WEIGHTS else None
 
+        sess_config = None
+        if args.xla:
+            sess_config = tf.ConfigProto()
+            sess_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
 
         traincfg = TrainConfig(
             model=MODEL,
@@ -303,7 +307,7 @@ if __name__ == '__main__':
             steps_per_epoch=steps_per_epoch,
             max_epoch=max_epoch,
             session_init=session_init,
-            session_config=None,
+            session_config=sess_config,
             starting_epoch=cfg.TRAIN.STARTING_EPOCH
         )
 

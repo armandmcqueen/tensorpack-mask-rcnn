@@ -35,6 +35,7 @@ mpirun -np ${NUM_GPU} \
 -x HOROVOD_TIMELINE=~/timeline.json \
 python3 /home/ec2-user/tensorpack-mask-rcnn/MaskRCNN/train.py \
 --fp16 \
+--xla \
 --throughput_log_freq ${THROUGHPUT_LOG_FREQ} \
 --tfprof \
 --tfprof_start_step 10000 \
@@ -48,7 +49,6 @@ DATA.VAL='("val2017",)' \
 TRAIN.BATCH_SIZE_PER_GPU=${BATCH_SIZE_PER_GPU} \
 TRAIN.LR_EPOCH_SCHEDULE='[(8, 0.1), (10, 0.01), (12, None)]' \
 TRAIN.EVAL_PERIOD=12 \
-TRAIN.XLA=True \
 RPN.TOPK_PER_IMAGE=True \
 PREPROC.PREDEFINED_PADDING=True \
 BACKBONE.WEIGHTS=/home/ec2-user/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
