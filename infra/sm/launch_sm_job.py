@@ -24,6 +24,8 @@ job_name = "maskrcnn-{}x{}-{}".format(num_nodes, num_gpus, image)
 
 output_path = 's3://mrcnn-sagemaker/sagemaker_training_release'
 
+s3_path = "s3://armand-ajay-workshop/mask-rcnn/sagemaker/input/train"
+
 hyperparams = {"sagemaker_use_mpi": "True",
                "sagemaker_process_slots_per_host": num_gpus,
                "num_gpus":num_gpus,
@@ -39,4 +41,5 @@ estimator = Estimator(image_name, role=sagemaker_iam_role, output_path=output_pa
                       subnets=['subnet-21ac2f2e'],
                       hyperparameters=hyperparams)
 
-estimator.fit(wait=False)
+#estimator.fit(wait=False)
+estimator.fit({'train':s3_path}, wait=False)

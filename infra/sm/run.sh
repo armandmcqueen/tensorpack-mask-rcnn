@@ -10,13 +10,13 @@ echo "Launch training job...."
 	--config \
 	MODE_MASK=True \
 	MODE_FPN=True \
-	DATA.BASEDIR=/opt/ml/code/data \
+	DATA.BASEDIR=/opt/ml/input/data/train \
 	DATA.TRAIN='["train2017"]' \
 	DATA.VAL='("val2017",)' \
 	TRAIN.BATCH_SIZE_PER_GPU=${BATCH_SIZE_PER_GPU} \
 	TRAIN.LR_EPOCH_SCHEDULE='[(8, 0.1), (10, 0.01), (12, None)]' \
 	TRAIN.EVAL_PERIOD=12 \
-	BACKBONE.WEIGHTS=/opt/ml/code/data/pretrained-models/ImageNet-R50-AlignPadding.npz \
+	BACKBONE.WEIGHTS=/opt/ml/input/data/train/pretrained-models/ImageNet-R50-AlignPadding.npz \
   RPN.TOPK_PER_IMAGE=True \
   PREPROC.PREDEFINED_PADDING=True \
   TRAIN.GRADIENT_CLIP=0 \
