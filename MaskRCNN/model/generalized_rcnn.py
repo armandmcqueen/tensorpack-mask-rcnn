@@ -103,7 +103,7 @@ class DetectionModel(ModelDesc):
 
 
         opt = tf.train.MomentumOptimizer(lr, 0.9)
-        opt = TestOptimizer(opt)
+        #opt = TestOptimizer(opt)
         #if cfg.TRAIN.NUM_GPUS < 8:
         #    opt = optimizer.AccumGradOptimizer(opt, 8 // cfg.TRAIN.NUM_GPUS)
         if cfg.TRAIN.GRADIENT_CLIP != 0:
