@@ -10,7 +10,7 @@ from tensorpack.tfutils.summary import add_moving_summary
 
 from config import config as cfg
 from model_box import clip_boxes
-from utils.mixed_precision import mixed_precision_scope
+from utils.mixed_precision import mixed_precision_scope, xla_scope
 
 @layer_register(log_shape=True)
 @auto_reuse_variable_scope
@@ -31,24 +31,31 @@ def rpn_head(featuremap, channel, num_anchors, seed_gen, fp16=False):
         label_logits: BS x H_feature x W_feature x NA
         box_logits: BS x (NA * 4) x H_feature x W_feature, encoded
     """
+    xla = cfg.TRAIN.XLA
     if fp16:
-        featuremap = tf.cast(featuremap, tf.float16)
+        with xla_scope(enable=xla):
+            featuremap = tf.cast(featuremap, tf.float16)
 
     with mixed_precision_scope(mixed=fp16):
         with argscope(Conv2D, data_format='channels_first',
                       kernel_initializer=tf.random_normal_initializer(stddev=0.01, seed=seed_gen.next())):
-            hidden = Conv2D('conv0', featuremap, channel, 3, activation=tf.nn.relu, seed=seed_gen.next())
+            with xla_scope(enable=xla):
+                hidden = Conv2D('conv0', featuremap, channel, 3, activation=tf.nn.relu, seed=seed_gen.next())
             # BS x NumChannel x H_feature x W_feature
-            label_logits = Conv2D('class', hidden, num_anchors, 1, seed=seed_gen.next())
+            with xla_scope(enable=xla):
+                label_logits = Conv2D('class', hidden, num_anchors, 1, seed=seed_gen.next())
             # BS x NA x H_feature x W_feature
-            box_logits = Conv2D('box', hidden, 4 * num_anchors, 1, seed=seed_gen.next())
+            with xla_scope(enable=xla):
+                box_logits = Conv2D('box', hidden, 4 * num_anchors, 1, seed=seed_gen.next())
             # BS x (NA*4) x H_feature x W_feature
-
-            label_logits = tf.transpose(label_logits, [0, 2, 3, 1])  # BS x H_feature x W_feature x NA
+            with xla_scope(enable=xla):
+                label_logits = tf.transpose(label_logits, [0, 2, 3, 1])  # BS x H_feature x W_feature x NA
 
     if fp16:
-        label_logits = tf.cast(label_logits, tf.float32)
-        box_logits = tf.cast(box_logits, tf.float32)
+        with xla_scope(enable=xla):
+            label_logits = tf.cast(label_logits, tf.float32)
+        with xla_scope(enable=xla):
+            box_logits = tf.cast(box_logits, tf.float32)
 
     return label_logits, box_logits
 
@@ -70,15 +77,21 @@ def rpn_losses(anchor_labels, anchor_boxes, label_logits, box_logits):
     Returns:
         label_loss, box_loss
     """
+    xla = cfg.TRAIN.XLA
     with tf.device('/cpu:0'):
-        valid_mask = tf.stop_gradient(tf.not_equal(anchor_labels, -1))
-        pos_mask = tf.stop_gradient(tf.equal(anchor_labels, 1))
-        nr_valid = tf.stop_gradient(tf.count_nonzero(valid_mask, dtype=tf.int32), name='num_valid_anchor')
-        nr_pos = tf.identity(tf.count_nonzero(pos_mask, dtype=tf.int32), name='num_pos_anchor')
+        with xla_scope(enable=xla):
+            valid_mask = tf.stop_gradient(tf.not_equal(anchor_labels, -1))
+        with xla_scope(enable=xla):
+            pos_mask = tf.stop_gradient(tf.equal(anchor_labels, 1))
+        with xla_scope(enable=xla):
+            nr_valid = tf.stop_gradient(tf.count_nonzero(valid_mask, dtype=tf.int32), name='num_valid_anchor')
+        with xla_scope(enable=xla):
+            nr_pos = tf.identity(tf.count_nonzero(pos_mask, dtype=tf.int32), name='num_pos_anchor')
         # nr_pos is guaranteed >0 in C4. But in FPN. even nr_valid could be 0.
-
-        valid_anchor_labels = tf.boolean_mask(anchor_labels, valid_mask)
-    valid_label_logits = tf.boolean_mask(label_logits, valid_mask)
+        with xla_scope(enable=xla):
+            valid_anchor_labels = tf.boolean_mask(anchor_labels, valid_mask)
+    with xla_scope(enable=xla):
+        valid_label_logits = tf.boolean_mask(label_logits, valid_mask)
 
     # with tf.name_scope('label_metrics'):
     #     valid_label_prob = tf.nn.sigmoid(valid_label_logits)
@@ -104,19 +117,26 @@ def rpn_losses(anchor_labels, anchor_boxes, label_logits, box_logits):
     # Per-level loss summaries in FPN may appear lower due to the use of a small placeholder.
     # But the total RPN loss will be fine.  TODO make the summary op smarter
     placeholder = 0.
-    label_loss = tf.nn.sigmoid_cross_entropy_with_logits(
-        labels=tf.cast(valid_anchor_labels, tf.float32), logits=valid_label_logits)
-    label_loss = tf.reduce_sum(label_loss) * (1. / cfg.RPN.BATCH_PER_IM)
-    label_loss = tf.where(tf.equal(nr_valid, 0), placeholder, label_loss, name='label_loss')
+    with xla_scope(enable=xla):
+        label_loss = tf.nn.sigmoid_cross_entropy_with_logits(
+            labels=tf.cast(valid_anchor_labels, tf.float32), logits=valid_label_logits)
+    with xla_scope(enable=xla):
+        label_loss = tf.reduce_sum(label_loss) * (1. / cfg.RPN.BATCH_PER_IM)
+    with xla_scope(enable=xla):
+        label_loss = tf.where(tf.equal(nr_valid, 0), placeholder, label_loss, name='label_loss')
 
-    pos_anchor_boxes = tf.boolean_mask(anchor_boxes, pos_mask)
-    pos_box_logits = tf.boolean_mask(box_logits, pos_mask)
+    with xla_scope(enable=xla):
+        pos_anchor_boxes = tf.boolean_mask(anchor_boxes, pos_mask)
+    with xla_scope(enable=xla):
+        pos_box_logits = tf.boolean_mask(box_logits, pos_mask)
     delta = 1.0 / 9
-    box_loss = tf.losses.huber_loss(
-        pos_anchor_boxes, pos_box_logits, delta=delta,
-        reduction=tf.losses.Reduction.SUM) / delta
+    with xla_scope(enable=xla):
+        box_loss = tf.losses.huber_loss(
+            pos_anchor_boxes, pos_box_logits, delta=delta,
+            reduction=tf.losses.Reduction.SUM) / delta
     box_loss = box_loss * (1. / cfg.RPN.BATCH_PER_IM)
-    box_loss = tf.where(tf.equal(nr_pos, 0), placeholder, box_loss, name='box_loss')
+    with xla_scope(enable=xla):
+        box_loss = tf.where(tf.equal(nr_pos, 0), placeholder, box_loss, name='box_loss')
 
     # add_moving_summary(label_loss, box_loss, nr_valid, nr_pos)
     return [label_loss, box_loss]
@@ -133,6 +153,7 @@ def multilevel_rpn_losses(multilevel_anchors, multilevel_label_logits, multileve
     Returns:
         label_loss, box_loss
     """
+    xla = cfg.TRAIN.XLA
     num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
     assert len(multilevel_anchors) == num_lvl
     assert len(multilevel_label_logits) == num_lvl
@@ -148,8 +169,10 @@ def multilevel_rpn_losses(multilevel_anchors, multilevel_label_logits, multileve
                 name_scope='level{}'.format(lvl + 2))
             losses.extend([label_loss, box_loss])
 
-        total_label_loss = tf.add_n(losses[::2])
-        total_box_loss = tf.add_n(losses[1::2])
+        with xla_scope(enable=xla):
+            total_label_loss = tf.add_n(losses[::2])
+        with xla_scope(enable=xla):
+            total_box_loss = tf.add_n(losses[1::2])
     return [total_label_loss, total_box_loss]
 
 
@@ -172,6 +195,7 @@ def generate_fpn_proposals(multilevel_anchor_boxes,
         boxes: K x 5 float
         scores:  1-D, K (logits)
     """
+    xla = cfg.TRAIN.XLA
     prefix = "model_fpn.generate_fpn_proposals"
     bug_prefix = "GEN_PROPOSALS_BUG fpn"
     num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
@@ -185,13 +209,16 @@ def generate_fpn_proposals(multilevel_anchor_boxes,
         fpn_nms_topk = cfg.RPN.TRAIN_PER_LEVEL_NMS_TOPK*batch_size if training else cfg.RPN.TEST_PER_LEVEL_NMS_TOPK
         for lvl in range(num_lvl):
             with tf.name_scope(f'Lvl{lvl}'):
-                im_info = tf.cast(orig_images_hw, tf.float32)
+                with xla_scope(enable=xla):
+                    im_info = tf.cast(orig_images_hw, tf.float32)
 
                 scores = multilevel_label_logits[lvl] # BS x H_feature x W_featurex NA
-                bbox_deltas = tf.transpose(multilevel_box_logits[lvl],[0, 2, 3, 1]) #BS x H_feature x W_feature x (NA * 4)
+                with xla_scope(enable=xla):
+                    bbox_deltas = tf.transpose(multilevel_box_logits[lvl],[0, 2, 3, 1]) #BS x H_feature x W_feature x (NA * 4)
 
                 single_level_anchor_boxes = multilevel_anchor_boxes[lvl]
-                single_level_anchor_boxes = tf.reshape(single_level_anchor_boxes, (-1, 4))
+                with xla_scope(enable=xla):
+                    single_level_anchor_boxes = tf.reshape(single_level_anchor_boxes, (-1, 4))
 
 
                 # # This is a custom tensorflow op that translates the bbox deltas into bounding box coordinates
@@ -199,28 +226,34 @@ def generate_fpn_proposals(multilevel_anchor_boxes,
                 #
                 # roi: (# boxes for a single level) x 5, the 5 colunms arranged as: batch_index, x_1, y_1, x_2, y_2
                 # rois_probs: 1-D, # boxes for a single level
-                rois, rois_probs = tf.generate_bounding_box_proposals(scores,
-                                                                   bbox_deltas,
-                                                                   im_info,
-                                                                   single_level_anchor_boxes,
-                                                                   spatial_scale=1.0 / cfg.FPN.ANCHOR_STRIDES[lvl],
-                                                                   pre_nms_topn=fpn_nms_topk,
-                                                                   post_nms_topn=fpn_nms_topk,
-                                                                   nms_threshold=cfg.RPN.PROPOSAL_NMS_THRESH,
-                                                                   min_size=cfg.RPN.MIN_SIZE)
+                with xla_scope(enable=xla):
+                    rois, rois_probs = tf.generate_bounding_box_proposals(scores,
+                                                                          bbox_deltas,
+                                                                          im_info,
+                                                                          single_level_anchor_boxes,
+                                                                          spatial_scale=1.0 / cfg.FPN.ANCHOR_STRIDES[lvl],
+                                                                          pre_nms_topn=fpn_nms_topk,
+                                                                          post_nms_topn=fpn_nms_topk,
+                                                                          nms_threshold=cfg.RPN.PROPOSAL_NMS_THRESH,
+                                                                          min_size=cfg.RPN.MIN_SIZE)
                 # rois_probs = print_runtime_shape(f'rois_probs, lvl {lvl}', rois_probs, prefix=bug_prefix)
                 all_boxes.append(rois)
                 all_scores.append(rois_probs)
+        with xla_scope(enable=xla):
+            proposal_boxes = tf.concat(all_boxes, axis=0)  # Num_all_rois x 5
+        with xla_scope(enable=xla):
+            proposal_boxes = tf.reshape(proposal_boxes, [-1, 5]) # Num_all_rois x 5
+        with xla_scope(enable=xla):
+            proposal_scores = tf.concat(all_scores, axis=0)  # 1-D Num_all_rois
+        with xla_scope(enable=xla):
+            proposal_scores = tf.reshape(proposal_scores, [-1])  # 1-D Num_all_rois
 
-        proposal_boxes = tf.concat(all_boxes, axis=0)  # Num_all_rois x 5
-        proposal_boxes = tf.reshape(proposal_boxes, [-1, 5]) # Num_all_rois x 5
-
-        proposal_scores = tf.concat(all_scores, axis=0)  # 1-D Num_all_rois
-        proposal_scores = tf.reshape(proposal_scores, [-1])  # 1-D Num_all_rois
-
-        proposal_topk = tf.minimum(tf.size(proposal_scores), fpn_nms_topk)
-        proposal_scores, topk_indices = tf.nn.top_k(proposal_scores, k=proposal_topk, sorted=False)
-        proposal_boxes = tf.gather(proposal_boxes, topk_indices) # K x 5
+        with xla_scope(enable=xla):
+            proposal_topk = tf.minimum(tf.size(proposal_scores), fpn_nms_topk)
+        with xla_scope(enable=xla):
+            proposal_scores, topk_indices = tf.nn.top_k(proposal_scores, k=proposal_topk, sorted=False)
+        with xla_scope(enable=xla):
+            proposal_boxes = tf.gather(proposal_boxes, topk_indices) # K x 5
 
     else:
         raise RuntimeError("Only level-wise predictions are supported with batches")
@@ -247,6 +280,7 @@ def generate_fpn_proposals_topk_per_image(multilevel_anchor_boxes,
         scores:  (#lvl x BS x K) vector       (logits)
     """
 
+    xla = cfg.TRAIN.XLA
     num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
     assert len(multilevel_label_logits) == num_lvl
     orig_images_hw = orig_image_dims[:, :2]
@@ -266,39 +300,48 @@ def generate_fpn_proposals_topk_per_image(multilevel_anchor_boxes,
             all_scores = []
             for lvl in range(num_lvl):
                 with tf.name_scope(f'Lvl{lvl}'):
-                    im_info = tf.cast(orig_images_hw[i:(i + 1)], tf.float32)
+                    with xla_scope(enable=xla):
+                        im_info = tf.cast(orig_images_hw[i:(i + 1)], tf.float32)
                     # h, w
 
                     scores = multilevel_label_logits[lvl][i:(i + 1)]
-                    bbox_deltas = tf.transpose(multilevel_box_logits[lvl][i:(i + 1)], [0, 2, 3, 1])
+                    with xla_scope(enable=xla):
+                        bbox_deltas = tf.transpose(multilevel_box_logits[lvl][i:(i + 1)], [0, 2, 3, 1])
 
                     single_level_anchor_boxes = multilevel_anchor_boxes[lvl]
-                    single_level_anchor_boxes = tf.reshape(single_level_anchor_boxes, (-1, 4))
+                    with xla_scope(enable=xla):
+                        single_level_anchor_boxes = tf.reshape(single_level_anchor_boxes, (-1, 4))
 
                     # https://caffe2.ai/docs/operators-catalogue.html#generateproposals
-                    rois, rois_probs = tf.generate_bounding_box_proposals(scores,
-                                                                          bbox_deltas,
-                                                                          im_info,
-                                                                          single_level_anchor_boxes,
-                                                                          spatial_scale=1.0 / cfg.FPN.ANCHOR_STRIDES[
-                                                                              lvl],
-                                                                          pre_nms_topn=fpn_nms_topk,
-                                                                          post_nms_topn=fpn_nms_topk,
-                                                                          nms_threshold=cfg.RPN.PROPOSAL_NMS_THRESH,
-                                                                          min_size=cfg.RPN.MIN_SIZE)
+                    with xla_scope(enable=xla):
+                        rois, rois_probs = tf.generate_bounding_box_proposals(scores,
+                                                                              bbox_deltas,
+                                                                              im_info,
+                                                                              single_level_anchor_boxes,
+                                                                              spatial_scale=1.0 / cfg.FPN.ANCHOR_STRIDES[lvl],
+                                                                              pre_nms_topn=fpn_nms_topk,
+                                                                              post_nms_topn=fpn_nms_topk,
+                                                                              nms_threshold=cfg.RPN.PROPOSAL_NMS_THRESH,
+                                                                              min_size=cfg.RPN.MIN_SIZE)
 
                     # rois_probs = print_runtime_shape(f'rois_probs, lvl {lvl}', rois_probs, prefix=bug_prefix)
                     all_boxes.append(tf.concat((i + rois[:, :1], rois[:, 1:]), axis=1))
                     all_scores.append(rois_probs)
 
-            proposal_boxes = tf.concat(all_boxes, axis=0)  # (#lvl x BS) x K x 5
-            proposal_boxes = tf.reshape(proposal_boxes, [-1, 5])  # (#lvl x BS x K) x 5
+            with xla_scope(enable=xla):
+                proposal_boxes = tf.concat(all_boxes, axis=0)  # (#lvl x BS) x K x 5
+            with xla_scope(enable=xla):
+                proposal_boxes = tf.reshape(proposal_boxes, [-1, 5])  # (#lvl x BS x K) x 5
 
-            proposal_scores = tf.concat(all_scores, axis=0)  # (#lvl x BS) x K
-            proposal_scores = tf.reshape(proposal_scores, [-1])  # (#lvl x BS x 5) vector
+            with xla_scope(enable=xla):
+                proposal_scores = tf.concat(all_scores, axis=0)  # (#lvl x BS) x K
+            with xla_scope(enable=xla):
+                proposal_scores = tf.reshape(proposal_scores, [-1])  # (#lvl x BS x 5) vector
 
-            topk = tf.minimum(tf.size(proposal_scores), fpn_nms_topk)
-            topk_scores, topk_indices = tf.nn.top_k(proposal_scores, k=topk, sorted=False)
+            with xla_scope(enable=xla):
+                topk = tf.minimum(tf.size(proposal_scores), fpn_nms_topk)
+            with xla_scope(enable=xla):
+                topk_scores, topk_indices = tf.nn.top_k(proposal_scores, k=topk, sorted=False)
 
             boxes_list.append(tf.gather(proposal_boxes, topk_indices))
             scores_list.append(tf.gather(proposal_scores, topk_indices))
@@ -316,9 +359,10 @@ def generate_fpn_proposals_topk_per_image(multilevel_anchor_boxes,
         #            image_proposal_scores, image_topk_indices = tf.nn.top_k(image_scores, k=image_proposal_topk, sorted=False)
         #            boxes_list.append(tf.gather(image_boxes, image_topk_indices))
         #            scores_list.append(image_proposal_scores)
-
-        boxes = tf.concat(boxes_list, axis=0)
-        scores = tf.concat(scores_list, axis=0)
+        with xla_scope(enable=xla):
+            boxes = tf.concat(boxes_list, axis=0)
+        with xla_scope(enable=xla):
+            scores = tf.concat(scores_list, axis=0)
 
         #        proposal_topk = tf.minimum(tf.size(proposal_scores), fpn_nms_topk)
     #        proposal_scores, topk_indices = tf.nn.top_k(proposal_scores, k=proposal_topk, sorted=False)

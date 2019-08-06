@@ -43,3 +43,8 @@ def mixed_precision_scope(mixed=True, *args, **kwargs):
                              custom_getter=float32_variable_storage_getter,
                              reuse=tf.AUTO_REUSE, *args, **kwargs)
 
+def xla_scope(enable=True):
+    if not enable:
+        return suppress()
+
+    return tf.contrib.compiler.jit.experimental_jit_scope()
