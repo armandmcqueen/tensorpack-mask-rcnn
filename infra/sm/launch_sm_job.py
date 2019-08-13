@@ -17,19 +17,19 @@ sess = sage.Session()
 image_name=f"{account}.dkr.ecr.{region}.amazonaws.com/{image}"
 sagemaker_iam_role = str(sys.argv[2]) #get_execution_role()
 num_gpus = 8
-num_nodes = 1
+num_nodes = 2
 instance_type = 'ml.p3.16xlarge'
 custom_mpi_cmds = []
 
-job_name = "maskrcnn-{}x{}-{}".format(num_nodes, num_gpus, image)
+job_name = "2node-fsx-maskrcnn-{}x{}-{}".format(num_nodes, num_gpus, image)
 
 output_path = 's3://mrcnn-sagemaker/sagemaker_training_release'
 
 s3_path = "s3://armand-ajay-workshop/mask-rcnn/sagemaker/input/train"
 
-lustre_input = FileSystemInput(file_system_id='fs-03f556d03c3c590a2',
-                               file_system_type='FSxLustre',
-                               directory_path='/',
+lustre_input = FileSystemInput(file_system_id='fs-07ad3eb03763db86e', #'fs-7f80fbd4'
+                               file_system_type='FSxLustre',#'EFS'
+                               directory_path='/fsx', #'/'
                                file_system_access_mode='ro')
 
 hyperparams = {"sagemaker_use_mpi": "True",
@@ -38,14 +38,15 @@ hyperparams = {"sagemaker_use_mpi": "True",
                "num_nodes": num_nodes,
                "custom_mpi_cmds": custom_mpi_cmds}
 
+#image_name = "578276202366.dkr.ecr.us-west-2.amazonaws.com/fewu-mask-rcnn"
 estimator = Estimator(image_name, role=sagemaker_iam_role, output_path=output_path,
                       train_instance_count=num_nodes,
                       train_instance_type=instance_type,
                       sagemaker_session=sess,
-                      security_group_ids=['sg-a21b02eb'],
+                      security_group_ids=['sg-8090bbfe'],
                       train_volume_size=200,
                       base_job_name=job_name,
-                      subnets=['subnet-21ac2f2e'],
+                      subnets=['subnet-7c7af405'],
                       hyperparameters=hyperparams)
 
 #estimator.fit(wait=False)

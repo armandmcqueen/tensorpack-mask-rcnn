@@ -3,6 +3,11 @@ FROM fewu/sagemaker-mask-rcnn:lateset
 # Copies the training code inside the container
 COPY run_mpi.py /opt/ml/code/run_mpi.py
 COPY run.sh /opt/ml/code/run.sh
+RUN chmod +x /opt/ml/code/run.sh
+
+RUN git clone https://github.com/armandmcqueen/tensorpack-mask-rcnn /opt/ml/code/tensorpack-mask-rcnn
+RUN chmod -R +w /opt/ml/code/tensorpack-mask-rcnn
+RUN pip install --ignore-installed -e /opt/ml/code/tensorpack-mask-rcnn/
 
 # Defines train.py as script entry point
 ENV SAGEMAKER_PROGRAM run_mpi.py
