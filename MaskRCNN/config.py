@@ -132,6 +132,7 @@ _C.TRAIN.BATCH_SIZE_PER_GPU = 1
 _C.TRAIN.SEED = 1234
 _C.TRAIN.GRADIENT_CLIP = 0 # set non-zero value to enable gradient clip, 0.36 is recommended for 32x4
 _C.TRAIN.XLA = False
+_C.TRAIN.DOUBLE_BIAS = False
 
 # preprocessing --------------------
 # Alternative old (worse & faster) setting: 600

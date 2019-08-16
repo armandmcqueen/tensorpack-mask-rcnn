@@ -53,23 +53,20 @@ class GradientClipOptimizer(tf.train.Optimizer):
         return self.opt.variables(*args, **kwargs)
 
 
-class TestOptimizer(tf.train.Optimizer):
+class DoubleBiasOptimizer(tf.train.Optimizer):
     def __init__(self, opt):
         self.opt = opt
 
     def compute_gradients(self, *args, **kwargs):
         from performance import print_runtime_tensor_loose_branch
-        import horovod.tensorflow as hvd
         gradvars = self.opt.compute_gradients(*args, **kwargs)
-        type = None
+        grads_and_vars = []
         for grad, var in gradvars:
-            if grad is not None:
-                if not type:
-                    type = grad.dtype
-                else:
-                    assert grad.dtype == type
-        gradvars[0] = (print_runtime_tensor_loose_branch('grad type ', type, prefix=f'[fewu]rank{hvd.rank()}', trigger_tensor=gradvars[0][0]), gradvars[0][1])
-        return gradvars
+            if grad is not None and ('beta:0' in var.name or 'b:0' in var.name):
+                grad = 2.0 * grad
+                grad = print_runtime_tensor_loose_branch(f"Double gradient for {var.name}", prefix='fewu', trigger_tensor=grad)
+            grads_and_vars.append((grad, var))
+        return grads_and_vars
 
     def apply_gradients(self, *args, **kwargs):
         return self.opt.apply_gradients(*args, **kwargs)
@@ -105,6 +102,8 @@ class DetectionModel(ModelDesc):
         #opt = TestOptimizer(opt)
         #if cfg.TRAIN.NUM_GPUS < 8:
         #    opt = optimizer.AccumGradOptimizer(opt, 8 // cfg.TRAIN.NUM_GPUS)
+        if cfg.TRAIN.DOUBLE_BIAS:
+            opt = DoubleBiasOptimizer(opt)
         if cfg.TRAIN.GRADIENT_CLIP != 0:
             opt = GradientClipOptimizer(opt, cfg.TRAIN.GRADIENT_CLIP)
         return opt
