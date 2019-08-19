@@ -65,7 +65,7 @@ class DoubleBiasOptimizer(tf.train.Optimizer):
         for grad, var in gradvars:
             if grad is not None and ('beta:0' in var.name or 'b:0' in var.name):
                 grad = 2.0 * grad
-                if hvd.rank==0: print_runtime_tensor(f"Double gradient for: {var.name}, grad val:", grad, prefix='fewu')
+                if hvd.rank()==0: print_runtime_tensor(f"Double gradient for: {var.name}, grad val:", grad, prefix='fewu')
             grads_and_vars.append((grad, var))
         return grads_and_vars
 
