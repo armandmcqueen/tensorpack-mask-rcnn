@@ -250,7 +250,7 @@ def finalize_configs(is_training):
 
         # setup NUM_GPUS
         if _C.TRAINER == 'horovod':
-            import horovod.tensorflow as hvd
+            import byteps.tensorflow as hvd
             ngpu = hvd.size()
 
             if ngpu == hvd.local_size():

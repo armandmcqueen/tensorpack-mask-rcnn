@@ -28,7 +28,7 @@ from dataset import DetectionDataset
 from config import config as cfg
 
 try:
-    import horovod.tensorflow as hvd
+    import byteps.tensorflow as hvd
 except ImportError:
     pass
 

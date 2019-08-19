@@ -31,7 +31,7 @@ __all__ = ['NoOpTrainer', 'SimpleTrainer',
            'AsyncMultiGPUTrainer',
            'DistributedTrainerParameterServer',
            'DistributedTrainerReplicated',
-           'HorovodTrainer']
+           'HorovodTrainer', 'BytePSTrainer']
 
 
 def _int_to_range(x):
@@ -316,18 +316,12 @@ class DistributedTrainerReplicated(DistributedTrainerBase):
 class HorovodTrainer(SingleCostTrainer):
     """
     Horovod trainer, support both multi-GPU and distributed training.
-
     To use for multi-GPU training:
-
     .. code-block:: bash
-
         # First, change trainer to HorovodTrainer(), then
         CUDA_VISIBLE_DEVICES=0,1,2,3 NCCL_DEBUG=INFO mpirun -np 4 --output-filename mylog python train.py
-
     To use for distributed training:
-
     .. code-block:: bash
-
         # First, change trainer to HorovodTrainer(), then
         mpirun -np 8 -H server1:4,server2:4  \\
             -bind-to none -map-by slot \\
@@ -336,72 +330,69 @@ class HorovodTrainer(SingleCostTrainer):
         # Add other environment variables you need by -x, e.g. PYTHONPATH, PATH.
         # If using all GPUs, you can always skip the `CUDA_VISIBLE_DEVICES` option.
         # There are other MPI options that can potentially improve performance especially on special hardwares.
-
     Note:
         1. To reach the maximum speed in your system, there are many options to tune
            for Horovod installation and in the MPI command line.
            See Horovod docs for details.
-
-        2. Due to a TF bug, you must not initialize CUDA context before the trainer starts training.
+        2. Due to a TF bug (#8136), you must not initialize CUDA context before the trainer starts training.
            Therefore TF functions like `is_gpu_available()` or `list_local_devices()`
            must be avoided.
-
+           You can, however, use `tf.config.experimental.list_physical_devices('GPU')`, introduced in TF 1.14.
         2. MPI does not like `fork()`. If your dataflow contains multiprocessing, it may cause problems.
-
         3. MPI sometimes fails to kill all processes in the end. Be sure to check it afterwards.
-
         4. Keep in mind that there is one process running the script per GPU, therefore:
-
            + Make sure your InputSource has reasonable randomness.
-
            + If your data processing is heavy, doing it in a single dedicated process might be
              a better choice than doing them repeatedly in each process.
-
            + You need to make sure log directories in each process won't conflict.
              You can set it only for the chief process, or set a different one for each process.
-
            + Callbacks have an option to be run only in the chief process, or in all processes.
              See :meth:`Callback.set_chief_only()`. Most callbacks have a reasonable
              default already, but certain callbacks may not behave properly by default. Report an issue if you find any.
-
            + You can use Horovod API such as `hvd.rank()` to know which process you are and choose
              different code path. Chief process has rank 0.
-
         5. Due to these caveats, see
            `ResNet-Horovod <https://github.com/tensorpack/benchmarks/tree/master/ResNet-Horovod>`_
            for a full example which has handled these common issues.
            This example can train ImageNet in roughly an hour following the paper's setup.
     """
-    def __init__(self, average=True):
+    def __init__(self, average=True, compression=None):
         """
         Args:
             average (bool): whether to average or sum the gradients across processes.
+            compression: `hvd.Compression.fp16` or `hvd.Compression.none`
         """
         if 'pyarrow' in sys.modules:
             logger.warn("Horovod and pyarrow may conflict due to pyarrow bugs. "
                         "Uninstall pyarrow and use msgpack instead.")
         # lazy import
-        import horovod.tensorflow as _hvd
-        global hvd
-        hvd = _hvd
+        import horovod.tensorflow as hvd
+        import horovod
+        hvd_version = tuple(map(int, horovod.__version__.split('.')))
+        self.hvd = hvd
 
         hvd.init()
         self.is_chief = hvd.rank() == 0
         self._local_rank = hvd.local_rank()
         self._rank = hvd.rank()
         self._average = average
+        self._compression = compression
+        self._has_compression = hvd_version >= (0, 15, 0)
         logger.info("[HorovodTrainer] local rank={}".format(self._local_rank))
         super(HorovodTrainer, self).__init__()
 
     def allreduce(self, grads):
-        if hvd.size() == 1:
+        if self.hvd.size() == 1:
             return grads
         # copied from https://github.com/uber/horovod/blob/master/horovod/tensorflow/__init__.py
         averaged_gradients = []
-        with tf.name_scope("HVDAllReduce"):
+        with tf.name_scope("AllReduce"):
             for grad, var in grads:
                 if grad is not None:
-                    avg_grad = hvd.allreduce(grad, average=self._average)
+                    if self._compression is not None and self._has_compression:
+                        avg_grad = self.hvd.allreduce(grad, average=self._average, compression=self._compression)
+                    else:
+                        avg_grad = self.hvd.allreduce(grad, average=self._average)
                     averaged_gradients.append((avg_grad, var))
                 else:
                     averaged_gradients.append((None, var))
@@ -416,11 +407,12 @@ class HorovodTrainer(SingleCostTrainer):
             self.train_op = opt.apply_gradients(grads, name='train_op')
 
         def broadcast(self):
-            logger.info("Running horovod broadcast ...")
+            logger.info("Running broadcast ...")
             # the op will be created later in initialize()
             self.trainer._broadcast_op.run()
 
-        cb = CallbackFactory(trigger=broadcast).set_chief_only(False)
+        # TODO provide a way to sync manually
+        cb = CallbackFactory(before_train=broadcast).set_chief_only(False)
         return [cb]
 
     @HIDE_DOC
@@ -428,18 +420,17 @@ class HorovodTrainer(SingleCostTrainer):
         # broadcast_op should be the last setup_graph: it needs to be created
         # "right before" the graph is finalized,
         # because it needs to capture all the variables (which may be created by callbacks).
-        with tf.name_scope('horovod_broadcast'):
-            self._broadcast_op = hvd.broadcast_global_variables(0)
+        self._broadcast_op = self.hvd.broadcast_global_variables(0)
 
         # it's important that our NewSessionCreator does not finalize the graph
         if not isinstance(session_creator, NewSessionCreator):
             raise ValueError(
-                "session_creator has to be `NewSessionCreator` for horovod training! ")
+                "session_creator has to be `NewSessionCreator` for horovod/byteps training! ")
         # NOTE It will fail if GPU was already detected before initializing the session
         # https://github.com/tensorflow/tensorflow/issues/8136
         session_creator.config.gpu_options.visible_device_list = str(self._local_rank)
         try:
-            session_creator.config.inter_op_parallelism_threads = mp.cpu_count() // hvd.local_size()
+            session_creator.config.inter_op_parallelism_threads = mp.cpu_count() // self.hvd.local_size()
         except AttributeError:  # old horovod does not have local_size
             pass
         super(HorovodTrainer, self).initialize(session_creator, session_init)
@@ -456,5 +447,39 @@ class HorovodTrainer(SingleCostTrainer):
         self.sess.run(self._broadcast_op)
 
 
-# for lazy import
-hvd = None
+class BytePSTrainer(HorovodTrainer):
+    """
+    BytePS trainer. Supports both multi-GPU and distributed training.
+    It achieves better scalability than horovod in distributed training, if the model is communication
+    intensive and you have properly set up the machines following its
+    `best practices <https://github.com/bytedance/byteps/blob/master/docs/best-practice.md>`_
+    which requires a few extra bandwidth servers than horovod.
+    To use it, switch the trainer, and refer to BytePS documentation on how to
+    launch server/scheduler/workers.
+    Attributes:
+        hvd (module): the byteps module that contains horovod-compatible APIs
+            like `rank(),size()`.
+            This attribute exists so that downstream code that uses these APIs
+            does not need to worry about which library is being used under the hood.
+    """
+    def __init__(self, average=True):
+        """
+        Args:
+            average (bool): whether to average or sum the gradients across processes.
+        """
+        import byteps.tensorflow as bps
+        self.hvd = bps  # BytePS has the same interface as Horovod
+        self.hvd.allreduce = bps.push_pull  # https://github.com/bytedance/byteps/issues/8
+        assert os.environ.get("DMLC_ROLE", None) == "worker"
+        assert "DMLC_WORKER_ID" in os.environ and "DMLC_NUM_WORKER" in os.environ
+        bps.init()
+        self.is_chief = bps.rank() == 0
+
+        self._local_rank = bps.local_rank()
+        self._rank = bps.rank()
+        self._average = average
+
+        self._compression = None
+        self._has_compression = False
+        logger.info("[BytePSTrainer] local rank={}".format(self._local_rank))
+        SingleCostTrainer.__init__(self)
