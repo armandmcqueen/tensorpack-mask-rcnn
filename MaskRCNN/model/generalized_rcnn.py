@@ -59,7 +59,7 @@ class DoubleBiasOptimizer(tf.train.Optimizer):
 
     def compute_gradients(self, *args, **kwargs):
         from performance import print_runtime_tensor
-        import horovod as hvd
+        import horovod.tensorflow as hvd
         gradvars = self.opt.compute_gradients(*args, **kwargs)
         grads_and_vars = []
         for grad, var in gradvars:
