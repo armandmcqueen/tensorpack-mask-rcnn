@@ -50,8 +50,22 @@ ENV BYTEPS_BASE_PATH /usr/local
 ENV BYTEPS_PATH $BYTEPS_BASE_PATH/byteps
 ENV BYTEPS_GIT_LINK https://github.com/bytedance/byteps
 
+ARG CUDNN_VERSION=7.4.1.5-1+cuda10.0
 RUN apt-get update &&\
     apt-get install -y --allow-unauthenticated --allow-downgrades --allow-change-held-packages --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    libopenblas-dev \
+    liblapack-dev \
+    libopencv-dev \
+    libjemalloc-dev \
+    graphviz \
+    libjpeg-dev \
+    libpng-dev \
+    iftop \
+    lsb-release \
+    libcudnn7=${CUDNN_VERSION} \
+    libnuma-dev \
     gcc-4.9 \
     g++-4.9 \
     gcc-4.9-base
@@ -86,8 +100,8 @@ RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 200 && \
 # Install BytePS
 ARG BYTEPS_NCCL_LINK=shared
 RUN cd $BYTEPS_PATH &&\
-    BYTEPS_WITHOUT_PYTORCH=1 python setup.py install &&\
-    BYTEPS_WITHOUT_PYTORCH=1 python setup.py bdist_wheel
+    BYTEPS_WITHOUT_PYTORCH=1 BYTEPS_WITHOUT_MXNET=1 python setup.py install &&\
+    BYTEPS_WITHOUT_PYTORCH=1 BYTEPS_WITHOUT_MXNET=1 python setup.py bdist_wheel
 
 # Remove GCC pinning
 RUN update-alternatives --remove gcc /usr/bin/gcc-4.9 && \
