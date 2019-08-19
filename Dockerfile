@@ -50,6 +50,12 @@ ENV BYTEPS_BASE_PATH /usr/local
 ENV BYTEPS_PATH $BYTEPS_BASE_PATH/byteps
 ENV BYTEPS_GIT_LINK https://github.com/bytedance/byteps
 
+RUN apt-get update &&\
+    apt-get install -y --allow-unauthenticated --allow-downgrades --allow-change-held-packages --no-install-recommends \
+    gcc-4.9 \
+    g++-4.9 \
+    gcc-4.9-base
+
 WORKDIR /root/
 
 RUN echo "/usr/local/cuda/lib64" >> /etc/ld.so.conf.d/cuda.conf && \
