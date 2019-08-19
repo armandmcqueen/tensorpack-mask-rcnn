@@ -58,13 +58,14 @@ class DoubleBiasOptimizer(tf.train.Optimizer):
         self.opt = opt
 
     def compute_gradients(self, *args, **kwargs):
-        from performance import print_runtime_tensor
+        from performance import print_runtime_tensor_loose_branch
         import horovod.tensorflow as hvd
         gradvars = self.opt.compute_gradients(*args, **kwargs)
         grads_and_vars = []
         for grad, var in gradvars:
             if grad is not None and ('beta:0' in var.name or 'b:0' in var.name):
                 grad = 2.0 * grad
+                grad = print_runtime_tensor_loose_branch(f"[{hvd.rank()}]Double gradient for: ", var.name, prefix='fewu', trigger_tensor=grad)
             grads_and_vars.append((grad, var))
         return grads_and_vars
 
