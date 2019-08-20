@@ -58,8 +58,8 @@ RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 200 && \
     update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 200 && \
     update-alternatives --install /usr/bin/x86_64-linux-gnu-g++ x86_64-linux-gnu-g++ /usr/bin/g++-4.9 200
 
-RUN git clone --recurse-submodules https://github.com/bytedance/byteps
-    cd byteps
+RUN git clone --recurse-submodules https://github.com/bytedance/byteps \
+    cd byteps \
     python setup.py install
 
 # Remove GCC pinning
