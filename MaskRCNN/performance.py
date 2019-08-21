@@ -108,6 +108,19 @@ def print_runtime_tensor_loose_branch(name, tensor, prefix=None, summarize=-1, t
         return tf.identity(trigger_tensor)
 
 
+def print_runtime_shape_loose_branch(name, tensor, prefix=None, summarize=-1, trigger_tensor=None):
+    assert trigger_tensor is not None
+
+    s = "[runtime_tensor_freehanging_branch] "
+    if prefix is not None:
+        s += f'[{prefix}] '
+    s += name
+
+    print_op = tf.print(s, tf.shape(tensor), summarize=summarize)
+    with tf.control_dependencies([print_op]):
+        return tf.identity(trigger_tensor)
+
+
 
 
 class ThroughputTracker(tensorpack.Callback):

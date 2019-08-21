@@ -279,12 +279,14 @@ def generate_fpn_proposals_topk_per_image(multilevel_anchor_boxes,
         boxes: K x 5 float
         scores:  (#lvl x BS x K) vector       (logits)
     """
-
+    from performance import print_buildtime_shape, print_runtime_shape, print_runtime_shape_loose_branch
+    for i, item in enumerate(multilevel_anchor_boxes):
+        print_buildtime_shape(f"multilevel_anchor_boxes_{i}", item, prefix="fewu")
+        item = print_runtime_shape(f"multilevel_anchor_boxes_{i}", item, prefix="fewu")
     xla = cfg.TRAIN.XLA
     num_lvl = len(cfg.FPN.ANCHOR_STRIDES)
     assert len(multilevel_label_logits) == num_lvl
     orig_images_hw = orig_image_dims[:, :2]
-
     training = get_current_tower_context().is_training
     all_boxes = []
     all_scores = []
@@ -325,6 +327,8 @@ def generate_fpn_proposals_topk_per_image(multilevel_anchor_boxes,
                                                                               min_size=cfg.RPN.MIN_SIZE)
 
                     # rois_probs = print_runtime_shape(f'rois_probs, lvl {lvl}', rois_probs, prefix=bug_prefix)
+                    print_buildtime_shape("im_info", im_info, prefix="fewu")
+                    im_info = print_runtime_shape("im_info", im_info, prefix="fewu")
                     all_boxes.append(tf.concat((i + rois[:, :1], rois[:, 1:]), axis=1))
                     all_scores.append(rois_probs)
 
@@ -363,6 +367,8 @@ def generate_fpn_proposals_topk_per_image(multilevel_anchor_boxes,
             boxes = tf.concat(boxes_list, axis=0)
         with xla_scope(enable=xla):
             scores = tf.concat(scores_list, axis=0)
+        for i, item in enumerate(multilevel_anchor_boxes):
+            scores = print_runtime_shape_loose_branch(f"multilevel_anchor_boxes_{i}_loose", multilevel_anchor_boxes, prefix="fewu", trigger_tensor=scores)
 
         #        proposal_topk = tf.minimum(tf.size(proposal_scores), fpn_nms_topk)
     #        proposal_scores, topk_indices = tf.nn.top_k(proposal_scores, k=proposal_topk, sorted=False)
