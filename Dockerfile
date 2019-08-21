@@ -53,9 +53,13 @@ RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.9 200 && \
     update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.9 200 && \
     update-alternatives --install /usr/bin/x86_64-linux-gnu-g++ x86_64-linux-gnu-g++ /usr/bin/g++-4.9 200
 
-RUN git clone --recurse-submodules https://github.com/bytedance/byteps
-RUN cd /byteps \
-    python setup.py install
+ENV BYTEPS_BASE_PATH /usr/local
+ENV BYTEPS_PATH $BYTEPS_BASE_PATH/byteps
+ENV BYTEPS_GIT_LINK https://github.com/bytedance/byteps
+ARG BYTEPS_NCCL_LINK=shared
+RUN cd $BYTEPS_PATH &&\
+    BYTEPS_WITHOUT_PYTORCH=1 python setup.py install &&\
+    BYTEPS_WITHOUT_PYTORCH=1 python setup.py bdist_wheel
 
 # Remove GCC pinning
 RUN update-alternatives --remove gcc /usr/bin/gcc-4.9 && \
