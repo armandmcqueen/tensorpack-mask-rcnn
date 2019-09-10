@@ -1,5 +1,7 @@
 # Mask RCNN
 
+## NOTE: This repository is archived. This project will continue to be worked on here - https://github.com/aws-samples/mask-rcnn-tensorflow
+
 Performance focused implementation of Mask RCNN based on the [Tensorpack implementation](https://github.com/tensorpack/tensorpack/tree/master/examples/FasterRCNN).
 The original paper: [Mask R-CNN](https://arxiv.org/abs/1703.06870)
 ### Overview
